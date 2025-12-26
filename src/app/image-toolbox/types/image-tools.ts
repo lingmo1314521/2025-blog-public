@@ -1,23 +1,29 @@
-export type ImageFile = {
+export interface ImageFile {
   id: string;
   file: File;
-  preview: string;
+  previewUrl: string;  // 改用 previewUrl 避免 URL 管理冲突
+  originalUrl: string; // 保持原始 URL 不被释放
   width: number;
   height: number;
-  converted?: {
+  processed?: {
     url: string;
     size: number;
     format: string;
+    type: 'converted' | 'filtered' | 'adjusted';
   };
-  converting?: boolean;
-  asciiArt?: string;
-  // 添加错误处理状态
-  error?: string;
-};
+  processing?: boolean;
+  asciiArt?: {
+    text: string;
+    preview: string;
+    style: string;
+    generatedAt: number;
+  };
+}
 
 export type ConversionFormat = 'webp' | 'png' | 'jpg' | 'avif';
 export type AsciiStyle = 'simple' | 'detailed' | 'block' | 'braille' | 'custom';
-export type FilterType = 'grayscale' | 'sepia' | 'invert' | 'vintage' | 'blur';
+export type FilterType = 'grayscale' | 'sepia' | 'invert' | 'vintage' | 'blur' | 'sharpen';
+export type AdjustType = 'brightness' | 'contrast' | 'saturation' | 'rotation' | 'flip';
 
 export interface ConversionOptions {
   format: ConversionFormat;
@@ -34,6 +40,7 @@ export interface AsciiOptions {
   color: boolean;
   customChars?: string;
   density: number;
+  fontSize: number;
 }
 
 export interface AdjustOptions {
@@ -45,16 +52,20 @@ export interface AdjustOptions {
   flipVertical: boolean;
 }
 
-// 添加图片处理结果类型
-export interface ImageProcessResult {
-  success: boolean;
-  data?: string | Blob;
-  error?: string;
+export interface FilterOptions {
+  type: FilterType;
+  intensity: number;
 }
 
-// 添加事件处理类型
-export interface ImageEventHandlers {
-  onLoad?: (image: ImageFile) => void;
-  onError?: (image: ImageFile, error: Error) => void;
-  onProgress?: (progress: number) => void;
+export interface BatchOperation {
+  type: 'convert' | 'filter' | 'adjust' | 'ascii';
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  progress: number;
+  total: number;
+}
+
+export interface ToolState {
+  activeTab: 'converter' | 'ascii' | 'adjust' | 'filters' | 'preview';
+  batchMode: boolean;
+  selectedImageIds: string[];
 }

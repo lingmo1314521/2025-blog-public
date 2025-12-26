@@ -1,16 +1,28 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { ImageFile, AdjustOptions } from '../types/image-tools'
-import { resizeImage } from '../utils/image-converter'
+import { useState, useCallback, useMemo } from 'react'
+import { ImageFile } from '../types/image-tools'
+import { ImageProcessor } from '../utils/image-processor'
+import { formatBytes } from '../utils/helpers'
 
 interface ImageAdjusterProps {
   images: ImageFile[]
+  selectedIds: string[]
+  batchMode: boolean
   onUpdateImage: (id: string, updates: Partial<ImageFile>) => void
+  onBatchUpdate?: (updates: Partial<ImageFile>) => void
+  onToggleSelect?: (id: string) => void
 }
 
-export default function ImageAdjuster({ images, onUpdateImage }: ImageAdjusterProps) {
-  const [options, setOptions] = useState<AdjustOptions>({
+export default function ImageAdjuster({
+  images,
+  selectedIds,
+  batchMode,
+  onUpdateImage,
+  onBatchUpdate,
+  onToggleSelect
+}: ImageAdjusterProps) {
+  const [options, setOptions] = useState({
     brightness: 100,
     contrast: 100,
     saturation: 100,
@@ -18,149 +30,135 @@ export default function ImageAdjuster({ images, onUpdateImage }: ImageAdjusterPr
     flipHorizontal: false,
     flipVertical: false
   })
+  
   const [resizeOptions, setResizeOptions] = useState({
     width: 800,
     height: 600,
-    maintainAspect: true
+    maintainAspect: true,
+    crop: false
   })
+  
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null)
   const [processing, setProcessing] = useState<string | null>(null)
+  const [batchProcessing, setBatchProcessing] = useState(false)
+  const [activeTool, setActiveTool] = useState<'adjust' | 'resize' | 'crop'>('adjust')
+  const [processor] = useState(() => new ImageProcessor())
 
-  const selectedImage = images.find(img => img.id === selectedImageId) || images[0]
+  const selectedImage = useMemo(() => 
+    images.find(img => img.id === selectedImageId) || images[0],
+    [images, selectedImageId]
+  )
 
   const applyAdjustments = useCallback(async (image: ImageFile) => {
-    if (!image) return
+    if (processing || image.processing) return
     
     setProcessing(image.id)
+    onUpdateImage(image.id, { processing: true })
     
     try {
-      const canvas = document.createElement('canvas')
-      const ctx = canvas.getContext('2d')
-      if (!ctx) throw new Error('无法初始化画布')
+      // 加载图片数据
+      const imageData = await processor.getImageData(image.originalUrl)
       
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-      img.src = image.preview
-      
-      await new Promise((resolve) => {
-        img.onload = resolve
+      // 应用调整
+      const adjustedData = await processor.applyAdjustments(imageData, {
+        brightness: options.brightness / 100,
+        contrast: options.contrast / 100,
+        saturation: options.saturation / 100,
+        rotation: options.rotation
       })
-      
-      canvas.width = img.width
-      canvas.height = img.height
-      
-      // 应用变换
-      ctx.save()
-      
-      // 翻转
-      if (options.flipHorizontal) {
-        ctx.translate(canvas.width, 0)
-        ctx.scale(-1, 1)
-      }
-      if (options.flipVertical) {
-        ctx.translate(0, canvas.height)
-        ctx.scale(1, -1)
-      }
-      
-      // 旋转
-      if (options.rotation !== 0) {
-        ctx.translate(canvas.width / 2, canvas.height / 2)
-        ctx.rotate((options.rotation * Math.PI) / 180)
-        ctx.translate(-canvas.width / 2, -canvas.height / 2)
-      }
-      
-      ctx.drawImage(img, 0, 0)
-      ctx.restore()
-      
-      // 应用滤镜
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-      const data = imageData.data
-      
-      const brightness = options.brightness / 100
-      const contrast = options.contrast / 100
-      const saturation = options.saturation / 100
-      
-      const contrastFactor = (259 * (contrast * 255 + 255)) / (255 * (259 - contrast * 255))
-      
-      for (let i = 0; i < data.length; i += 4) {
-        // 亮度
-        data[i] = data[i] * brightness
-        data[i + 1] = data[i + 1] * brightness
-        data[i + 2] = data[i + 2] * brightness
-        
-        // 对比度
-        data[i] = contrastFactor * (data[i] - 128) + 128
-        data[i + 1] = contrastFactor * (data[i + 1] - 128) + 128
-        data[i + 2] = contrastFactor * (data[i + 2] - 128) + 128
-        
-        // 饱和度
-        const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
-        data[i] = gray + saturation * (data[i] - gray)
-        data[i + 1] = gray + saturation * (data[i + 1] - gray)
-        data[i + 2] = gray + saturation * (data[i + 2] - gray)
-        
-        // 确保值在范围内
-        data[i] = Math.min(255, Math.max(0, data[i]))
-        data[i + 1] = Math.min(255, Math.max(0, data[i + 1]))
-        data[i + 2] = Math.min(255, Math.max(0, data[i + 2]))
-      }
-      
-      ctx.putImageData(imageData, 0, 0)
       
       // 转换为Blob
-      const blob = await new Promise<Blob>((resolve) => {
-        canvas.toBlob((b) => {
-          if (b) resolve(b)
-        }, 'image/jpeg', 0.9)
-      })
-      
+      const blob = await processor.convertFormat(adjustedData, 'webp', 0.9)
       const url = URL.createObjectURL(blob)
       
-      // 更新图片
+      // 创建新的图片对象获取尺寸
+      const img = new Image()
+      await new Promise((resolve) => {
+        img.onload = resolve
+        img.src = url
+      })
+      
       onUpdateImage(image.id, {
-        preview: url,
-        width: canvas.width,
-        height: canvas.height
+        processing: false,
+        previewUrl: url,
+        width: img.width,
+        height: img.height,
+        processed: {
+          url,
+          size: blob.size,
+          format: 'webp',
+          type: 'adjusted'
+        }
       })
       
     } catch (error) {
-      console.error('调整失败:', error)
-      alert('调整失败，请稍后重试 (；´Д｀)')
+      console.error('Adjustment failed:', error)
+      onUpdateImage(image.id, { processing: false })
+      alert('调整失败，请重试 (；´Д｀)')
     } finally {
       setProcessing(null)
     }
-  }, [options, onUpdateImage])
+  }, [options, processor, processing, onUpdateImage])
 
   const handleResize = useCallback(async (image: ImageFile) => {
+    if (processing || image.processing) return
+    
     setProcessing(image.id)
+    onUpdateImage(image.id, { processing: true })
     
     try {
-      const blob = await resizeImage(
-        image.file,
+      // 加载图片数据
+      const imageData = await processor.getImageData(image.originalUrl)
+      
+      // 调整大小
+      const resizedData = await processor.resize(
+        imageData,
         resizeOptions.width,
         resizeOptions.height,
         resizeOptions.maintainAspect
       )
       
+      // 转换为Blob
+      const blob = await processor.convertFormat(resizedData, 'webp', 0.9)
       const url = URL.createObjectURL(blob)
-      const bitmap = await createImageBitmap(blob)
-      
-      // 清理之前的预览
-      URL.revokeObjectURL(image.preview)
       
       onUpdateImage(image.id, {
-        preview: url,
-        width: bitmap.width,
-        height: bitmap.height
+        processing: false,
+        previewUrl: url,
+        width: resizedData.width,
+        height: resizedData.height,
+        processed: {
+          url,
+          size: blob.size,
+          format: 'webp',
+          type: 'adjusted'
+        }
       })
       
     } catch (error) {
-      console.error('调整大小失败:', error)
-      alert('调整大小失败，请稍后重试 (；´Д｀)')
+      console.error('Resize failed:', error)
+      onUpdateImage(image.id, { processing: false })
+      alert('调整大小失败，请重试 (；´Д｀)')
     } finally {
       setProcessing(null)
     }
-  }, [resizeOptions, onUpdateImage])
+  }, [resizeOptions, processor, processing, onUpdateImage])
+
+  const batchApplyAdjustments = useCallback(async () => {
+    if (batchProcessing || selectedIds.length === 0) return
+    
+    setBatchProcessing(true)
+    const targets = images.filter(img => selectedIds.includes(img.id))
+    
+    for (let i = 0; i < targets.length; i++) {
+      const image = targets[i]
+      if (image && !image.processing) {
+        await applyAdjustments(image)
+      }
+    }
+    
+    setBatchProcessing(false)
+  }, [selectedIds, images, applyAdjustments, batchProcessing])
 
   const resetOptions = useCallback(() => {
     setOptions({
@@ -173,51 +171,60 @@ export default function ImageAdjuster({ images, onUpdateImage }: ImageAdjusterPr
     })
   }, [])
 
+  const resetResizeOptions = useCallback(() => {
+    setResizeOptions({
+      width: 800,
+      height: 600,
+      maintainAspect: true,
+      crop: false
+    })
+  }, [])
+
+  const presetSizes = [
+    { label: '缩略图', width: 150, height: 150 },
+    { label: '小图', width: 480, height: 320 },
+    { label: '中图', width: 800, height: 600 },
+    { label: '大图', width: 1200, height: 800 },
+    { label: '高清', width: 1920, height: 1080 },
+    { label: '4K', width: 3840, height: 2160 }
+  ]
+
+  // 自动选择第一张图片
+  useMemo(() => {
+    if (images.length > 0 && !selectedImageId) {
+      setSelectedImageId(images[0].id)
+    }
+  }, [images, selectedImageId])
+
   return (
-    <div className="space-y-6">
-      {/* 图片选择 */}
-      <div className="p-4 bg-slate-50 rounded-lg">
-        <h3 className="font-medium text-slate-700 mb-3">选择要调整的图片</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          {images.map((image) => (
-            <button
-              key={image.id}
-              onClick={() => setSelectedImageId(image.id)}
-              className={`aspect-square relative rounded-lg overflow-hidden border-2 transition ${
-                selectedImageId === image.id
-                  ? 'border-blue-500 ring-2 ring-blue-200'
-                  : 'border-slate-300 hover:border-slate-400'
-              }`}
-            >
-              <img
-                src={image.preview}
-                alt=""
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs p-1 truncate">
-                {image.width}×{image.height}
-              </div>
-            </button>
-          ))}
-        </div>
+    <div className="p-6 space-y-6">
+      {/* 工具选择 */}
+      <div className="flex border-b border-slate-200">
+        {(['adjust', 'resize'] as const).map((tool) => (
+          <button
+            key={tool}
+            onClick={() => setActiveTool(tool)}
+            className={`px-6 py-3 text-sm font-medium relative ${
+              activeTool === tool
+                ? 'text-blue-600'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            {tool === 'adjust' && '图片调整'}
+            {tool === 'resize' && '尺寸调整'}
+            {activeTool === tool && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500"></div>
+            )}
+          </button>
+        ))}
       </div>
       
-      {selectedImage && (
-        <>
-          <div className="grid lg:grid-cols-2 gap-6">
-            {/* 左侧：调整选项 */}
-            <div className="space-y-6 p-4 bg-slate-50 rounded-lg">
-              <div>
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-medium text-slate-700">图片调整</h3>
-                  <button
-                    onClick={resetOptions}
-                    className="text-sm text-slate-500 hover:text-slate-700"
-                  >
-                    重置
-                  </button>
-                </div>
-                
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* 左侧：调整选项 */}
+        <div className="lg:col-span-2 space-y-6">
+          {activeTool === 'adjust' ? (
+            <div className="space-y-6">
+              <div className="grid sm:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -260,7 +267,9 @@ export default function ImageAdjuster({ images, onUpdateImage }: ImageAdjusterPr
                       className="w-full range-track"
                     />
                   </div>
-                  
+                </div>
+                
+                <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
                       旋转: {options.rotation}°
@@ -273,136 +282,290 @@ export default function ImageAdjuster({ images, onUpdateImage }: ImageAdjusterPr
                       onChange={(e) => setOptions(prev => ({ ...prev, rotation: parseInt(e.target.value) }))}
                       className="w-full range-track"
                     />
+                    <div className="flex justify-between text-xs text-slate-500 mt-2">
+                      {[0, 90, 180, 270, 360].map((angle) => (
+                        <button
+                          key={angle}
+                          onClick={() => setOptions(prev => ({ ...prev, rotation: angle }))}
+                          className="px-2 py-1 hover:bg-slate-100 rounded"
+                        >
+                          {angle}°
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-slate-50">
+                      <input
+                        type="checkbox"
+                        checked={options.flipHorizontal}
+                        onChange={(e) => setOptions(prev => ({ ...prev, flipHorizontal: e.target.checked }))}
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <div>
+                        <div className="text-sm text-slate-700">水平翻转</div>
+                        <div className="text-xs text-slate-500">左右镜像</div>
+                      </div>
+                    </label>
+                    
+                    <label className="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-slate-50">
+                      <input
+                        type="checkbox"
+                        checked={options.flipVertical}
+                        onChange={(e) => setOptions(prev => ({ ...prev, flipVertical: e.target.checked }))}
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <div>
+                        <div className="text-sm text-slate-700">垂直翻转</div>
+                        <div className="text-xs text-slate-500">上下镜像</div>
+                      </div>
+                    </label>
+                  </div>
+                  
+                  <div className="pt-4">
+                    <button
+                      onClick={resetOptions}
+                      className="w-full px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition text-sm"
+                    >
+                      重置调整
+                    </button>
                   </div>
                 </div>
-                
-                <div className="flex gap-4 mt-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={options.flipHorizontal}
-                      onChange={(e) => setOptions(prev => ({ ...prev, flipHorizontal: e.target.checked }))}
-                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-slate-700">水平翻转</span>
-                  </label>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid sm:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      宽度
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="10"
+                        max="10000"
+                        value={resizeOptions.width}
+                        onChange={(e) => setResizeOptions(prev => ({ ...prev, width: parseInt(e.target.value) || 800 }))}
+                        className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                      />
+                      <span className="text-xs text-slate-500">px</span>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      高度
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="10"
+                        max="10000"
+                        value={resizeOptions.height}
+                        onChange={(e) => setResizeOptions(prev => ({ ...prev, height: parseInt(e.target.value) || 600 }))}
+                        className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                      />
+                      <span className="text-xs text-slate-500">px</span>
+                    </div>
+                  </div>
                   
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={options.flipVertical}
-                      onChange={(e) => setOptions(prev => ({ ...prev, flipVertical: e.target.checked }))}
+                      checked={resizeOptions.maintainAspect}
+                      onChange={(e) => setResizeOptions(prev => ({ ...prev, maintainAspect: e.target.checked }))}
                       className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                     />
-                    <span className="text-sm text-slate-700">垂直翻转</span>
+                    <div>
+                      <div className="text-sm text-slate-700">保持宽高比</div>
+                      <div className="text-xs text-slate-500">防止图片变形</div>
+                    </div>
                   </label>
                 </div>
-              </div>
-              
-              <button
-                onClick={() => applyAdjustments(selectedImage)}
-                disabled={processing === selectedImage.id}
-                className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 rounded-lg font-medium hover:from-blue-600 hover:to-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {processing === selectedImage.id ? '处理中...' : '应用调整'}
-              </button>
-            </div>
-            
-            {/* 右侧：大小调整 */}
-            <div className="space-y-6 p-4 bg-slate-50 rounded-lg">
-              <h3 className="font-medium text-slate-700">调整大小</h3>
-              
-              <div className="space-y-4">
-                <div className="flex gap-2 items-center">
-                  <div className="flex-1">
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      宽度
-                    </label>
-                    <input
-                      type="number"
-                      min="10"
-                      max="10000"
-                      value={resizeOptions.width}
-                      onChange={(e) => setResizeOptions(prev => ({ ...prev, width: parseInt(e.target.value) || 800 }))}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                    />
-                  </div>
-                  <span className="text-slate-400 mt-6">×</span>
-                  <div className="flex-1">
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      高度
-                    </label>
-                    <input
-                      type="number"
-                      min="10"
-                      max="10000"
-                      value={resizeOptions.height}
-                      onChange={(e) => setResizeOptions(prev => ({ ...prev, height: parseInt(e.target.value) || 600 }))}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                    />
-                  </div>
-                </div>
                 
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={resizeOptions.maintainAspect}
-                    onChange={(e) => setResizeOptions(prev => ({ ...prev, maintainAspect: e.target.checked }))}
-                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-slate-700">保持宽高比</span>
-                </label>
-                
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    onClick={() => setResizeOptions(prev => ({ ...prev, width: 800, height: 600 }))}
-                    className="px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm hover:bg-slate-50"
-                  >
-                    800×600
-                  </button>
-                  <button
-                    onClick={() => setResizeOptions(prev => ({ ...prev, width: 1024, height: 768 }))}
-                    className="px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm hover:bg-slate-50"
-                  >
-                    1024×768
-                  </button>
-                  <button
-                    onClick={() => setResizeOptions(prev => ({ ...prev, width: 1920, height: 1080 }))}
-                    className="px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm hover:bg-slate-50"
-                  >
-                    1920×1080
-                  </button>
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-slate-700 mb-2">预设尺寸</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {presetSizes.map((size) => (
+                        <button
+                          key={size.label}
+                          onClick={() => setResizeOptions(prev => ({ 
+                            ...prev, 
+                            width: size.width, 
+                            height: size.height 
+                          }))}
+                          className="px-3 py-2 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition text-sm text-left"
+                        >
+                          <div className="font-medium">{size.label}</div>
+                          <div className="text-xs text-slate-500">{size.width}×{size.height}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="pt-4">
+                    <button
+                      onClick={resetResizeOptions}
+                      className="w-full px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition text-sm"
+                    >
+                      重置尺寸
+                    </button>
+                  </div>
                 </div>
               </div>
               
+              {selectedImage && (
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="text-sm text-blue-700">
+                    当前图片尺寸: {selectedImage.width} × {selectedImage.height}
+                    {resizeOptions.maintainAspect && selectedImage && (
+                      <span className="text-slate-600 ml-2">
+                        (调整后: {Math.round(resizeOptions.width * selectedImage.height / selectedImage.width)} × {resizeOptions.height})
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* 批量操作 */}
+          {batchMode && selectedIds.length > 0 && (
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium text-blue-700">批量操作</div>
+                  <div className="text-sm text-blue-600">
+                    已选择 {selectedIds.length} 张图片
+                  </div>
+                </div>
+                <button
+                  onClick={batchApplyAdjustments}
+                  disabled={batchProcessing}
+                  className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {batchProcessing ? (
+                    <span className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      处理中...
+                    </span>
+                  ) : (
+                    `批量应用 (${selectedIds.length}张)`
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+          
+          {/* 应用按钮 */}
+          {selectedImage && !batchMode && (
+            <div className="flex gap-3">
               <button
-                onClick={() => handleResize(selectedImage)}
+                onClick={() => activeTool === 'adjust' ? applyAdjustments(selectedImage) : handleResize(selectedImage)}
                 disabled={processing === selectedImage.id}
-                className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-3 rounded-lg font-medium hover:from-green-600 hover:to-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white py-3 rounded-lg font-medium hover:from-green-600 hover:to-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {processing === selectedImage.id ? '处理中...' : '调整大小'}
+                {processing === selectedImage.id ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    处理中...
+                  </span>
+                ) : (
+                  `应用${activeTool === 'adjust' ? '调整' : '尺寸调整'}`
+                )}
               </button>
             </div>
+          )}
+        </div>
+        
+        {/* 右侧：图片选择 */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-slate-700">选择图片</h3>
+            <span className="text-xs text-slate-500">
+              {images.length} 张图片
+            </span>
           </div>
           
-          {/* 预览区域 */}
-          <div className="p-4 bg-white border border-slate-200 rounded-lg">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-medium text-slate-700">预览</h3>
-              <span className="text-sm text-slate-500">
-                {selectedImage.width} × {selectedImage.height}
-              </span>
-            </div>
-            <div className="flex justify-center">
-              <img
-                src={selectedImage.preview}
-                alt="预览"
-                className="max-h-64 rounded-lg border shadow-sm"
-              />
-            </div>
+          <div className="grid grid-cols-2 gap-3 max-h-96 overflow-y-auto p-2">
+            {images.map((image) => (
+              <div key={image.id} className="relative">
+                <button
+                  onClick={() => setSelectedImageId(image.id)}
+                  className={`aspect-square w-full relative rounded-lg overflow-hidden border-2 transition-all duration-200 ${
+                    selectedImageId === image.id
+                      ? 'border-blue-500 ring-2 ring-blue-200'
+                      : 'border-slate-300 hover:border-slate-400'
+                  }`}
+                >
+                  <img
+                    src={image.previewUrl}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                  
+                  {onToggleSelect && batchMode && (
+                    <div 
+                      className={`absolute top-1 left-1 w-6 h-6 rounded-full border-2 flex items-center justify-center cursor-pointer ${
+                        selectedIds.includes(image.id)
+                          ? 'bg-blue-500 border-blue-500'
+                          : 'bg-white border-slate-400'
+                      }`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onToggleSelect(image.id)
+                      }}
+                    >
+                      {selectedIds.includes(image.id) && (
+                        <span className="text-white text-xs">✓</span>
+                      )}
+                    </div>
+                  )}
+                </button>
+                
+                <div className="mt-1 text-xs text-slate-500 truncate text-center">
+                  {image.width}×{image.height}
+                </div>
+              </div>
+            ))}
           </div>
-        </>
-      )}
+          
+          {/* 图片信息 */}
+          {selectedImage && (
+            <div className="p-4 bg-slate-50 rounded-lg">
+              <div className="text-sm font-medium text-slate-700 mb-2">
+                当前图片信息
+              </div>
+              <div className="space-y-1 text-xs text-slate-600">
+                <div className="flex justify-between">
+                  <span>名称:</span>
+                  <span className="truncate max-w-[120px]" title={selectedImage.file.name}>
+                    {selectedImage.file.name}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>尺寸:</span>
+                  <span>{selectedImage.width} × {selectedImage.height}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>大小:</span>
+                  <span>{formatBytes(selectedImage.file.size)}</span>
+                </div>
+                {selectedImage.processed && (
+                  <div className="flex justify-between">
+                    <span>已处理:</span>
+                    <span className="text-green-600">{selectedImage.processed.type}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
