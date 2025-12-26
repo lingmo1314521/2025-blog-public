@@ -4,172 +4,90 @@
 
 @plugin 'tailwindcss-animate';
 
-@utility scrollbar-none {
-	scrollbar-width: none;
-	&::-webkit-scrollbar {
-		display: none;
-	}
+/* ... 保留原有样式 ... */
+
+/* 添加新样式 */
+@layer components {
+  .tool-tab-active {
+    @apply relative after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-blue-500;
+  }
+  
+  .image-tool-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1rem;
+  }
+  
+  .ascii-output {
+    font-family: 'Courier New', Monaco, monospace;
+    line-height: 1;
+    letter-spacing: 0;
+  }
+  
+  .image-preview-hover {
+    @apply transition-all duration-300 hover:scale-[1.02] hover:shadow-lg;
+  }
 }
 
-@layer base {
-	html {
-		@apply text-primary bg-bg h-full leading-tight;
-		scroll-behavior: smooth;
-	}
-
-	body {
-		@apply h-full bg-none;
-	}
-	* {
-		@apply border-border;
-	}
-
-	input:focus,
-	textarea:focus {
-		outline: none;
-	}
-	input:placeholder-shown {
-		text-overflow: ellipsis;
-	}
-
-	button {
-		@apply cursor-pointer;
-	}
-
-	.range-track {
-		@apply flex-1;
-		appearance: none;
-		height: 6px;
-		border-radius: 9999px;
-		background: linear-gradient(90deg, var(--color-brand) 0%, color-mix(in srgb, var(--color-brand) 50%, transparent) 100%);
-	}
-
-	.range-track::-webkit-slider-runnable-track {
-		height: 6px;
-		border-radius: 9999px;
-		background: linear-gradient(90deg, 0%, color-mix(in srgb, var(--color-brand) 50%, transparent) 100%);
-	}
-
-	.range-track::-moz-range-track {
-		height: 6px;
-		border-radius: 9999px;
-		background: linear-gradient(90deg, var(--color-brand) 0%, color-mix(in srgb, var(--color-brand) 50%, transparent) 100%);
-	}
-
-	.range-track::-webkit-slider-thumb {
-		appearance: none;
-		width: 16px;
-		height: 16px;
-		border-radius: 9999px;
-		background: var(--color-brand);
-		border: 2px solid white;
-		margin-top: -5px;
-		box-shadow: 0 5px 12px color-mix(in srgb, var(--color-brand) 50%, transparent);
-	}
-
-	.range-track::-moz-range-thumb {
-		width: 16px;
-		height: 16px;
-		border-radius: 9999px;
-		background: var(--color-brand);
-		border: 2px solid white;
-		box-shadow: 0 5px 12px color-mix(in srgb, var(--color-brand) 50%, transparent);
-	}
-
-	.windows {
-		@apply scrollbar-none;
-		* {
-			@apply scrollbar-none;
-		}
-	}
-
-	/* Sonner Toaster styles */
-	html li[data-sonner-toast][data-styled='true'] {
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
-		@apply bg-white/40! backdrop-blur;
-	}
+/* 优化滑块样式 */
+.range-track {
+  @apply flex-1 h-2 bg-slate-200 rounded-full appearance-none cursor-pointer;
+  background: linear-gradient(90deg, var(--color-brand) 0%, color-mix(in srgb, var(--color-brand) 50%, transparent) 100%);
 }
 
-@utility card {
-	@apply bg-card absolute rounded-[40px] border p-6;
-	box-shadow:
-		0 40px 50px -32px rgba(0, 0, 0, 0.05),
-		inset 0 0 20 rgba(255, 255, 255, 0.25);
-	backdrop-filter: blur(4px);
-
-	@supports (corner-shape: squircle) {
-		corner-shape: squircle;
-		@apply rounded-[64px];
-	}
+.range-track::-webkit-slider-thumb {
+  @apply appearance-none w-4 h-4 bg-white rounded-full border-2 border-blue-500 shadow-lg;
 }
 
-@utility card-rounded {
-	@apply rounded-[40px];
-	@supports (corner-shape: squircle) {
-		corner-shape: squircle;
-		@apply rounded-[64px];
-	}
+.range-track::-moz-range-thumb {
+  @apply w-4 h-4 bg-white rounded-full border-2 border-blue-500 shadow-lg;
 }
 
-@utility text-linear {
-	background: linear-gradient(to right bottom, #0003 0%, #aaa1), linear-gradient(to right bottom, var(--color-brand) 40%, var(--color-brand-secondary));
-	-webkit-background-clip: text;
-	-webkit-text-fill-color: transparent;
-	background-clip: text;
+/* 优化卡片样式 */
+.tool-card {
+  @apply bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition-shadow duration-300;
 }
 
-@utility bg-linear {
-	background: linear-gradient(to right bottom, var(--color-brand) 0%, var(--color-brand-secondary));
-	color: white;
+/* 优化按钮样式 */
+.tool-button {
+  @apply px-4 py-2 rounded-lg font-medium transition-colors duration-200;
 }
 
-@utility shadow {
-	box-shadow: 0 40px 50px -32px rgba(0, 0, 0, 0.05);
+.tool-button-primary {
+  @apply bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700;
 }
 
-@utility btn-rounded {
-	@apply rounded-xl;
-	@supports (corner-shape: squircle) {
-		corner-shape: squircle;
-		@apply rounded-2xl;
-	}
-}
-@utility brand-btn {
-	@apply bg-brand btn-rounded flex items-center gap-2 border-[1.5px] px-4 py-2 text-sm font-medium text-white;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+.tool-button-secondary {
+  @apply bg-slate-100 text-slate-700 hover:bg-slate-200;
 }
 
-@utility no-spinner {
-	&::-webkit-outer-spin-button,
-	&::-webkit-inner-spin-button {
-		-webkit-appearance: none;
-		margin: 0;
-	}
-
-	-moz-appearance: textfield;
+.tool-button-success {
+  @apply bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700;
 }
 
-@keyframes heartbeat-frame {
-	0%,
-	100% {
-		transform: scale(1);
-	}
-	20% {
-		transform: scale(1.15);
-	}
-	40% {
-		transform: scale(1);
-	}
-	60% {
-		transform: scale(1.15);
-	}
-	80% {
-		transform: scale(1);
-	}
+.tool-button-danger {
+  @apply bg-red-50 text-red-600 hover:bg-red-100;
 }
 
-.heartbeat-container:hover {
-	.heartbeat {
-		animation: heartbeat-frame 0.8s ease-in-out;
-	}
+/* 优化表单样式 */
+.tool-input {
+  @apply px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+}
+
+.tool-select {
+  @apply px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+}
+
+/* 优化加载动画 */
+.loading-spinner {
+  @apply animate-spin rounded-full border-2 border-slate-300 border-t-blue-500;
+}
+
+/* 优化模态框 */
+.modal-overlay {
+  @apply fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50;
+}
+
+.modal-content {
+  @apply bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-auto;
 }
