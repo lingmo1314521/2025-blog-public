@@ -1,13 +1,5 @@
-const ASCII_CHAR_SETS = {
-  simple: '@%#*+=-:. ',
-  detailed: '$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,"^`\'. ',
-  block: '█▓▒░ ',
-  braille: '⣿⣷⣯⣟⡿⢿⣻⣽⣾⣷⣶⣵⣳⣱⣰⣯⣟⡿⢿⣻⣽⣾⣷⣶⣵⣳⣱⣰⣤⣦⣮⣭⣩⣪⣫⣬⣭⣩⣪⣫⣬⣄⣆⣇⡧⡤⡢⡡⡣⡥⡦⡧⡨⡩⡪⡫⡬⡭⡮⡯⡰⡱⡲⡳⡴⡵⡶⡷⡸⡹⡺⡻⡼⡽⡾⡿⢀⢁⢂⢃⢄⢅⢆⢇⢈⢉⢊⢋⢌⢍⢎⢏⢐⢑⢒⢓⢔⢕⢖⢗⢘⢙⢚⢛⢜⢝⢞⢟⢠⢡⢢⢣⢤⢥⢦⢧⢨⢩⢪⢫⢬⢭⢮⢯⢰⢱⢲⢳⢴⢵⢶⢷⢸⢹⢺⢻⢼⢽⢾⢿⣀⣁⣂⣃⣄⣅⣆⣇⣈⣉⣊⣋⣌⣍⣎⣏⣐⣑⣒⣓⣔⣕⣖⣗⣘⣙⣚⣛⣜⣝⣞⣟⣠⣡⣢⣣⣤⣥⣦⣧⣨⣩⣪⣫⣬⣭⣮⣯⣰⣱⣲⣳⣴⣵⣶⣷⣸⣹⣺⣻⣼⣽⣾⣿',
-  custom: '@%#*+=-:. '
-};
-
 export async function generateAsciiArt(
-  imageUrl: string,
+  file: File,  // 改为接收 File 对象而不是 URL
   options: {
     style: 'simple' | 'detailed' | 'block' | 'braille' | 'custom';
     width: number;
@@ -20,7 +12,10 @@ export async function generateAsciiArt(
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    img.src = imageUrl;
+    
+    // 创建临时 URL
+    const url = URL.createObjectURL(file);
+    img.src = url;
     
     img.onload = () => {
       try {
@@ -47,50 +42,33 @@ export async function generateAsciiArt(
         const charLength = chars.length;
         let result = '';
         
-        // 生成彩色ASCII
-        if (options.color) {
-          for (let y = 0; y < height; y += options.density) {
-            for (let x = 0; x < options.width; x += options.density) {
-              const index = (y * options.width + x) * 4;
-              const r = data[index];
-              const g = data[index + 1];
-              const b = data[index + 2];
-              const brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-              
-              const charIndex = Math.floor((1 - brightness) * (charLength - 1));
-              const char = chars[charIndex] || ' ';
-              
-              // 添加ANSI颜色代码（用于彩色输出）
-              const colorCode = `\x1b[38;2;${r};${g};${b}m`;
-              result += colorCode + char;
-            }
-            result += '\n';
+        // 生成 ASCII
+        for (let y = 0; y < height; y += options.density) {
+          for (let x = 0; x < options.width; x += options.density) {
+            const index = (y * options.width + x) * 4;
+            const r = data[index];
+            const g = data[index + 1];
+            const b = data[index + 2];
+            const brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+            
+            const charIndex = Math.floor((1 - brightness) * (charLength - 1));
+            result += chars[charIndex] || ' ';
           }
-          // 重置颜色
-          result += '\x1b[0m';
-        } else {
-          // 生成黑白ASCII
-          for (let y = 0; y < height; y += options.density) {
-            for (let x = 0; x < options.width; x += options.density) {
-              const index = (y * options.width + x) * 4;
-              const r = data[index];
-              const g = data[index + 1];
-              const b = data[index + 2];
-              const brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-              
-              const charIndex = Math.floor((1 - brightness) * (charLength - 1));
-              result += chars[charIndex] || ' ';
-            }
-            result += '\n';
-          }
+          result += '\n';
         }
         
+        // 清理临时 URL
+        URL.revokeObjectURL(url);
         resolve(result);
       } catch (error) {
+        URL.revokeObjectURL(url);
         reject(error);
       }
     };
     
-    img.onerror = () => reject(new Error('无法加载图片'));
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('无法加载图片'));
+    };
   });
 }

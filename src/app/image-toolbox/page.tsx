@@ -16,69 +16,57 @@ export default function ImageToolboxPage() {
   const [images, setImages] = useState<ImageFile[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const dragCounterRef = useRef(0)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // 添加页面特定的类名，避免样式冲突
+  useEffect(() => {
+    document.body.classList.add('image-toolbox-page');
+    return () => {
+      document.body.classList.remove('image-toolbox-page');
+      document.body.classList.remove('image-toolbox-active');
+    };
+  }, []);
 
   const handleFiles = useCallback(async (fileList: FileList | null) => {
     if (!fileList?.length) return
-    
-    const files = Array.from(fileList).filter(file => {
-      const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'image/svg+xml', 'image/avif', 'image/heic']
-      return validTypes.includes(file.type) || file.name.match(/\.(jpg|jpeg|png|webp|gif|bmp|svg|avif|heic)$/i)
-    })
-    
-    if (!files.length) {
-      alert('请选择有效的图片文件 (；´Д｀)')
-      return
-    }
+    const files = Array.from(fileList).filter(file => file.type.startsWith('image/'))
+    if (!files.length) return
 
-    const newImages: ImageFile[] = []
-    const existingNames = new Set(images.map(img => img.file.name + img.file.size))
-
-    for (const file of files) {
-      if (existingNames.has(file.name + file.size)) {
-        continue // 跳过重复文件
-      }
-
-      try {
+    const newImages = await Promise.all(
+      files.map(async (file, index) => {
         const preview = URL.createObjectURL(file)
         const bitmap = await createImageBitmap(file)
-        
-        newImages.push({
-          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        return {
+          id: `${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
           file,
           preview,
           width: bitmap.width,
           height: bitmap.height
-        })
-        
-        bitmap.close() // 清理 ImageBitmap
-      } catch (error) {
-        console.error('处理图片失败:', error)
-        alert(`处理文件 ${file.name} 时出错，已跳过`)
-      }
-    }
+        }
+      })
+    )
 
-    if (newImages.length > 0) {
-      setImages(prev => [...prev, ...newImages])
-    } else if (files.length > 0 && newImages.length === 0) {
-      alert('所有文件都已添加过或格式不支持')
-    }
-  }, [images])
+    setImages(prev => {
+      const existingNames = new Set(prev.map(img => img.file.name + img.file.size + img.file.lastModified))
+      const uniqueNewImages = newImages.filter(img => 
+        !existingNames.has(img.file.name + img.file.size + img.file.lastModified)
+      )
+      return [...prev, ...uniqueNewImages]
+    })
+  }, [])
 
-  const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     dragCounterRef.current += 1
     setIsDragging(true)
   }, [])
 
-  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+  const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (!isDragging) setIsDragging(true)
-  }, [isDragging])
+  }, [])
 
-  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     dragCounterRef.current = Math.max(0, dragCounterRef.current - 1)
@@ -87,7 +75,7 @@ export default function ImageToolboxPage() {
     }
   }, [])
 
-  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setIsDragging(false)
@@ -97,44 +85,19 @@ export default function ImageToolboxPage() {
 
   const handleRemoveImage = useCallback((id: string) => {
     setImages(prev => {
-      const imageToRemove = prev.find(img => img.id === id)
-      if (imageToRemove) {
-        // 清理所有创建的 URL
-        URL.revokeObjectURL(imageToRemove.preview)
-        if (imageToRemove.converted?.url) {
-          URL.revokeObjectURL(imageToRemove.converted.url)
-        }
+      const removed = prev.find(img => img.id === id)
+      if (removed) {
+        URL.revokeObjectURL(removed.preview)
+        if (removed.converted?.url) URL.revokeObjectURL(removed.converted.url)
       }
       return prev.filter(img => img.id !== id)
     })
   }, [])
 
   const handleUpdateImage = useCallback((id: string, updates: Partial<ImageFile>) => {
-    setImages(prev => prev.map(img => {
-      if (img.id === id) {
-        // 如果需要更新预览URL，先清理旧的
-        if (updates.preview && updates.preview !== img.preview) {
-          URL.revokeObjectURL(img.preview)
-        }
-        return { ...img, ...updates }
-      }
-      return img
-    }))
-  }, [])
-
-  const handleClearAll = useCallback(() => {
-    // 清理所有URL对象
-    images.forEach(img => {
-      URL.revokeObjectURL(img.preview)
-      if (img.converted?.url) {
-        URL.revokeObjectURL(img.converted.url)
-      }
-    })
-    setImages([])
-  }, [images])
-
-  const handleFileInputClick = useCallback(() => {
-    fileInputRef.current?.click()
+    setImages(prev => prev.map(img => 
+      img.id === id ? { ...img, ...updates } : img
+    ))
   }, [])
 
   // 清理URL对象
@@ -142,42 +105,32 @@ export default function ImageToolboxPage() {
     return () => {
       images.forEach(img => {
         URL.revokeObjectURL(img.preview)
-        if (img.converted?.url) {
-          URL.revokeObjectURL(img.converted.url)
-        }
+        if (img.converted?.url) URL.revokeObjectURL(img.converted.url)
       })
     }
   }, [images])
 
-  const tabs = [
-    { id: 'converter' as ToolTab, label: '格式转换', icon: '🔄' },
-    { id: 'ascii' as ToolTab, label: 'ASCII艺术', icon: '🎨' },
-    { id: 'adjust' as ToolTab, label: '图片调整', icon: '⚙️' },
-    { id: 'filters' as ToolTab, label: '滤镜效果', icon: '🌈' },
-    { id: 'preview' as ToolTab, label: '预览管理', icon: '👁️' }
+  const tabs: { id: ToolTab; label: string; icon: string }[] = [
+    { id: 'converter', label: '格式转换', icon: '🔄' },
+    { id: 'ascii', label: 'ASCII艺术', icon: '🎨' },
+    { id: 'adjust', label: '图片调整', icon: '⚙️' },
+    { id: 'filters', label: '滤镜效果', icon: '🌈' },
+    { id: 'preview', label: '预览管理', icon: '👁️' }
   ]
 
-  const formatSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / 1024 / 1024).toFixed(2)} MB`
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-      <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pt-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         {/* 标题区域 */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-10"
         >
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent mb-3">
-            图片工具箱
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 bg-clip-text text-transparent mb-3">
+            🛠️ 图片工具箱
           </h1>
-          <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-            一站式图片处理解决方案，支持格式转换、ASCII艺术生成、图片调整和滤镜效果
-          </p>
+          <p className="text-slate-600 text-lg">一站式图片处理解决方案，支持多种格式转换和特效处理</p>
         </motion.div>
 
         {/* 上传区域 */}
@@ -186,151 +139,126 @@ export default function ImageToolboxPage() {
           animate={{ opacity: 1, scale: 1 }}
           className="mb-10"
         >
-          <div
-            className={`relative border-3 border-dashed rounded-2xl p-8 text-center transition-all duration-300 ${
-              isDragging
-                ? 'border-blue-500 bg-blue-50 scale-[1.02]'
-                : 'border-slate-300 hover:border-blue-400 hover:bg-slate-50'
-            }`}
+          <label
+            className={`file-dropzone ${isDragging ? 'active' : ''}`}
             onDragEnter={handleDragEnter}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            onClick={handleFileInputClick}
           >
             <input
-              ref={fileInputRef}
               type="file"
               accept="image/*"
               multiple
               className="hidden"
               onChange={(e) => handleFiles(e.target.files)}
             />
-            
-            <div className="flex flex-col items-center justify-center space-y-4">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center text-4xl">
-                📁
-              </div>
-              
-              <div className="space-y-2">
-                <h3 className="text-xl font-semibold text-slate-800">
-                  {isDragging ? '松开以上传图片' : '点击或拖拽图片到此处'}
-                </h3>
-                <p className="text-slate-500 text-sm">
-                  支持 JPG、PNG、WEBP、GIF、BMP、SVG、AVIF、HEIC 等格式
-                </p>
-                <p className="text-xs text-slate-400">
-                  单次最多可上传 20 张图片，单张图片最大 10MB
-                </p>
-              </div>
-              
-              <button className="px-6 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-medium hover:from-blue-600 hover:to-blue-700 transition">
-                选择文件
-              </button>
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="text-6xl mb-6 opacity-80">📁</div>
+              <h3 className="text-2xl font-semibold mb-3">
+                {isDragging ? '✨ 松开以上传' : '📤 拖放图片或点击选择'}
+              </h3>
+              <p className="text-slate-500 mb-2 max-w-md mx-auto">
+                支持 JPG、PNG、WEBP、GIF、BMP、SVG 等多种图片格式
+              </p>
+              <p className="text-sm text-slate-400 mt-2">最多可同时处理 20 张图片，单张最大 10MB</p>
             </div>
-          </div>
+          </label>
         </motion.div>
 
-        {/* 图片概览 */}
+        {/* 图片列表概览 */}
         {images.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-8 bg-white rounded-xl border border-slate-200 shadow-sm p-6"
+            className="mb-10"
           >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
               <div>
-                <h2 className="text-xl font-semibold text-slate-800">
-                  已选择 {images.length} 张图片
-                </h2>
-                <p className="text-sm text-slate-500 mt-1">
-                  总大小: {formatSize(images.reduce((sum, img) => sum + img.file.size, 0))}
+                <h2 className="text-2xl font-semibold">已选择 {images.length} 张图片</h2>
+                <p className="text-slate-500 text-sm mt-1">
+                  总计大小：{(images.reduce((sum, img) => sum + img.file.size, 0) / 1024 / 1024).toFixed(2)} MB
                 </p>
               </div>
-              <div className="flex gap-3 mt-4 sm:mt-0">
+              <div className="flex gap-3">
                 <button
-                  onClick={() => setActiveTab('preview')}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition"
+                  onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}
+                  className="tool-button tool-button-secondary"
                 >
-                  查看全部
+                  跳到底部
                 </button>
                 <button
-                  onClick={handleClearAll}
-                  className="px-4 py-2 bg-red-50 text-red-600 rounded-lg font-medium hover:bg-red-100 transition"
+                  onClick={() => setImages([])}
+                  className="tool-button tool-button-danger"
                 >
-                  清空全部
+                  🗑️ 清空全部
                 </button>
               </div>
             </div>
-            
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            <div className="image-grid">
               {images.slice(0, 12).map((img) => (
-                <div key={img.id} className="group relative aspect-square">
-                  <img
-                    src={img.preview}
-                    alt=""
-                    className="w-full h-full object-cover rounded-lg border shadow-sm group-hover:scale-105 transition-transform duration-300"
-                  />
+                <div key={img.id} className="group relative">
+                  <div className="aspect-square overflow-hidden rounded-xl border-2 border-slate-300 bg-slate-100">
+                    <img
+                      src={img.preview}
+                      alt=""
+                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                      loading="lazy"
+                    />
+                  </div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <div className="absolute bottom-2 left-2 right-2 text-white text-xs">
+                      <div className="font-medium truncate">{img.file.name}</div>
+                      <div className="flex justify-between mt-1">
+                        <span>{img.width}×{img.height}</span>
+                        <span>{(img.file.size / 1024).toFixed(1)}KB</span>
+                      </div>
+                    </div>
+                  </div>
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleRemoveImage(img.id)
-                    }}
-                    className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center"
+                    onClick={() => handleRemoveImage(img.id)}
+                    className="absolute -top-2 -right-2 w-8 h-8 bg-red-500 text-white rounded-full text-sm shadow-lg hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100 flex items-center justify-center"
+                    title="移除图片"
                   >
                     ✕
                   </button>
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2 text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    <div className="font-medium truncate">{img.file.name}</div>
-                    <div className="text-xs opacity-80">{img.width}×{img.height}</div>
-                  </div>
                 </div>
               ))}
               {images.length > 12 && (
-                <div 
-                  className="aspect-square bg-gradient-to-br from-slate-100 to-slate-200 rounded-lg border border-dashed border-slate-300 flex items-center justify-center cursor-pointer hover:bg-slate-200 transition"
-                  onClick={() => setActiveTab('preview')}
-                >
-                  <div className="text-center">
-                    <div className="text-2xl mb-1">+</div>
-                    <div className="text-sm text-slate-600">
-                      {images.length - 12} 更多
-                    </div>
-                  </div>
+                <div className="aspect-square flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl border-2 border-dashed border-slate-300">
+                  <div className="text-3xl mb-2">📚</div>
+                  <span className="text-slate-600 font-medium">+{images.length - 12}</span>
+                  <span className="text-slate-500 text-sm mt-1">更多图片</span>
                 </div>
               )}
             </div>
           </motion.div>
         )}
 
-        {/* 工具区域 */}
-        {images.length > 0 ? (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            {/* 选项卡导航 */}
-            <div className="border-b border-slate-200">
-              <div className="flex flex-wrap">
+        {/* 工具选项卡 */}
+        {images.length > 0 && (
+          <>
+            <div className="mb-8">
+              <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-2xl">
                 {tabs.map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`px-6 py-4 text-sm font-medium transition-all relative ${
+                    className={`flex-1 sm:flex-none px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 flex items-center justify-center gap-2 ${
                       activeTab === tab.id
-                        ? 'text-blue-600 bg-blue-50'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                        ? 'bg-white shadow-md text-blue-600'
+                        : 'text-slate-600 hover:text-blue-500 hover:bg-white/50'
                     }`}
                   >
-                    <span className="mr-2">{tab.icon}</span>
-                    {tab.label}
-                    {activeTab === tab.id && (
-                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500"></div>
-                    )}
+                    <span className="text-lg">{tab.icon}</span>
+                    <span className="hidden sm:inline">{tab.label}</span>
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* 工具内容 */}
-            <div className="p-6">
+            {/* 工具内容区域 */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
               {activeTab === 'converter' && (
                 <ImageConverter
                   images={images}
@@ -367,58 +295,107 @@ export default function ImageToolboxPage() {
                 />
               )}
             </div>
-          </div>
-        ) : (
-          // 空状态 - 功能介绍
+          </>
+        )}
+
+        {/* 功能说明 - 当没有图片时显示 */}
+        {images.length === 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="mt-12"
+            className="mt-16"
           >
-            <h2 className="text-2xl font-bold text-center text-slate-800 mb-8">
-              强大功能，一站搞定
-            </h2>
-            
-            <div className="grid md:grid-cols-3 gap-6">
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl border border-blue-200 hover:shadow-lg transition-shadow duration-300">
-                <div className="text-3xl mb-4">🔄</div>
-                <h3 className="font-semibold text-lg mb-2 text-blue-800">格式转换</h3>
-                <ul className="text-sm text-slate-600 space-y-1">
-                  <li>• JPG、PNG、WEBP、AVIF互转</li>
-                  <li>• 批量处理多张图片</li>
-                  <li>• 自定义输出质量和尺寸</li>
-                  <li>• 支持最高 4K 分辨率</li>
+            <h2 className="text-3xl font-bold text-center mb-12">✨ 工具箱功能</h2>
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-2xl border border-blue-200 hover:border-blue-300 transition-all duration-300 hover:shadow-lg">
+                <div className="text-4xl mb-4">🔄</div>
+                <h3 className="text-xl font-semibold mb-3">格式转换</h3>
+                <p className="text-slate-600">
+                  支持多种格式互转，批量处理，调整质量和尺寸，一键完成图片优化
+                </p>
+                <ul className="mt-4 text-sm text-slate-500 space-y-1">
+                  <li>• JPG ↔ PNG ↔ WEBP ↔ AVIF</li>
+                  <li>• 质量调整（1-100%）</li>
+                  <li>• 尺寸限制和裁剪</li>
                 </ul>
               </div>
               
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl border border-purple-200 hover:shadow-lg transition-shadow duration-300">
-                <div className="text-3xl mb-4">🎨</div>
-                <h3 className="font-semibold text-lg mb-2 text-purple-800">ASCII 艺术</h3>
-                <ul className="text-sm text-slate-600 space-y-1">
-                  <li>• 多种字符集和样式</li>
-                  <li>• 彩色 ASCII 输出</li>
-                  <li>• 可调整密度和大小</li>
-                  <li>• 一键复制和下载</li>
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-2xl border border-purple-200 hover:border-purple-300 transition-all duration-300 hover:shadow-lg">
+                <div className="text-4xl mb-4">🎨</div>
+                <h3 className="text-xl font-semibold mb-3">ASCII 艺术</h3>
+                <p className="text-slate-600">
+                  将图片转换为字符画，支持多种字符集和彩色输出，创造独特的文字艺术
+                </p>
+                <ul className="mt-4 text-sm text-slate-500 space-y-1">
+                  <li>• 多种字符集选择</li>
+                  <li>• 可调宽度和密度</li>
+                  <li>• 彩色/反色输出</li>
                 </ul>
               </div>
               
-              <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl border border-green-200 hover:shadow-lg transition-shadow duration-300">
-                <div className="text-3xl mb-4">✨</div>
-                <h3 className="font-semibold text-lg mb-2 text-green-800">图片处理</h3>
-                <ul className="text-sm text-slate-600 space-y-1">
-                  <li>• 亮度、对比度、饱和度调整</li>
-                  <li>• 多种滤镜效果</li>
-                  <li>• 旋转、翻转、裁剪</li>
-                  <li>• 批量处理和实时预览</li>
+              <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-2xl border border-green-200 hover:border-green-300 transition-all duration-300 hover:shadow-lg">
+                <div className="text-4xl mb-4">✨</div>
+                <h3 className="text-xl font-semibold mb-3">图片处理</h3>
+                <p className="text-slate-600">
+                  亮度、对比度、饱和度调整，旋转翻转，尺寸调整，实时预览效果
+                </p>
+                <ul className="mt-4 text-sm text-slate-500 space-y-1">
+                  <li>• 色彩调整工具</li>
+                  <li>• 旋转和翻转</li>
+                  <li>• 预设尺寸模板</li>
+                </ul>
+              </div>
+              
+              <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-2xl border border-orange-200 hover:border-orange-300 transition-all duration-300 hover:shadow-lg">
+                <div className="text-4xl mb-4">🌈</div>
+                <h3 className="text-xl font-semibold mb-3">滤镜效果</h3>
+                <p className="text-slate-600">
+                  应用多种滤镜效果，黑白、复古、反色、怀旧，一键美化你的图片
+                </p>
+                <ul className="mt-4 text-sm text-slate-500 space-y-1">
+                  <li>• 黑白滤镜</li>
+                  <li>• 复古/怀旧效果</li>
+                  <li>• 反色处理</li>
                 </ul>
               </div>
             </div>
-            
-            <div className="mt-10 text-center text-slate-500 text-sm">
-              <p>上传图片即可开始使用所有功能 (•̀ᴗ•́)و ̑̑</p>
+
+            {/* 使用提示 */}
+            <div className="mt-12 p-6 bg-gradient-to-r from-slate-50 to-slate-100 rounded-2xl border border-slate-200">
+              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                💡 使用提示
+              </h3>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="bg-white/80 p-4 rounded-xl">
+                  <h4 className="font-medium text-slate-700 mb-2">快速开始</h4>
+                  <p className="text-sm text-slate-600">
+                    1. 拖放或点击上传图片<br/>
+                    2. 选择需要的功能标签<br/>
+                    3. 调整参数并应用效果<br/>
+                    4. 下载或分享处理结果
+                  </p>
+                </div>
+                <div className="bg-white/80 p-4 rounded-xl">
+                  <h4 className="font-medium text-slate-700 mb-2">注意事项</h4>
+                  <p className="text-sm text-slate-600">
+                    • 所有图片均在浏览器本地处理<br/>
+                    • 支持批量处理，提升效率<br/>
+                    • 处理结果可一键下载<br/>
+                    • 不会上传到任何服务器
+                  </p>
+                </div>
+              </div>
             </div>
           </motion.div>
         )}
+
+        {/* 页脚信息 */}
+        <footer className="mt-16 pt-8 border-t border-slate-200">
+          <div className="text-center text-slate-500 text-sm">
+            <p>© {new Date().getFullYear()} 图片工具箱 • 所有处理均在本地完成，保障隐私安全</p>
+            <p className="mt-2">基于现代 Web API 构建，支持最新浏览器功能</p>
+          </div>
+        </footer>
       </div>
     </div>
   )
