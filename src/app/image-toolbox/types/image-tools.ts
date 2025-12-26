@@ -11,6 +11,8 @@ export type ImageFile = {
   };
   converting?: boolean;
   asciiArt?: string;
+  // 添加错误处理状态
+  error?: string;
 };
 
 export type ConversionFormat = 'webp' | 'png' | 'jpg' | 'avif';
@@ -41,4 +43,18 @@ export interface AdjustOptions {
   rotation: number;
   flipHorizontal: boolean;
   flipVertical: boolean;
+}
+
+// 添加图片处理结果类型
+export interface ImageProcessResult {
+  success: boolean;
+  data?: string | Blob;
+  error?: string;
+}
+
+// 添加事件处理类型
+export interface ImageEventHandlers {
+  onLoad?: (image: ImageFile) => void;
+  onError?: (image: ImageFile, error: Error) => void;
+  onProgress?: (progress: number) => void;
 }
