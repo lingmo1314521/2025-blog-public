@@ -22,7 +22,7 @@ export const TRANSLATIONS = {
     'settings': 'Settings',
     'about': 'About Lynx',
     'text-editor': 'TextEdit',
-    'storage_manager': 'Storage Manager', // 新增
+    'storage_manager': 'File Manager', // 改名更高级
 
     // --- System Menu ---
     'about_mac': 'About This Portfolio',
@@ -66,24 +66,17 @@ export const TRANSLATIONS = {
     'language': 'Language', 'wallpaper': 'Wallpaper',
     'not_playing': 'Not Playing', 'music_playing': 'Music Player',
 
-    // --- Storage Manager (New) ---
-    'total_used': 'Total Used',
-    'local_storage': 'Local Data',
-    'factory_reset': 'Factory Reset',
-    'factory_reset_confirm': 'WARNING: This will delete ALL data (Terminal files, Notes, Settings, Calendar) and reload the page.\n\nType "RESET" to confirm:',
-    'reset_cancel': 'Reset cancelled.',
-    'name': 'Name',
-    'key': 'Storage Key',
-    'size': 'Size',
-    'storage_empty': 'No local data found.',
-    'preview': 'Preview',
-    'hide_preview': 'Hide Preview',
-    'preview_hidden': 'Content hidden for security. Click Preview to view.',
-    'download': 'Download JSON',
-    'delete': 'Delete',
-    'confirm_delete': 'Are you sure you want to delete this data? This may reset the corresponding app.',
-    'delete_success': 'Data deleted successfully.',
-    'download_success': 'Backup downloaded.',
+    // --- File Manager (Advanced) ---
+    'fm_applications': 'Applications',
+    'fm_system': 'System Data',
+    'fm_delete_all': 'Format Disk (Delete All)',
+    'fm_delete_confirm': 'This will wipe ALL virtual data (Terminal, Notes, etc) and reload. Continue?',
+    'fm_preview_vscode': 'Preview in VS Code',
+    'fm_file_info': 'File Info',
+    'fm_size': 'Size',
+    'fm_modified': 'Modified',
+    'fm_path': 'Path',
+    'fm_no_files': 'No files in this app container',
 
     // --- Terminal ---
     'term_welcome': 'Welcome to LynxMuse Terminal. Type "help" to see commands.',
@@ -132,7 +125,7 @@ export const TRANSLATIONS = {
     'mail': '邮件', 'calendar': '日历', 'calculator': '计算器', 'music': '音乐',
     'notes': '备忘录', 'vscode': 'VS Code', 'settings': '系统设置', 'about': '关于翎',
     'text-editor': '文本编辑',
-    'storage_manager': '存储空间', // 新增
+    'storage_manager': '文件管理', // 改名
 
     // --- System Menu ---
     'about_mac': '关于本站',
@@ -173,24 +166,17 @@ export const TRANSLATIONS = {
     'language': '语言', 'wallpaper': '壁纸',
     'not_playing': '未在播放', 'music_playing': '音乐播放器',
 
-    // --- Storage Manager (New) ---
-    'total_used': '已用空间',
-    'local_storage': '本地数据',
-    'factory_reset': '恢复出厂设置',
-    'factory_reset_confirm': '警告：这将删除所有数据（终端文件、备忘录、设置、日历）并重新加载页面。\n\n输入 "RESET" 确认重置：',
-    'reset_cancel': '重置已取消。',
-    'name': '名称',
-    'key': '存储键名',
-    'size': '大小',
-    'storage_empty': '未发现本地数据。',
-    'preview': '预览',
-    'hide_preview': '隐藏预览',
-    'preview_hidden': '内容已隐藏。点击预览以查看。',
-    'download': '导出 JSON',
-    'delete': '删除',
-    'confirm_delete': '确定要删除此数据吗？这将重置对应的应用状态。',
-    'delete_success': '数据已删除。',
-    'download_success': '备份已下载。',
+    // --- File Manager (Advanced) ---
+    'fm_applications': '应用程序数据',
+    'fm_system': '系统数据',
+    'fm_delete_all': '格式化磁盘 (全部删除)',
+    'fm_delete_confirm': '这将擦除所有虚拟数据（终端文件、备忘录等）并重新加载系统。是否继续？',
+    'fm_preview_vscode': '在 VS Code 中预览',
+    'fm_file_info': '文件信息',
+    'fm_size': '大小',
+    'fm_modified': '修改时间',
+    'fm_path': '虚拟路径',
+    'fm_no_files': '此应用容器内无文件',
 
     // --- Terminal ---
     'term_welcome': '欢迎使用 LynxMuse 终端。输入 "help" 查看可用命令。',
@@ -234,12 +220,12 @@ export const TRANSLATIONS = {
     'mail': 'Mail 邮件', 'calendar': 'Calendar 日历', 'calculator': 'Calculator 计算器', 'music': 'Music 音乐',
     'notes': 'Notes 备忘录', 'vscode': 'VS Code', 'settings': 'Settings 设置', 'about': 'About 翎',
     'login_user_name': 'LynxMuse (翎)',
-    'storage_manager': 'Storage 存储管理', // 新增
+    'storage_manager': 'File Manager 文件管理',
     'file': 'File 文件', 'edit': 'Edit 编辑', 'view': 'View 显示', 'window': 'Window 窗口', 'help': 'Help 帮助',
     'favorites': 'Favorites 个人收藏', 'all_posts': 'Posts 所有文章',
     'about_mac': 'About This Portfolio 关于本站',
     'search': 'Search 搜索',
-    'factory_reset': 'Factory Reset 重置',
+    'fm_delete_all': 'Format Disk 格式化',
     'term_welcome': 'Welcome. 输入 "help" for commands.',
     'term_cmd_not_found': 'command not found 找不到命令',
     'rights': '© 2026 LynxMuse (翎). All rights reserved.',

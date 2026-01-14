@@ -1,234 +1,191 @@
 // components/macos/apps/storage-manager.tsx
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { HardDrive, Trash2, Download, RefreshCw, Database, FileJson, AlertTriangle, Eye, EyeOff } from 'lucide-react'
+import React, { useState, useEffect, useMemo } from 'react'
+import { HardDrive, Trash2, Download, RefreshCw, Folder, FileText, ChevronRight, LayoutGrid, List as ListIcon, Code, StickyNote, Calendar, Terminal, Settings } from 'lucide-react'
 import { clsx } from '../utils'
 import { useI18n } from '../i18n-context'
 import { useOs } from '../os-context'
+import { VSCode } from './vscode' // 引入 VS Code 用于预览
 
-// 定义系统已知的存储 Key，方便显示友好的名称
-const KNOWN_KEYS: Record<string, string> = {
-  'macos-terminal-fs': 'Terminal File System',
-  'macos-notes': 'Notes App Data',
-  'vscode-fs-v8': 'VS Code Projects',
-  'macos-calendar-events': 'Calendar Events',
-  'macos-lang': 'System Language Preference',
-  'macos-dock-layout': 'Dock Layout Config',
-  'macos-wallpaper': 'Desktop Wallpaper Setting'
+// === 类型定义 ===
+interface VirtualFile {
+  id: string
+  name: string
+  appName: string // 所属 App (Folder Name)
+  content: string
+  size: number
+  type: 'file' | 'folder'
+  originalKey: string // 对应的 localStorage key
+  originalId?: string // 对应 App 内部的 ID (如 Note ID)
 }
 
-interface StorageItem {
-  key: string
-  name: string
-  size: number // bytes
-  preview: string
+// === 解析器逻辑 ===
+
+// 1. 解析 Terminal 文件系统 (递归)
+const parseTerminalFS = (fs: any, path = ''): VirtualFile[] => {
+  let files: VirtualFile[] = []
+  if (!fs || !fs.children) return files
+
+  Object.values(fs.children).forEach((node: any) => {
+    if (node.type === 'file') {
+      files.push({
+        id: `term-${path}-${node.name}`,
+        name: node.name,
+        appName: 'Terminal',
+        content: node.content || '',
+        size: (node.content || '').length,
+        type: 'file',
+        originalKey: 'macos-terminal-fs'
+      })
+    } else if (node.type === 'dir') {
+      files = [...files, ...parseTerminalFS(node, `${path}/${node.name}`)]
+    }
+  })
+  return files
+}
+
+// 2. 解析 Notes
+const parseNotes = (notesJson: string): VirtualFile[] => {
+  try {
+    const notes = JSON.parse(notesJson)
+    return notes.map((note: any) => ({
+      id: `note-${note.id}`,
+      name: `${note.title || 'Untitled'}.txt`,
+      appName: 'Notes',
+      content: note.content || '',
+      size: (note.content || '').length,
+      type: 'file',
+      originalKey: 'macos-notes',
+      originalId: note.id
+    }))
+  } catch { return [] }
+}
+
+// 3. 解析 VS Code
+const parseVSCode = (fsJson: string): VirtualFile[] => {
+  try {
+    const fs = JSON.parse(fsJson)
+    return fs.filter((f: any) => f.type === 'file').map((f: any) => ({
+      id: `vscode-${f.id}`,
+      name: f.name,
+      appName: 'VS Code',
+      content: f.content || '',
+      size: (f.content || '').length,
+      type: 'file',
+      originalKey: 'vscode-fs-v8'
+    }))
+  } catch { return [] }
+}
+
+// 4. 解析 Calendar
+const parseCalendar = (eventsJson: string): VirtualFile[] => {
+  try {
+    const events = JSON.parse(eventsJson)
+    return events.map((ev: any) => ({
+      id: `cal-${ev.id}`,
+      name: `${ev.dateStr}-${ev.title}.json`,
+      appName: 'Calendar',
+      content: JSON.stringify(ev, null, 2),
+      size: JSON.stringify(ev).length,
+      type: 'file',
+      originalKey: 'macos-calendar-events'
+    }))
+  } catch { return [] }
 }
 
 export const StorageManager = () => {
   const { t } = useI18n()
-  const { addNotification } = useOs()
+  const { addNotification, launchApp } = useOs()
   
-  const [items, setItems] = useState<StorageItem[]>([])
-  const [totalSize, setTotalSize] = useState(0)
-  const [selectedKey, setSelectedKey] = useState<string | null>(null)
-  const [showPreview, setShowPreview] = useState(false)
-  const [refreshing, setRefreshing] = useState(false)
+  // State
+  const [files, setFiles] = useState<VirtualFile[]>([])
+  const [selectedFolder, setSelectedFolder] = useState<string>('All')
+  const [selectedFile, setSelectedFile] = useState<VirtualFile | null>(null)
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
-  // 格式化字节大小
-  const formatBytes = (bytes: number, decimals = 2) => {
-    if (bytes === 0) return '0 B'
-    const k = 1024
-    const dm = decimals < 0 ? 0 : decimals
-    const sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i]
-  }
-
-  // 扫描 LocalStorage
-  const scanStorage = () => {
-    setRefreshing(true)
-    const newItems: StorageItem[] = []
-    let total = 0
-
-    if (typeof window !== 'undefined') {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        // 仅过滤本系统相关的 key
-        if (key && (key.startsWith('macos-') || key.startsWith('vscode-'))) {
-          const content = localStorage.getItem(key) || ''
-          // 估算大小
-          const size = new Blob([content]).size 
-          total += size
-          newItems.push({
-            key,
-            name: KNOWN_KEYS[key] || key,
-            size,
-            preview: content
-          })
-        }
-      }
-    }
-
-    setItems(newItems)
-    setTotalSize(total)
-    setTimeout(() => setRefreshing(false), 500)
-  }
-
+  // 核心：实时轮询 (模拟文件系统监听)
   useEffect(() => {
-    scanStorage()
-  }, [])
+    const scan = () => {
+      let allFiles: VirtualFile[] = []
+      
+      // Terminal
+      const termFS = localStorage.getItem('macos-terminal-fs')
+      if (termFS) {
+          try { allFiles = [...allFiles, ...parseTerminalFS(JSON.parse(termFS))] } catch {}
+      }
 
-  // 动作：删除
-  const handleDelete = (key: string) => {
-    if (confirm(t('confirm_delete'))) {
-      localStorage.removeItem(key)
-      addNotification({ title: t('storage_manager'), message: t('delete_success'), type: 'success', icon: <Trash2 size={18}/> })
-      scanStorage()
-      if (selectedKey === key) setSelectedKey(null)
+      // Notes
+      const notes = localStorage.getItem('macos-notes')
+      if (notes) allFiles = [...allFiles, ...parseNotes(notes)]
+
+      // VS Code
+      const vscode = localStorage.getItem('vscode-fs-v8')
+      if (vscode) allFiles = [...allFiles, ...parseVSCode(vscode)]
+
+      // Calendar
+      const cal = localStorage.getItem('macos-calendar-events')
+      if (cal) allFiles = [...allFiles, ...parseCalendar(cal)]
+
+      // Diff check to avoid re-render loop if identical? (Simplified: just set)
+      // 在实际生产中应做深度比较，这里直接更新
+      setFiles(allFiles)
     }
+
+    scan()
+    const interval = setInterval(scan, 2000) // 2秒轮询一次，保证"其他App修改后实时更新"
+    return () => clearInterval(interval)
+  }, [refreshTrigger])
+
+  const folders = ['All', ...Array.from(new Set(files.map(f => f.appName)))]
+  const displayFiles = selectedFolder === 'All' ? files : files.filter(f => f.appName === selectedFolder)
+
+  // Actions
+  const handleOpen = (file: VirtualFile) => {
+      // 在 VS Code 预览 (使用我们新改的 VS Code 组件)
+      launchApp({
+          id: `preview-${file.id}`,
+          title: `Preview: ${file.name}`,
+          icon: <Code />, // 简单图标
+          width: 800,
+          height: 600,
+          component: <VSCode previewFile={{ name: file.name, content: file.content, language: file.name.split('.').pop() }} />
+      })
   }
 
-  // 动作：下载
-  const handleDownload = (item: StorageItem) => {
-    const blob = new Blob([item.preview], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${item.key}_backup.json`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    addNotification({ title: t('storage_manager'), message: t('download_success'), type: 'success', icon: <Download size={18}/> })
+  const handleDeleteAll = () => {
+      if (confirm(t('fm_delete_confirm'))) {
+          localStorage.clear()
+          window.location.reload()
+      }
   }
 
-  // 动作：恢复出厂设置
-  const handleFactoryReset = () => {
-    const confirmStr = prompt(t('factory_reset_confirm'))
-    if (confirmStr === 'RESET') {
-       localStorage.clear()
-       window.location.reload()
-    } else {
-       alert(t('reset_cancel'))
-    }
+  // Icons Helper
+  const getAppIcon = (appName: string) => {
+      switch(appName) {
+          case 'Terminal': return <Terminal size={18} />
+          case 'Notes': return <StickyNote size={18} />
+          case 'Calendar': return <Calendar size={18} />
+          case 'VS Code': return <Code size={18} />
+          default: return <Folder size={18} />
+      }
   }
-
-  const selectedItem = items.find(i => i.key === selectedKey)
 
   return (
-    <div className="flex h-full w-full bg-[#f5f5f7] dark:bg-[#1e1e1e] text-black dark:text-white font-sans select-none">
-      
-      {/* Sidebar */}
-      <div className="w-56 bg-[#e8e8ea] dark:bg-[#252525] border-r border-gray-300 dark:border-white/10 flex flex-col pt-6 px-3">
-         <div className="flex flex-col items-center mb-6">
-            <div className="w-20 h-20 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center text-white shadow-lg mb-3">
-                <HardDrive size={40} />
-            </div>
-            <div className="font-bold text-lg">{t('storage_manager')}</div>
-            <div className="text-xs text-gray-500">{t('total_used')}: {formatBytes(totalSize)}</div>
-         </div>
-
-         <div className="flex-1 space-y-1">
-             <div className="px-3 py-1 text-xs font-bold text-gray-400 uppercase tracking-wider">{t('locations')}</div>
-             <div className="flex items-center gap-2 px-3 py-2 bg-blue-500 text-white rounded-md text-sm">
-                 <Database size={16} /> {t('local_storage')}
-             </div>
-         </div>
-
-         <div className="mb-4">
-             <button 
-                onClick={handleFactoryReset}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-100 hover:bg-red-200 text-red-600 dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-400 rounded-md text-xs font-bold transition-colors"
-             >
-                 <AlertTriangle size={14} /> {t('factory_reset')}
-             </button>
-         </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col h-full bg-white dark:bg-[#1e1e1e]">
-         {/* Toolbar */}
-         <div className="h-12 border-b border-gray-200 dark:border-white/10 flex items-center justify-between px-4">
-            <div className="text-sm font-medium text-gray-500 flex items-center gap-2">
-                <HardDrive size={16} /> Macintosh HD - Data
-            </div>
-            <button onClick={scanStorage} className={clsx("p-2 rounded-md hover:bg-gray-100 dark:hover:bg-white/10 transition-all", refreshing && "animate-spin")}>
-                <RefreshCw size={16} />
-            </button>
-         </div>
-
-         {/* List Header */}
-         <div className="grid grid-cols-12 px-4 py-2 bg-gray-50 dark:bg-[#252525] text-xs font-bold text-gray-500 border-b border-gray-200 dark:border-white/10">
-             <div className="col-span-6">{t('name')}</div>
-             <div className="col-span-4">{t('key')}</div>
-             <div className="col-span-2 text-right">{t('size')}</div>
-         </div>
-
-         {/* List Items */}
-         <div className="flex-1 overflow-y-auto">
-             {items.length === 0 ? (
-                 <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-2">
-                     <Database size={48} className="opacity-20" />
-                     <div>{t('storage_empty')}</div>
-                 </div>
-             ) : (
-                 items.map(item => (
-                     <div 
-                        key={item.key}
-                        onClick={() => { setSelectedKey(item.key); setShowPreview(false) }}
+    <div className="flex h-full w-full bg-[#f5f5f7] dark:bg-[#1e1e1e] text-black dark:text-white font-sans select-none rounded-b-xl overflow-hidden">
+        
+        {/* Sidebar */}
+        <div className="w-48 bg-[#e8e8ea] dark:bg-[#252525]/90 backdrop-blur-xl border-r border-gray-300 dark:border-white/10 flex flex-col pt-4 px-2">
+            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-2 mb-2">{t('fm_applications')}</div>
+            <div className="flex flex-col gap-0.5">
+                {folders.map(folder => (
+                    <div 
+                        key={folder}
+                        onClick={() => { setSelectedFolder(folder); setSelectedFile(null) }}
                         className={clsx(
-                            "grid grid-cols-12 px-4 py-3 text-sm border-b border-gray-100 dark:border-white/5 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 items-center",
-                            selectedKey === item.key && "bg-blue-50 dark:bg-blue-900/20"
+                            "flex items-center gap-2 px-2 py-1.5 rounded-md text-sm cursor-pointer transition-colors",
+                            selectedFolder === folder ? "bg-blue-500 text-white" : "hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300"
                         )}
-                     >
-                         <div className="col-span-6 flex items-center gap-3 font-medium truncate pr-2">
-                             <div className="w-8 h-8 rounded bg-gray-200 dark:bg-white/10 flex items-center justify-center text-gray-500">
-                                 <FileJson size={18} />
-                             </div>
-                             {item.name}
-                         </div>
-                         <div className="col-span-4 text-xs text-gray-400 font-mono truncate pr-2">{item.key}</div>
-                         <div className="col-span-2 text-right text-xs font-mono">{formatBytes(item.size)}</div>
-                     </div>
-                 ))
-             )}
-         </div>
-
-         {/* Action Footer */}
-         {selectedItem && (
-             <div className="h-48 border-t border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-[#252525] p-4 flex flex-col gap-3 transition-all">
-                 <div className="flex items-center justify-between">
-                     <div className="font-bold flex items-center gap-2">
-                         {selectedItem.name}
-                         <span className="text-xs font-normal text-gray-400 bg-gray-200 dark:bg-white/10 px-1.5 py-0.5 rounded">{formatBytes(selectedItem.size)}</span>
-                     </div>
-                     <div className="flex gap-2">
-                        <button onClick={() => setShowPreview(!showPreview)} className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 rounded-md text-xs font-medium hover:bg-gray-50 dark:hover:bg-white/20 shadow-sm">
-                             {showPreview ? <EyeOff size={14} /> : <Eye size={14} />} {showPreview ? t('hide_preview') : t('preview')}
-                        </button>
-                        <button onClick={() => handleDownload(selectedItem)} className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 rounded-md text-xs font-medium hover:bg-gray-50 dark:hover:bg-white/20 shadow-sm">
-                             <Download size={14} /> {t('download')}
-                        </button>
-                        <button onClick={() => handleDelete(selectedItem.key)} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500 text-white rounded-md text-xs font-medium hover:bg-red-600 shadow-sm">
-                             <Trash2 size={14} /> {t('delete')}
-                        </button>
-                     </div>
-                 </div>
-                 
-                 {/* Preview Area */}
-                 <div className="flex-1 bg-white dark:bg-black/30 border border-gray-200 dark:border-white/10 rounded-lg p-2 overflow-auto relative font-mono text-xs text-gray-600 dark:text-gray-300">
-                     {showPreview ? (
-                         <pre className="whitespace-pre-wrap break-all">{JSON.stringify(JSON.parse(selectedItem.preview || '{}'), null, 2)}</pre>
-                     ) : (
-                         <div className="absolute inset-0 flex items-center justify-center text-gray-400 italic">
-                             {t('preview_hidden')}
-                         </div>
-                     )}
-                 </div>
-             </div>
-         )}
-      </div>
-    </div>
-  )
-}
+                    >
+                        {folder === '
