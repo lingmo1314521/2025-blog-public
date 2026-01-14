@@ -175,3 +175,45 @@
 		animation: heartbeat-frame 0.8s ease-in-out;
 	}
 }
+/* =========================================
+   macOS 嵌入模式样式修正 (更新版)
+   ========================================= */
+
+/* 1. 基础清理：所有嵌入页面都隐藏 Header/Footer/Nav */
+#app-embedded header, 
+#app-embedded footer,
+#app-embedded nav {
+    display: none !important;
+}
+
+/* 2. 重置容器样式 */
+#app-embedded {
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow-x: hidden;
+}
+
+/* 3. 【只在阅读页面】隐藏右上角的浮动按钮 (通常是跳转编辑的按钮) */
+/* 注意：这里用了 .embedded-read 限定，不会影响编辑页面 */
+.embedded-read .absolute.top-4.right-6,
+.embedded-read button.absolute.top-4.right-6 {
+    display: none !important;
+}
+
+/* 4. 【只在编辑页面】保护操作栏 */
+/* 确保编辑页面的按钮组 (Save/Publish等) 始终显示 */
+.embedded-write ul.absolute.top-4.right-6 {
+    display: flex !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    z-index: 50;
+    /* 微调位置，因为没有 Header 了，可能需要贴顶一点 */
+    top: 1rem !important; 
+    right: 1.5rem !important;
+}
+
+/* 5. 修复编辑页面可能的布局错位 */
+/* 因为去掉了 Header，可能需要调整一下顶部间距 */
+.embedded-write .pt-24 {
+    padding-top: 1rem !important; /* 原来是 pt-24 (96px)，现在改为 1rem */
+}
