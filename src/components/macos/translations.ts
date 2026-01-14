@@ -20,8 +20,8 @@ export const TRANSLATIONS = {
     'notes': 'Notes',
     'vscode': 'VS Code',
     'settings': 'Settings',
-    'about': 'About Lynx', // 改名
-    'text-editor': 'Editor',
+    'about': 'About Lynx',
+    'text-editor': 'TextEdit',
 
     // --- System Menu ---
     'about_mac': 'About This Portfolio',
@@ -30,7 +30,7 @@ export const TRANSLATIONS = {
     'restart': 'Restart...',
     'shutdown': 'Shut Down...',
     'lock_screen': 'Lock Screen',
-    'log_out': 'Log Out LynxMuse...', // 改名
+    'log_out': 'Log Out LynxMuse...',
 
     // --- Top Bar ---
     'file': 'File', 'edit': 'Edit', 'view': 'View', 'window': 'Window', 'help': 'Help',
@@ -77,12 +77,12 @@ export const TRANSLATIONS = {
     'term_help_header': 'Available commands:',
     'term_sudo_joke': 'LynxMuse is not in the sudoers file. This incident will be reported.',
     'term_rm_joke': "I'm sorry, Lynx. I'm afraid I can't do that.",
-    'term_prompt_user': 'lynx', // 用户名
+    'term_prompt_user': 'lynx',
 
     // --- Mail ---
     'inbox': 'Inbox', 'sent': 'Sent', 'trash': 'Trash', 'no_mail': 'No Mail Selected',
     'mail_sent': 'Email sent successfully!', 'mail_deleted': 'Email moved to Trash',
-    'mail_to_me': 'To: LynxMuse <lynx@macos.web>', // 邮箱
+    'mail_to_me': 'To: LynxMuse <lynx@macos.web>',
 
     // --- Calendar ---
     'today': 'Today',
@@ -99,7 +99,7 @@ export const TRANSLATIONS = {
     'processor': 'Processor', 'processor_desc': 'Human Brain 1.0 (Lynx Core)',
     'memory': 'Memory', 'memory_desc': 'Limited & Volatile',
     'graphics': 'Graphics', 'graphics_desc': 'Real Vision Pro',
-    'rights': '© 2026 LynxMuse (翎). All rights reserved.',
+    'rights': '© 2026 LynxMuse (Ling). All rights reserved.',
   },
   zh: {
     // --- Identity ---
@@ -108,7 +108,7 @@ export const TRANSLATIONS = {
     'click_to_sleep': '点击休眠',
 
     // --- Apps Names ---
-    'finder': '访达', 'launchpad': '启动台', 'safari': '浏览器', 'terminal': '终端',
+    'finder': '访达', 'launchpad': '启动台', 'safari': 'Safari浏览器', 'terminal': '终端',
     'mail': '邮件', 'calendar': '日历', 'calculator': '计算器', 'music': '音乐',
     'notes': '备忘录', 'vscode': 'VS Code', 'settings': '系统设置', 'about': '关于翎',
     'text-editor': '文本编辑',
@@ -141,7 +141,7 @@ export const TRANSLATIONS = {
     'ctx_refresh': '刷新', 'ctx_wallpaper': '更换壁纸',
 
     // --- DocViewer ---
-    'read_mode': '阅读模式', 'edit_mode': '编辑模式', 'invalid_link': '无效的文档链接',
+    'read_mode': '阅读模式', 'edit_mode': '编辑模式', 'invalid_link': '无效链接',
     'loading_doc': '正在加载文档...',
 
     // --- General ---
@@ -154,21 +154,21 @@ export const TRANSLATIONS = {
 
     // --- Terminal ---
     'term_welcome': '欢迎使用 LynxMuse 终端。输入 "help" 查看可用命令。',
-    'term_login': '上次登录: 今天 ttys000',
+    'term_login': '上次登录时间: 今天 ttys000',
     'term_cmd_not_found': '找不到命令',
     'term_permission_denied': '权限被拒绝',
     'term_dir_exists': '目录已存在',
     'term_file_exists': '文件已存在',
-    'term_no_such': '没有那个文件或目录',
+    'term_no_such': '没有此文件或目录',
     'term_is_dir': '是一个目录',
     'term_help_header': '可用命令:',
     'term_sudo_joke': 'LynxMuse 不在 sudoers 文件中。此事将被报告。',
-    'term_rm_joke': '对不起，翎。恐怕我不能那样做。',
+    'term_rm_joke': '抱歉，翎。我恐怕不能这样做。',
     'term_prompt_user': 'lynx',
 
     // --- Mail ---
     'inbox': '收件箱', 'sent': '已发送', 'trash': '废纸篓', 'no_mail': '未选择邮件',
-    'mail_sent': '邮件已发送成功！', 'mail_deleted': '邮件已移至废纸篓',
+    'mail_sent': '邮件发送成功！', 'mail_deleted': '邮件已移至废纸篓',
     'mail_to_me': '收件人: 翎 <lynx@macos.web>',
 
     // --- Calendar ---
@@ -183,21 +183,23 @@ export const TRANSLATIONS = {
     // --- About ---
     'about_title': '我的主页',
     'about_version': '版本 2.0 (macOS Edition)',
-    'processor': '处理器', 'processor_desc': '人类大脑 1.0 (Lynx Core)',
-    'memory': '内存', 'memory_desc': '有限且易挥发',
+    'processor': '处理器', 'processor_desc': '人类大脑 1.0 (Lynx 核心)',
+    'memory': '内存', 'memory_desc': '有限且易失',
     'graphics': '显卡', 'graphics_desc': '真实视觉 Pro',
     'rights': '© 2026 LynxMuse (翎). 保留所有权利.',
   },
   mix: {
-    // 混合模式简单回退到英文，关键 UI 保留双语
-    'finder': 'Finder 访达', 'launchpad': 'Launchpad', 'safari': 'Safari', 'terminal': 'Terminal',
-    'mail': 'Mail', 'calendar': 'Calendar', 'calculator': 'Calculator', 'music': 'Music',
-    'notes': 'Notes', 'vscode': 'VS Code', 'settings': 'Settings', 'about': 'About 翎',
+    // 混合模式：关键UI保留双语，其他回退到英文
+    'finder': 'Finder 访达', 'launchpad': 'Launchpad 启动台', 'safari': 'Safari 浏览器', 'terminal': 'Terminal 终端',
+    'mail': 'Mail 邮件', 'calendar': 'Calendar 日历', 'calculator': 'Calculator 计算器', 'music': 'Music 音乐',
+    'notes': 'Notes 备忘录', 'vscode': 'VS Code', 'settings': 'Settings 设置', 'about': 'About 翎',
     'login_user_name': 'LynxMuse (翎)',
     'file': 'File 文件', 'edit': 'Edit 编辑', 'view': 'View 显示', 'window': 'Window 窗口', 'help': 'Help 帮助',
-    'favorites': 'Favorites', 'all_posts': 'Posts',
+    'favorites': 'Favorites 个人收藏', 'all_posts': 'Posts 所有文章',
+    'about_mac': 'About This Portfolio 关于本站',
+    'search': 'Search 搜索',
     'term_welcome': 'Welcome. 输入 "help" for commands.',
-    'term_cmd_not_found': 'command not found',
+    'term_cmd_not_found': 'command not found 找不到命令',
     'rights': '© 2026 LynxMuse (翎). All rights reserved.',
   }
 }
