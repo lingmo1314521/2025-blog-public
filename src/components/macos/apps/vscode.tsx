@@ -2,11 +2,16 @@
 
 import React, { useState, useRef, useEffect, useMemo, createContext, useContext } from 'react'
 import { 
+  // --- 基础图标 ---
   Search, Files, Play, X, ChevronRight, ChevronDown, 
   Settings, ToggleLeft, ToggleRight, GitBranch,
+  // --- 文件/文件夹图标 ---
   Folder, FolderOpen, Archive, FilePlus, FolderPlus, 
   Briefcase, Edit3, FolderInput, Terminal as TerminalIcon,
-  Command, Search as SearchIcon, MoreHorizontal, Download, Upload, FileCode, LayoutTemplate
+  // --- 功能图标 ---
+  Command, Search as SearchIcon, MoreHorizontal, 
+  Download, Upload, FileCode, LayoutTemplate, 
+  Trash2 // <--- 修复：补回了 Trash2 图标
 } from 'lucide-react'
 import { clsx } from '../utils'
 import { useI18n } from '../i18n-context'
