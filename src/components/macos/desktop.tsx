@@ -14,11 +14,10 @@ import { Spotlight } from './spotlight'
 import { Notifications } from './notifications'
 import { AppConfig } from './types'
 import { DocViewer } from './apps/doc-viewer'
-import { FileText, Edit3, Mic, Cloud, HardDrive, X } from 'lucide-react'
+import { FileText, Edit3, Mic } from 'lucide-react'
 
 // --- 弹窗组件: 麦克风权限 ---
 const MicPermissionModal = ({ onClose }: { onClose: () => void }) => {
-    const { t } = useI18n()
     const handleAllow = () => {
         // 请求麦克风权限
         navigator.mediaDevices.getUserMedia({ audio: true })
@@ -57,72 +56,13 @@ const MicPermissionModal = ({ onClose }: { onClose: () => void }) => {
     )
 }
 
-// --- 弹窗组件: 鸣潮启动模式选择 ---
-const GameModeSelector = () => {
-    const { setWwLaunchMode, closeGameModeSelector, launchApp, dockItems } = useOs()
-    const { t } = useI18n()
-
-    const handleSelect = (mode: 'cloud' | 'local') => {
-        setWwLaunchMode(mode)
-        closeGameModeSelector()
-        // 选择后立即启动
-        const app = dockItems.find(a => a.id === 'wuthering_waves')
-        if (app) launchApp(app, { mode }) 
-    }
-
-    return (
-        <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
-            <div className="bg-[#1e1e1e] text-white w-[400px] rounded-2xl shadow-2xl overflow-hidden border border-white/10">
-                <div className="p-6 text-center border-b border-white/10 relative">
-                    <h3 className="text-xl font-bold mb-1">Launch Wuthering Waves</h3>
-                    <p className="text-gray-400 text-sm">Choose how you want to launch the game</p>
-                    <button onClick={closeGameModeSelector} className="absolute top-4 right-4 text-gray-500 hover:text-white"><X size={16}/></button>
-                </div>
-                <div className="grid grid-cols-2 p-4 gap-4">
-                    <button 
-                        onClick={() => handleSelect('local')}
-                        className="flex flex-col items-center gap-3 p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-transparent hover:border-yellow-500/50 group"
-                    >
-                        <div className="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center group-hover:scale-110 transition-transform">
-                            <HardDrive size={24} className="text-gray-300"/>
-                        </div>
-                        <div className="text-center">
-                            <div className="font-bold text-sm">Local PC</div>
-                            <div className="text-[10px] text-gray-500 mt-1">Wuthering Waves.exe</div>
-                        </div>
-                    </button>
-                    <button 
-                        onClick={() => handleSelect('cloud')}
-                        className="flex flex-col items-center gap-3 p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-transparent hover:border-blue-500/50 group"
-                    >
-                        <div className="w-12 h-12 rounded-full bg-blue-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
-                            <Cloud size={24} className="text-blue-400"/>
-                        </div>
-                        <div className="text-center">
-                            <div className="font-bold text-sm">Cloud Gaming</div>
-                            <div className="text-[10px] text-gray-500 mt-1">No download required</div>
-                        </div>
-                    </button>
-                </div>
-                <div className="px-6 pb-4 text-center">
-                    <p className="text-[10px] text-gray-600">You can change this later in Settings.</p>
-                </div>
-            </div>
-        </div>
-    )
-}
-
 const DesktopContent = ({ wallpaper, setWallpaper }: { wallpaper: string, setWallpaper: (url: string) => void }) => {
-    const { 
-        windows, dockItems, registry, launchApp, 
-        isLocked, 
-        isGameModeSelectorOpen 
-    } = useOs() as any 
+    const { windows, dockItems, registry, launchApp, isLocked } = useOs() as any 
     
     const allApps: AppConfig[] = registry || dockItems
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: ContextMenuType; meta?: any } | null>(null)
     
-    // --- 新增：麦克风权限检测逻辑 ---
+    // --- 麦克风权限检测逻辑 ---
     const [showMicPrompt, setShowMicPrompt] = useState(false)
 
     useEffect(() => {
@@ -142,7 +82,6 @@ const DesktopContent = ({ wallpaper, setWallpaper }: { wallpaper: string, setWal
             return () => clearTimeout(timer)
         }
     }, [isLocked])
-    // ---------------------------------
 
     const handleContextMenu = (e: React.MouseEvent, type: ContextMenuType = 'desktop', meta?: any) => { 
         e.preventDefault(); 
@@ -188,16 +127,14 @@ const DesktopContent = ({ wallpaper, setWallpaper }: { wallpaper: string, setWal
             <Spotlight />
             <Notifications />
             
-            {/* 新增：弹窗挂载点 */}
+            {/* 弹窗挂载点 */}
             {showMicPrompt && <MicPermissionModal onClose={() => setShowMicPrompt(false)} />}
-            {isGameModeSelectorOpen && <GameModeSelector />}
             
             <div className="absolute inset-0">
                 {windows.map((window: any) => {
                     const app = allApps.find((a: any) => a.id === window.appId)
                     let component = app?.component
                     
-                    // 注入 props (例如游戏启动模式)
                     if (window.props && React.isValidElement(component)) {
                         component = React.cloneElement(component as React.ReactElement, { ...window.props })
                     }

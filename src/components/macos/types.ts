@@ -3,9 +3,6 @@ import { ReactNode } from 'react'
 
 export type AppID = 'finder' | 'launchpad' | 'blog' | 'settings' | 'about' | 'github' | 'mail' | 'terminal' | 'calculator' | 'calendar' | 'music' | 'notes' | 'vscode' | 'safari' | 'siri' | 'wuthering_waves' | 'preview' | 'storage_manager' | string
 
-// 新增：鸣潮启动模式类型
-export type WWLaunchMode = 'cloud' | 'local' | null
-
 export interface AppConfig {
   id: AppID
   title: string
@@ -30,7 +27,6 @@ export interface WindowState {
   size: { width: number; height: number }
   lastSize?: { width: number; height: number }
   lastPosition?: { x: number; y: number }
-  // 新增：传递给窗口组件的额外参数（例如启动模式）
   props?: any 
 }
 
@@ -61,16 +57,7 @@ export interface OsContextState {
 
   notifications: Notification[]
 
-  // 新增：鸣潮启动模式状态
-  wwLaunchMode: WWLaunchMode
-  setWwLaunchMode: (mode: WWLaunchMode) => void
-  
-  // 新增：控制游戏模式选择弹窗
-  isGameModeSelectorOpen: boolean
-  openGameModeSelector: () => void
-  closeGameModeSelector: () => void
-
-  launchApp: (app: AppConfig, props?: any) => void // 修改：支持传递 props
+  launchApp: (app: AppConfig, props?: any) => void
   closeWindow: (id: string) => void
   minimizeWindow: (id: string) => void
   maximizeWindow: (id: string) => void

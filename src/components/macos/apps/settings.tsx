@@ -1,9 +1,8 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Image as ImageIcon, Globe, Monitor, Volume2, Gamepad2 } from 'lucide-react'
+import { Image as ImageIcon, Globe, Monitor, Volume2 } from 'lucide-react'
 import { useI18n } from '../i18n-context'
-import { useOs } from '../os-context' // 引入
 import { clsx } from '../utils'
 
 const WALLPAPERS = [
@@ -13,11 +12,10 @@ const WALLPAPERS = [
   { name: 'Dark Nebula', url: 'https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?q=80&w=2342&auto=format&fit=crop' },
 ]
 
-type Tab = 'wallpaper' | 'language' | 'display' | 'sound' | 'game' // 新增 game tab
+type Tab = 'wallpaper' | 'language' | 'display' | 'sound'
 
 export const Settings = ({ setWallpaper }: { setWallpaper?: (url: string) => void }) => {
   const { t, language, setLanguage } = useI18n()
-  const { wwLaunchMode, setWwLaunchMode } = useOs() // 获取状态
   const [activeTab, setActiveTab] = useState<Tab>('wallpaper')
 
   const SidebarItem = ({ id, icon: Icon, label }: { id: Tab, icon: any, label: string }) => (
@@ -34,8 +32,6 @@ export const Settings = ({ setWallpaper }: { setWallpaper?: (url: string) => voi
             <div className="h-[1px] bg-gray-200 dark:bg-white/10 my-2 mx-2" />
             <SidebarItem id="display" icon={Monitor} label={t('display')} />
             <SidebarItem id="sound" icon={Volume2} label={t('sound')} />
-            <div className="h-[1px] bg-gray-200 dark:bg-white/10 my-2 mx-2" />
-            <SidebarItem id="game" icon={Gamepad2} label="Gaming" />
         </div>
 
         <div className="flex-1 p-6 overflow-y-auto">
@@ -68,43 +64,7 @@ export const Settings = ({ setWallpaper }: { setWallpaper?: (url: string) => voi
                     </div>
                 </div>
             )}
-
-            {/* 新增：游戏设置 */}
-            {activeTab === 'game' && (
-                <div className="space-y-4">
-                    <h2 className="text-lg font-bold">Wuthering Waves Settings</h2>
-                    <div className="bg-white dark:bg-[#2c2c2c] rounded-lg border border-gray-200 dark:border-white/10 p-4">
-                        <div className="text-sm font-medium mb-3">Launch Mode Preference</div>
-                        <div className="flex gap-4">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input 
-                                    type="radio" 
-                                    name="wwMode" 
-                                    checked={wwLaunchMode === 'cloud'} 
-                                    onChange={() => setWwLaunchMode('cloud')}
-                                    className="accent-blue-500"
-                                />
-                                <span>Cloud Gaming</span>
-                            </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input 
-                                    type="radio" 
-                                    name="wwMode" 
-                                    checked={wwLaunchMode === 'local'} 
-                                    onChange={() => setWwLaunchMode('local')}
-                                    className="accent-blue-500"
-                                />
-                                <span>Local PC (EXE)</span>
-                            </label>
-                        </div>
-                        <div className="text-xs text-gray-400 mt-2">
-                            Select how Siri launches the game. "Local" simulates running the EXE file.
-                        </div>
-                    </div>
-                </div>
-            )}
             
-            {/* Display/Sound placeholders to avoid empty tabs if clicked */}
             {(activeTab === 'display' || activeTab === 'sound') && (
                 <div className="flex items-center justify-center h-full text-gray-400 text-sm">
                     Adjust via Control Center

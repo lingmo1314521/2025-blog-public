@@ -7,7 +7,7 @@ import { useOs } from '../os-context'
 import { useI18n } from '../i18n-context'
 
 export const Siri = () => {
-  const { launchApp, dockItems, wwLaunchMode, openGameModeSelector } = useOs()
+  const { launchApp, dockItems } = useOs()
   const { language, t } = useI18n()
   const [isListening, setIsListening] = useState(false)
   const [transcript, setTranscript] = useState(t('siri_listening'))
@@ -45,19 +45,12 @@ export const Siri = () => {
   }, [language])
 
   const processCommand = (cmd: string) => {
-    // 1. 鸣潮启动
+    // 1. 鸣潮启动 - 直接启动云端
     if (cmd.includes('鸣潮') || cmd.includes('wuthering') || cmd.includes('waves') || cmd.includes('启动')) {
         const game = dockItems.find(a => a.id === 'wuthering_waves')
         if (game) {
-            // --- 核心修改：检查模式 ---
-            if (!wwLaunchMode) {
-                setTranscript("Which mode? Cloud or Local?")
-                setTimeout(() => openGameModeSelector(), 800)
-                return
-            }
-
             setTranscript(t('siri_launching_game'))
-            setTimeout(() => launchApp(game, { mode: wwLaunchMode }), 1000)
+            setTimeout(() => launchApp(game), 1000)
             return
         }
     }

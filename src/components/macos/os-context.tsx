@@ -2,7 +2,7 @@
 'use client'
 
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react'
-import { AppConfig, OsContextState, WindowState, Notification, WWLaunchMode } from './types'
+import { AppConfig, OsContextState, WindowState, Notification } from './types'
 
 const OsContext = createContext<OsContextState | null>(null)
 
@@ -31,27 +31,6 @@ export const OsProvider = ({ children, installedApps }: OsProviderProps) => {
   const [brightness, setBrightness] = useState(100)
   const [volume, setVolume] = useState(80)
 
-  // 新增：鸣潮相关状态
-  const [wwLaunchMode, setWwLaunchModeState] = useState<WWLaunchMode>(null)
-  const [isGameModeSelectorOpen, setIsGameModeSelectorOpen] = useState(false)
-
-  // 初始化加载设置
-  useEffect(() => {
-    const savedMode = localStorage.getItem('ww-launch-mode') as WWLaunchMode
-    if (savedMode === 'cloud' || savedMode === 'local') {
-      setWwLaunchModeState(savedMode)
-    }
-  }, [])
-
-  const setWwLaunchMode = (mode: WWLaunchMode) => {
-    setWwLaunchModeState(mode)
-    if (mode) localStorage.setItem('ww-launch-mode', mode)
-    else localStorage.removeItem('ww-launch-mode')
-  }
-
-  const openGameModeSelector = useCallback(() => setIsGameModeSelectorOpen(true), [])
-  const closeGameModeSelector = useCallback(() => setIsGameModeSelectorOpen(false), [])
-
   useEffect(() => {
     document.documentElement.style.filter = `brightness(${brightness}%)`
   }, [brightness])
@@ -68,21 +47,19 @@ export const OsProvider = ({ children, installedApps }: OsProviderProps) => {
     setIsSpotlightOpen(false)
   }, [getTopZIndex])
 
-  // 修改：launchApp 支持 props
   const launchApp = useCallback((app: AppConfig, props?: any) => {
     setIsLaunchpadOpen(false)
     setIsControlCenterOpen(false)
     setIsSpotlightOpen(false)
     setRegistry((prev) => { if (prev.find(a => a.id === app.id)) return prev; return [...prev, app] })
     setWindows((prev) => {
-      // 如果已存在，更新 props 并前置
       const existing = prev.find((w) => w.appId === app.id)
       if (existing) {
         return prev.map(w => w.id === existing.id ? { 
             ...w, 
             isMinimized: false, 
             zIndex: getTopZIndex() + 1,
-            props: props || w.props // 更新 props
+            props: props || w.props
         } : w)
       }
       return [...prev, {
@@ -147,10 +124,6 @@ export const OsProvider = ({ children, installedApps }: OsProviderProps) => {
         isMenuOpen: false, isLaunchpadOpen, isControlCenterOpen, isLocked, isSpotlightOpen, notifications,
         brightness, volume, setBrightness, setVolume,
         
-        // 传递新状态
-        wwLaunchMode, setWwLaunchMode, 
-        isGameModeSelectorOpen, openGameModeSelector, closeGameModeSelector,
-
         launchApp, closeWindow, minimizeWindow, maximizeWindow, restoreWindow, focusWindow, bringToFront, resizeWindow, updateWindowPos,
         toggleLaunchpad, toggleControlCenter, setIsLocked, toggleSpotlight, addNotification, removeNotification
     }}>
