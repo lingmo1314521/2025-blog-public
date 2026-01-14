@@ -28,6 +28,17 @@ export const OsProvider = ({ children, installedApps }: OsProviderProps) => {
   const [isSpotlightOpen, setIsSpotlightOpen] = useState(false)
   const [notifications, setNotifications] = useState<Notification[]>([])
 
+  // 全局系统设置
+  const [brightness, setBrightness] = useState(100)
+  const [volume, setVolume] = useState(80)
+
+  // 亮度效果实现
+  useEffect(() => {
+    // 通过给 body 添加 filter 来模拟屏幕亮度
+    // 注意：这可能会影响性能，但在模拟器中效果很好
+    document.documentElement.style.filter = `brightness(${brightness}%)`
+  }, [brightness])
+
   const getTopZIndex = useCallback(() => {
     if (windows.length === 0) return 10
     return Math.max(...windows.map((w) => w.zIndex))
@@ -107,9 +118,12 @@ export const OsProvider = ({ children, installedApps }: OsProviderProps) => {
   return (
     <OsContext.Provider value={{
         windows, activeWindowId, 
-        dockItems: installedApps, // 修复：这里正确传递
+        dockItems: installedApps,
         registry,
         isMenuOpen: false, isLaunchpadOpen, isControlCenterOpen, isLocked, isSpotlightOpen, notifications,
+        // 全局设置
+        brightness, volume, setBrightness, setVolume,
+        
         launchApp, closeWindow, minimizeWindow, maximizeWindow, restoreWindow, focusWindow, bringToFront, resizeWindow, updateWindowPos,
         toggleLaunchpad, toggleControlCenter, setIsLocked, toggleSpotlight, addNotification, removeNotification
     }}>

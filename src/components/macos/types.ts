@@ -43,11 +43,19 @@ export interface OsContextState {
   dockItems: AppConfig[]
   registry: AppConfig[]
   
+  // 系统状态
   isMenuOpen: boolean
   isLaunchpadOpen: boolean
   isControlCenterOpen: boolean
   isLocked: boolean
   isSpotlightOpen: boolean
+  
+  // 新增：全局系统设置状态
+  brightness: number
+  volume: number
+  setBrightness: (val: number) => void
+  setVolume: (val: number) => void
+
   notifications: Notification[]
 
   launchApp: (app: AppConfig) => void

@@ -1,20 +1,18 @@
 // components/macos/control-center.tsx
 'use client'
 
-import React, { useRef, useState } from 'react'
+import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { Wifi, Bluetooth, Sun, Volume2, Moon, Cast, Music } from 'lucide-react'
 import { useOs } from './os-context'
-// 修改点：从 '../i18n-context' 改为 './i18n-context'
 import { useI18n } from './i18n-context'
-// 修改点：从 '../utils' 改为 './utils'
 import { clsx } from './utils'
 
 export const ControlCenter = () => {
-  const { isControlCenterOpen, toggleControlCenter } = useOs()
+  const { isControlCenterOpen, toggleControlCenter, brightness, setBrightness, volume, setVolume } = useOs()
   const { t } = useI18n()
   
-  // Local States
+  // Local States for toggles
   const [wifi, setWifi] = useState(true)
   const [bt, setBt] = useState(true)
   const [dnd, setDnd] = useState(false)
@@ -85,20 +83,34 @@ export const ControlCenter = () => {
               </div>
             </div>
 
-            {/* Sliders */}
+            {/* Sliders with Real Functionality */}
             <div className="bg-white/50 dark:bg-black/20 rounded-xl p-3 shadow-sm">
               <div className="text-[10px] font-medium mb-2 pl-1">{t('display')}</div>
               <div className="relative h-7 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden flex items-center group cursor-ew-resize">
-                 <div className="absolute left-2 text-gray-500 z-10"><Sun size={14} /></div>
-                 <div className="h-full bg-white w-[70%] shadow-sm rounded-full group-active:w-[75%] transition-all" />
+                 <div className="absolute left-2 text-gray-500 z-10 pointer-events-none"><Sun size={14} /></div>
+                 <input 
+                    type="range" 
+                    min="30" max="100" 
+                    value={brightness} 
+                    onChange={(e) => setBrightness(parseInt(e.target.value))}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                 />
+                 <div className="h-full bg-white w-full shadow-sm rounded-full pointer-events-none transition-all origin-left" style={{ transform: `scaleX(${brightness / 100})` }} />
               </div>
             </div>
 
             <div className="bg-white/50 dark:bg-black/20 rounded-xl p-3 shadow-sm">
               <div className="text-[10px] font-medium mb-2 pl-1">{t('sound')}</div>
                <div className="relative h-7 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden flex items-center group cursor-ew-resize">
-                 <div className="absolute left-2 text-gray-500 z-10"><Volume2 size={14} /></div>
-                 <div className="h-full bg-white w-[50%] shadow-sm rounded-full group-active:w-[55%] transition-all" />
+                 <div className="absolute left-2 text-gray-500 z-10 pointer-events-none"><Volume2 size={14} /></div>
+                 <input 
+                    type="range" 
+                    min="0" max="100" 
+                    value={volume} 
+                    onChange={(e) => setVolume(parseInt(e.target.value))}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                 />
+                 <div className="h-full bg-white w-full shadow-sm rounded-full pointer-events-none transition-all origin-left" style={{ transform: `scaleX(${volume / 100})` }} />
               </div>
             </div>
 

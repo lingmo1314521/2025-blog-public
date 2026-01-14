@@ -13,51 +13,48 @@ interface FileNode {
   children?: { [key: string]: FileNode }
 }
 
+const INITIAL_FS: FileNode = {
+  name: 'root',
+  type: 'dir',
+  children: {
+    'home': {
+      name: 'home',
+      type: 'dir',
+      children: {
+        'lynx': {
+          name: 'lynx',
+          type: 'dir',
+          children: {
+            'projects': {
+              name: 'projects',
+              type: 'dir',
+              children: {
+                'blog': { name: 'blog', type: 'file', content: 'This amazing macOS blog!' },
+                'wuthering-waves': { name: 'wuthering-waves', type: 'file', content: 'Game Launcher Project [WIP]' }
+              }
+            },
+            'skills.txt': { name: 'skills.txt', type: 'file', content: 'Next.js, React, TypeScript, Tailwind CSS, Cybersecurity (SSRF)' },
+            'contact.md': { name: 'contact.md', type: 'file', content: '# Contact\n- GitHub: @LynxMuse\n- Email: lynx@macos.web' },
+            'flag.txt': { name: 'flag.txt', type: 'file', content: 'ctf{y0u_f0und_7h3_fl4g}' }
+          }
+        }
+      }
+    },
+    'bin': {
+        name: 'bin', type: 'dir', children: {
+            'echo': { name: 'echo', type: 'file', content: 'Binary' },
+            'ls': { name: 'ls', type: 'file', content: 'Binary' },
+            'cd': { name: 'cd', type: 'file', content: 'Binary' },
+        }
+    }
+  }
+}
+
 export const Terminal = () => {
   const { launchApp, dockItems } = useOs()
   const { t } = useI18n()
   
-  // 初始化文件系统，改为 LynxMuse 个人信息
-  const [fileSystem, setFileSystem] = useState<FileNode>({
-    name: 'root',
-    type: 'dir',
-    children: {
-      'home': {
-        name: 'home',
-        type: 'dir',
-        children: {
-          'lynx': { // 用户名改为 lynx
-            name: 'lynx',
-            type: 'dir',
-            children: {
-              'projects': {
-                name: 'projects',
-                type: 'dir',
-                children: {
-                  'blog': { name: 'blog', type: 'file', content: 'This amazing macOS blog!' },
-                  'wuthering-waves': { name: 'wuthering-waves', type: 'file', content: 'Game Launcher Project [WIP]' }
-                }
-              },
-              'skills.txt': { name: 'skills.txt', type: 'file', content: 'Next.js, React, TypeScript, Tailwind CSS, Cybersecurity (SSRF)' },
-              'contact.md': { name: 'contact.md', type: 'file', content: '# Contact\n- GitHub: @LynxMuse\n- Email: lynx@macos.web' },
-              'flag.txt': { name: 'flag.txt', type: 'file', content: 'ctf{y0u_f0und_7h3_fl4g}' } // CTF 彩蛋
-            }
-          }
-        }
-      },
-      'bin': {
-        name: 'bin',
-        type: 'dir',
-        children: {
-          'echo': { name: 'echo', type: 'file', content: 'Binary file' },
-          'ls': { name: 'ls', type: 'file', content: 'Binary file' },
-          'cd': { name: 'cd', type: 'file', content: 'Binary file' },
-        }
-      }
-    }
-  })
-
-  // 路径改为 /home/lynx
+  const [fileSystem, setFileSystem] = useState<FileNode>(INITIAL_FS)
   const [currentPath, setCurrentPath] = useState<string[]>(['home', 'lynx'])
   const [history, setHistory] = useState<string[]>([])
   const [commandHistory, setCommandHistory] = useState<string[]>([])
@@ -69,11 +66,19 @@ export const Terminal = () => {
   const inputRef = useRef<HTMLInputElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
+  // Load persistence
   useEffect(() => {
-    if (history.length === 0) {
+      const savedFs = localStorage.getItem('macos-terminal-fs')
+      if (savedFs) {
+          try { setFileSystem(JSON.parse(savedFs)) } catch {}
+      }
       setHistory([t('term_login'), t('term_welcome'), ''])
-    }
   }, [t])
+
+  // Save persistence
+  useEffect(() => {
+      localStorage.setItem('macos-terminal-fs', JSON.stringify(fileSystem))
+  }, [fileSystem])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -98,11 +103,9 @@ export const Terminal = () => {
 
   const resolvePath = (target: string): string[] | null => {
     if (target === '/') return []
-    if (target === '~') return ['home', 'lynx'] // ~ 指向 /home/lynx
-    
+    if (target === '~') return ['home', 'lynx']
     const parts = target.split('/').filter(p => p && p !== '.')
     let newPath = target.startsWith('/') ? [] : [...currentPath]
-
     for (const part of parts) {
       if (part === '..') {
         if (newPath.length > 0) newPath.pop()
@@ -123,7 +126,7 @@ export const Terminal = () => {
     const [cmd, ...args] = cmdTrim.split(/\s+/)
     const outputLines: string[] = []
     
-    const promptUser = t('term_prompt_user') // lynx
+    const promptUser = t('term_prompt_user')
     const promptPath = currentPath.length === 0 ? '/' : (currentPath.join('/') === `home/${promptUser}` ? '~' : currentPath[currentPath.length-1])
     outputLines.push(`[${promptUser}@mac ${promptPath}]$ ${cmdRaw}`)
 
@@ -136,17 +139,18 @@ export const Terminal = () => {
       case 'help':
         outputLines.push(t('term_help_header'))
         outputLines.push('  ls, cd, pwd, cat, mkdir, touch, rm, echo, clear')
-        outputLines.push('  whoami, date, history, open, matrix')
-        outputLines.push('  vi, vim, code (launches VS Code)')
+        outputLines.push('  whoami, date, history, open, matrix, reset_fs')
         break
 
-      case 'clear':
-        setHistory([])
-        return
-
-      case 'pwd':
-        outputLines.push('/' + currentPath.join('/'))
+      case 'reset_fs':
+        localStorage.removeItem('macos-terminal-fs')
+        setFileSystem(INITIAL_FS)
+        outputLines.push('File system reset to default.')
         break
+
+      case 'clear': setHistory([]); return
+
+      case 'pwd': outputLines.push('/' + currentPath.join('/')); break
 
       case 'ls':
         const node = getCurrentNode()
@@ -161,19 +165,13 @@ export const Terminal = () => {
         break
 
       case 'cd':
-        if (!args[0]) {
-          setCurrentPath(['home', 'lynx'])
-        } else {
+        if (!args[0]) setCurrentPath(['home', 'lynx'])
+        else {
           const targetPath = resolvePath(args[0])
           const targetNode = targetPath ? getNode(targetPath) : null
-          
-          if (targetNode && targetNode.type === 'dir') {
-            setCurrentPath(targetPath!)
-          } else if (targetNode && targetNode.type === 'file') {
-            outputLines.push(`cd: ${args[0]}: ${t('term_is_dir').replace('is', 'not')}`)
-          } else {
-            outputLines.push(`cd: ${args[0]}: ${t('term_no_such')}`)
-          }
+          if (targetNode && targetNode.type === 'dir') setCurrentPath(targetPath!)
+          else if (targetNode && targetNode.type === 'file') outputLines.push(`cd: ${args[0]}: ${t('term_is_dir').replace('is', 'not')}`)
+          else outputLines.push(`cd: ${args[0]}: ${t('term_no_such')}`)
         }
         break
 
@@ -222,42 +220,24 @@ export const Terminal = () => {
         break
 
       case 'echo': outputLines.push(args.join(' ')); break
-
-      case 'whoami': outputLines.push('lynx'); break // 改为 lynx
-
+      case 'whoami': outputLines.push('lynx'); break
       case 'date': outputLines.push(new Date().toString()); break
-
-      case 'history':
-        commandHistory.forEach((h, i) => outputLines.push(`${i + 1}  ${h}`))
-        outputLines.push(`${commandHistory.length + 1}  history`)
-        break
-
+      case 'history': commandHistory.forEach((h, i) => outputLines.push(`${i + 1}  ${h}`)); break
       case 'sudo': outputLines.push(t('term_sudo_joke')); break
 
       case 'open':
         const appName = args.join(' ').toLowerCase()
         if (appName.startsWith('http')) {
-             // 简单的安全检查
-            try {
-                const url = new URL(appName)
-                if(['http:', 'https:'].includes(url.protocol)) window.open(appName, '_blank')
-            } catch { outputLines.push(`open: invalid url`) }
+            try { if(['http:','https:'].includes(new URL(appName).protocol)) window.open(appName, '_blank') } catch { outputLines.push('Invalid URL') }
         } else {
             const app = dockItems.find(a => a.id.toLowerCase() === appName || t(a.id).toLowerCase() === appName)
-            if (app) {
-                launchApp(app)
-                outputLines.push(`Opening ${app.title}...`)
-            } else outputLines.push(`open: application not found: ${args.join(' ')}`)
+            if (app) { launchApp(app); outputLines.push(`Opening ${app.title}...`) }
+            else outputLines.push(`open: not found: ${args.join(' ')}`)
         }
         break
       
-      case 'vi':
-      case 'vim':
-      case 'code':
-        outputLines.push('Opening VS Code...')
-        const vscode = dockItems.find(a => a.id === 'vscode')
-        if (vscode) setTimeout(() => launchApp(vscode), 500)
-        break
+      case 'vi': case 'vim': case 'code':
+        outputLines.push('Opening VS Code...'); const v = dockItems.find(a => a.id === 'vscode'); if (v) setTimeout(() => launchApp(v), 500); break
 
       case 'matrix': setIsMatrix(true); setHistory([]); return
 
@@ -297,7 +277,7 @@ export const Terminal = () => {
     }
   }
 
-  // Matrix Effect (省略部分代码以节省空间，功能同原版，只需确保引用正确)
+  // Matrix Code Rain
   useEffect(() => {
     if (!isMatrix || !canvasRef.current) return
     const canvas = canvasRef.current
