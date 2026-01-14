@@ -3,7 +3,7 @@ export type Language = 'en' | 'zh' | 'mix'
 
 export const TRANSLATIONS = {
   en: {
-    // ... (保留之前的 Identity, System Menu, Top Bar 等)
+    // --- Identity ---
     'login_user_name': 'LynxMuse',
     'login_placeholder': 'Enter Password',
     'click_to_sleep': 'Click to Sleep',
@@ -22,7 +22,18 @@ export const TRANSLATIONS = {
     'settings': 'Settings',
     'about': 'About Lynx',
     'text-editor': 'TextEdit',
-    'storage_manager': 'Finder', // 改回 Finder，更贴切
+    'storage_manager': 'Finder',
+    'siri': 'Siri',
+    'preview': 'Preview',
+    'wuthering_waves': 'Wuthering Waves',
+
+    // --- Siri Specific ---
+    'siri_listening': 'Listening...',
+    'siri_not_supported': 'Speech recognition not supported in this browser.',
+    'siri_launching_game': 'Launching Wuthering Waves...',
+    'siri_opening': 'Opening',
+    'siri_sorry': 'Sorry, I didn\'t catch that.',
+    'siri_hint': 'Try saying "Open Terminal" or "Launch Wuthering Waves"',
 
     // --- System Menu ---
     'about_mac': 'About This Portfolio',
@@ -32,6 +43,11 @@ export const TRANSLATIONS = {
     'shutdown': 'Shut Down...',
     'lock_screen': 'Lock Screen',
     'log_out': 'Log Out LynxMuse...',
+    'about_app': 'About',
+    'hide_app': 'Hide',
+    'hide_others': 'Hide Others',
+    'show_all': 'Show All',
+    'quit_app': 'Quit',
 
     // --- Top Bar & General Actions ---
     'file': 'File', 'edit': 'Edit', 'view': 'View', 'window': 'Window', 'help': 'Help',
@@ -39,10 +55,12 @@ export const TRANSLATIONS = {
     'open': 'Open...', 'close_window': 'Close Window', 'save': 'Save',
     'undo': 'Undo', 'redo': 'Redo', 'cut': 'Cut', 'copy': 'Copy', 'paste': 'Paste', 'select_all': 'Select All',
     'enter_fullscreen': 'Enter Full Screen', 'exit_fullscreen': 'Exit Full Screen', 
-    'minimize': 'Minimize', 'zoom': 'Zoom',
-    'search': 'Search', 'search_placeholder': 'Search files...',
+    'actual_size': 'Actual Size', 'zoom_in': 'Zoom In', 'zoom_out': 'Zoom Out',
+    'minimize': 'Minimize', 'zoom': 'Zoom', 'bring_all_front': 'Bring All to Front',
+    'search': 'Search', 'search_placeholder': 'Search files...', 'search_help': 'Search Help', 'get_help': 'Get Help',
     'upload': 'Upload', 'download': 'Download', 'rename': 'Rename', 'delete': 'Delete',
     'export_zip': 'Export to ZIP', 'import_file': 'Import File',
+    'ctx_open': 'Open', 'ctx_open_new_tab': 'Open in New Tab', 'ctx_edit': 'Edit', 'ctx_delete': 'Delete', 'ctx_refresh': 'Refresh', 'ctx_wallpaper': 'Change Wallpaper',
 
     // --- VS Code Specific ---
     'explorer': 'EXPLORER',
@@ -63,10 +81,9 @@ export const TRANSLATIONS = {
     'close_tab': 'Close Tab',
     'toggle_wrap': 'Toggle Word Wrap',
     'toggle_lines': 'Toggle Line Numbers',
-    'zoom_in': 'Zoom In', 'zoom_out': 'Zoom Out',
     'format_doc': 'Format Document',
 
-    // --- Finder Specific (New) ---
+    // --- Finder Specific ---
     'fd_favorites': 'Favorites',
     'fd_locations': 'Locations',
     'fd_icloud': 'iCloud',
@@ -91,6 +108,7 @@ export const TRANSLATIONS = {
     'fd_json_doc': 'JSON File',
     'fd_unknown': 'File',
     'fd_format_disk': 'Erase All Content...',
+    'fm_no_files': 'No files in this folder',
 
     // --- Terminal ---
     'term_welcome': 'Welcome to LynxMuse Terminal. Type "help" to see commands.',
@@ -100,6 +118,10 @@ export const TRANSLATIONS = {
     'term_help_header': 'Available commands:',
     'term_sudo_joke': 'LynxMuse is not in the sudoers file. This incident will be reported.',
     'term_prompt_user': 'lynx',
+    'term_is_dir': 'is a directory',
+    'term_no_such': 'No such file or directory',
+    'term_dir_exists': 'File exists',
+    'term_rm_joke': 'Are you crazy? This is a simulation!',
 
     // --- Mail ---
     'inbox': 'Inbox', 'sent': 'Sent', 'trash': 'Trash', 'no_mail': 'No Mail Selected',
@@ -113,7 +135,7 @@ export const TRANSLATIONS = {
     'sun': 'Sun', 'mon': 'Mon', 'tue': 'Tue', 'wed': 'Wed', 'thu': 'Thu', 'fri': 'Fri', 'sat': 'Sat',
 
     // --- Notes ---
-    'notes_title': 'Notes', 'new_note': 'New Note', 'type_here': 'Type here...', 'no_note': 'No note selected',
+    'notes_title': 'Notes', 'new_note': 'New Note', 'type_here': 'Type here...', 'no_note': 'No note selected', 'notes': 'Notes',
 
     // --- About ---
     'about_title': 'My Portfolio',
@@ -151,7 +173,18 @@ export const TRANSLATIONS = {
     'settings': '系统设置',
     'about': '关于翎',
     'text-editor': '文本编辑',
-    'storage_manager': '访达', // 改回访达
+    'storage_manager': '访达',
+    'siri': 'Siri',
+    'preview': '预览',
+    'wuthering_waves': '鸣潮',
+
+    // --- Siri Specific ---
+    'siri_listening': '正在聆听...',
+    'siri_not_supported': '当前浏览器不支持语音识别。',
+    'siri_launching_game': '正在启动鸣潮...',
+    'siri_opening': '正在打开',
+    'siri_sorry': '抱歉，我没听清。',
+    'siri_hint': '试着说 "打开终端" 或 "鸣潮启动"',
 
     // --- System Menu ---
     'about_mac': '关于本站',
@@ -161,6 +194,11 @@ export const TRANSLATIONS = {
     'shutdown': '关机...',
     'lock_screen': '锁定屏幕',
     'log_out': '退出 LynxMuse...',
+    'about_app': '关于',
+    'hide_app': '隐藏',
+    'hide_others': '隐藏其他',
+    'show_all': '显示全部',
+    'quit_app': '退出',
 
     // --- Top Bar & General Actions ---
     'file': '文件', 'edit': '编辑', 'view': '显示', 'window': '窗口', 'help': '帮助',
@@ -168,10 +206,12 @@ export const TRANSLATIONS = {
     'open': '打开...', 'close_window': '关闭窗口', 'save': '保存',
     'undo': '撤销', 'redo': '重做', 'cut': '剪切', 'copy': '拷贝', 'paste': '粘贴', 'select_all': '全选',
     'enter_fullscreen': '进入全屏', 'exit_fullscreen': '退出全屏', 
-    'minimize': '最小化', 'zoom': '缩放',
-    'search': '搜索', 'search_placeholder': '搜索文件...',
+    'actual_size': '实际大小', 'zoom_in': '放大', 'zoom_out': '缩小',
+    'minimize': '最小化', 'zoom': '缩放', 'bring_all_front': '前置全部窗口',
+    'search': '搜索', 'search_placeholder': '搜索文件...', 'search_help': '搜索帮助', 'get_help': '获取帮助',
     'upload': '上传', 'download': '下载', 'rename': '重命名', 'delete': '删除',
     'export_zip': '导出 ZIP', 'import_file': '导入文件',
+    'ctx_open': '打开', 'ctx_open_new_tab': '在新标签页打开', 'ctx_edit': '编辑', 'ctx_delete': '删除', 'ctx_refresh': '刷新', 'ctx_wallpaper': '更换壁纸',
 
     // --- VS Code Specific ---
     'explorer': '资源管理器',
@@ -192,10 +232,9 @@ export const TRANSLATIONS = {
     'close_tab': '关闭标签页',
     'toggle_wrap': '切换自动换行',
     'toggle_lines': '切换行号',
-    'zoom_in': '放大', 'zoom_out': '缩小',
     'format_doc': '格式化文档',
 
-    // --- Finder Specific (New) ---
+    // --- Finder Specific ---
     'fd_favorites': '个人收藏',
     'fd_locations': '位置',
     'fd_icloud': 'iCloud',
@@ -220,6 +259,7 @@ export const TRANSLATIONS = {
     'fd_json_doc': 'JSON 文档',
     'fd_unknown': '文件',
     'fd_format_disk': '抹掉所有内容...',
+    'fm_no_files': '此文件夹为空',
 
     // --- Terminal ---
     'term_welcome': '欢迎使用 LynxMuse 终端。输入 "help" 查看可用命令。',
@@ -229,6 +269,10 @@ export const TRANSLATIONS = {
     'term_help_header': '可用命令:',
     'term_sudo_joke': 'LynxMuse 不在 sudoers 文件中。此事将被报告。',
     'term_prompt_user': 'lynx',
+    'term_is_dir': '是一个目录',
+    'term_no_such': '没有那个文件或目录',
+    'term_dir_exists': '文件已存在',
+    'term_rm_joke': '你疯了吗？这只是个模拟器！',
 
     // --- Mail ---
     'inbox': '收件箱', 'sent': '已发送', 'trash': '废纸篓', 'no_mail': '未选择邮件',
@@ -242,7 +286,7 @@ export const TRANSLATIONS = {
     'sun': '周日', 'mon': '周一', 'tue': '周二', 'wed': '周三', 'thu': '周四', 'fri': '周五', 'sat': '周六',
 
     // --- Notes ---
-    'notes_title': '备忘录', 'new_note': '新建备忘录', 'type_here': '在此输入...', 'no_note': '未选择备忘录',
+    'notes_title': '备忘录', 'new_note': '新建备忘录', 'type_here': '在此输入...', 'no_note': '未选择备忘录', 'notes': '备忘录',
 
     // --- About ---
     'about_title': '我的主页',
@@ -261,10 +305,13 @@ export const TRANSLATIONS = {
     'not_playing': '未在播放', 'music_playing': '音乐播放器',
   },
   mix: {
-    // 混合模式: 关键UI双语，其他回退英文
+    // 混合模式
     'finder': 'Finder 访达', 'launchpad': 'Launchpad 启动台', 'safari': 'Safari 浏览器', 'terminal': 'Terminal 终端',
     'mail': 'Mail 邮件', 'calendar': 'Calendar 日历', 'calculator': 'Calculator 计算器', 'music': 'Music 音乐',
     'notes': 'Notes 备忘录', 'vscode': 'VS Code', 'settings': 'Settings 设置', 'about': 'About 翎',
+    'siri': 'Siri', 'wuthering_waves': 'Wuthering Waves 鸣潮',
+    'preview': 'Preview 预览',
+    
     'login_user_name': 'LynxMuse (翎)',
     'storage_manager': 'Finder 访达',
     'file': 'File 文件', 'edit': 'Edit 编辑', 'view': 'View 显示', 'window': 'Window 窗口', 'help': 'Help 帮助',
@@ -281,5 +328,7 @@ export const TRANSLATIONS = {
     'rights': '© 2026 LynxMuse (翎). All rights reserved.',
     'cmd_palette': 'Command Palette 命令面板',
     'user_settings': 'User Settings 用户设置',
+    'siri_listening': 'Listening 正在聆听...',
+    'siri_launching_game': 'Launching 鸣潮启动...',
   }
 }

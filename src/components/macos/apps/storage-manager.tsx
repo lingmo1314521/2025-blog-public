@@ -1,36 +1,32 @@
 'use client'
 
-import React, { useState, useEffect, useMemo, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { 
-  HardDrive, Trash2, Download, RefreshCw, Folder, FileText, 
-  ChevronRight, LayoutGrid, List as ListIcon, Code, StickyNote, 
-  Calendar, Terminal, Settings, ArrowLeft, ArrowRight, Search, 
-  Clock, Cloud, Airplay, Monitor, Smartphone, AppWindow, FileCode,
-  Image as ImageIcon, Music
+  HardDrive, Trash2, Download, Folder, FileText, 
+  LayoutGrid, List as ListIcon, Code, StickyNote, 
+  ArrowLeft, ArrowRight, Search, Clock, Cloud, 
+  Airplay, Monitor, AppWindow, Image as ImageIcon
 } from 'lucide-react'
 import { clsx } from '../utils'
 import { useI18n } from '../i18n-context'
 import { useOs } from '../os-context'
-import { VSCode } from './vscode' // 用于预览文本文件
+import { VSCode } from './vscode'
+import { Preview } from './preview'
 
-// === 类型定义 ===
 interface FinderItem {
   id: string
   name: string
-  kind: string // 显示在列表视图的种类
+  kind: string
   date: string
   size?: number
   type: 'file' | 'folder'
   icon?: React.ReactNode
-  
-  // 真实数据源
   source: 'terminal' | 'vscode' | 'notes' | 'calendar' | 'system'
-  originalPath?: string // 对于 Terminal 必填
-  content?: string      // 文件内容
-  children?: FinderItem[] // 文件夹的子内容
+  originalPath?: string
+  content?: string
+  children?: FinderItem[]
 }
 
-// 侧边栏配置
 const SIDEBAR = [
   { section: 'fd_favorites', items: [
     { id: 'airdrop', icon: Airplay, label: 'fd_airdrop', color: 'text-blue-500' },
@@ -52,8 +48,6 @@ const SIDEBAR = [
 function GlobeIcon(props: any) {
     return <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
 }
-
-// === 解析器：将 localStorage 转换为 FinderItem 树 ===
 
 const parseTerminalFS = (fs: any, path = ''): FinderItem[] => {
   let items: FinderItem[] = []
@@ -82,8 +76,6 @@ const parseTerminalFS = (fs: any, path = ''): FinderItem[] => {
 const parseVSCode = (fsJson: string): FinderItem[] => {
   try {
     const fs = JSON.parse(fsJson)
-    // VSCode 存储是一个扁平数组，我们需要构建树 (简化版：全部放在 Developer 文件夹下)
-    // 真实情况应该递归构建，这里为了简化，我们只列出根目录文件，或者扁平展示
     const items = fs.filter((f: any) => f.type === 'file').map((f: any) => ({
       id: `vscode-${f.id}`,
       name: f.name,
@@ -116,21 +108,17 @@ const parseNotes = (notesJson: string): FinderItem[] => {
   } catch { return [] }
 }
 
-// === 主组件 ===
-
 export const StorageManager = () => {
   const { t } = useI18n()
   const { launchApp, dockItems } = useOs()
   
-  // State
-  const [currentPath, setCurrentPath] = useState<string>('recents') // 当前选中的侧边栏 ID
+  const [currentPath, setCurrentPath] = useState<string>('recents')
   const [navHistory, setNavHistory] = useState<string[]>(['recents'])
   const [navIndex, setNavIndex] = useState(0)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   
-  // File System State
   const [fileSystem, setFileSystem] = useState<{
     terminalRoot: FinderItem[],
     vscodeFiles: FinderItem[],
@@ -138,28 +126,23 @@ export const StorageManager = () => {
     apps: FinderItem[]
   }>({ terminalRoot: [], vscodeFiles: [], notesFiles: [], apps: [] })
 
-  // 轮询数据
   useEffect(() => {
     const scan = () => {
       let termRoot: FinderItem[] = []
       let vsFiles: FinderItem[] = []
       let ntFiles: FinderItem[] = []
 
-      // 1. Terminal
       const termFS = localStorage.getItem('macos-terminal-fs')
       if (termFS) {
           try { termRoot = parseTerminalFS(JSON.parse(termFS)) } catch {}
       }
 
-      // 2. VS Code
       const vscode = localStorage.getItem('vscode-fs-v8')
       if (vscode) vsFiles = parseVSCode(vscode)
 
-      // 3. Notes
       const notes = localStorage.getItem('macos-notes')
       if (notes) ntFiles = parseNotes(notes)
 
-      // 4. Applications (Static)
       const appFiles = dockItems.map(app => ({
           id: `app-${app.id}`,
           name: app.title,
@@ -174,7 +157,7 @@ export const StorageManager = () => {
       setFileSystem({ 
           terminalRoot: termRoot, 
           vscodeFiles: vsFiles, 
-          notesFiles: ntFiles,
+          notesFiles: ntFiles, 
           apps: appFiles
       })
     }
@@ -183,22 +166,18 @@ export const StorageManager = () => {
     return () => clearInterval(interval)
   }, [dockItems])
 
-  // --- 核心逻辑：根据当前 Path 计算显示的内容 ---
   const getCurrentItems = (): FinderItem[] => {
-      // 1. 特殊侧边栏路径
       if (currentPath === 'recents') {
-          // 聚合所有最近文件
           return [
               ...findDeepFiles(fileSystem.terminalRoot).slice(0, 5),
               ...fileSystem.notesFiles,
               ...fileSystem.vscodeFiles
-          ].sort(() => 0.5 - Math.random()) // 简单打乱模拟
+          ].sort(() => 0.5 - Math.random())
       }
       if (currentPath === 'applications') return fileSystem.apps
       if (currentPath === 'documents') return [...fileSystem.vscodeFiles, ...fileSystem.notesFiles]
-      if (currentPath === 'downloads') return [] // 空文件夹演示
+      if (currentPath === 'downloads') return []
       if (currentPath === 'desktop') {
-          // 尝试寻找 Terminal 中的 Desktop 文件夹
           const home = fileSystem.terminalRoot.find(f => f.name === 'home')
           const user = home?.children?.find(f => f.name === 'user' || f.name === 'lynx')
           const desktop = user?.children?.find(f => f.name === 'desktop' || f.name === 'Desktop')
@@ -212,8 +191,6 @@ export const StorageManager = () => {
           ]
       }
 
-      // 2. 虚拟文件夹导航 (ID 路径解析)
-      // 如果 currentPath 看起来像 ID，我们需要在树中找到它
       if (currentPath.startsWith('term-') || currentPath.startsWith('dir-')) {
           const target = findItemById(currentPath, getAllRootItems())
           return target?.children || []
@@ -222,7 +199,6 @@ export const StorageManager = () => {
       return []
   }
 
-  // --- 辅助函数 ---
   const getAllRootItems = () => [
       ...fileSystem.terminalRoot,
       { id: 'dir-apps', children: fileSystem.apps } as FinderItem,
@@ -249,7 +225,6 @@ export const StorageManager = () => {
       return undefined
   }
 
-  // --- 交互 ---
   const navigate = (path: string) => {
       const newHistory = navHistory.slice(0, navIndex + 1)
       newHistory.push(path)
@@ -277,7 +252,7 @@ export const StorageManager = () => {
       if (item.type === 'folder') {
           navigate(item.id)
       } else {
-          // 打开文件逻辑
+          // 1. VS Code / Text Files
           if (item.source === 'vscode' || item.name.endsWith('.txt') || item.name.endsWith('.md') || item.name.endsWith('.js') || item.name.endsWith('.ts') || item.name.endsWith('.css') || item.name.endsWith('.html')) {
               launchApp({
                   id: `edit-${item.id}`,
@@ -287,14 +262,29 @@ export const StorageManager = () => {
                   height: 600,
                   component: <VSCode previewFile={{ name: item.name, content: item.content || '', language: item.name.split('.').pop() }} />
               })
-          } else if (item.kind === 'Application') {
-              // 尝试启动应用
+          } 
+          // 2. Images / Videos (Preview)
+          else if (['.png', '.jpg', '.jpeg', '.webp', '.svg', '.mp4'].some(ext => item.name.toLowerCase().endsWith(ext))) {
+              launchApp({
+                  id: `preview-${item.id}`,
+                  title: item.name,
+                  icon: <ImageIcon className="text-blue-500"/>,
+                  width: 800,
+                  height: 600,
+                  component: <Preview file={{ 
+                      name: item.name, 
+                      content: item.content || 'https://images.unsplash.com/photo-1477346611705-65d1883cee1e?q=80&w=3270&auto=format&fit=crop', 
+                      type: item.name.endsWith('.mp4') ? 'video' : 'image'
+                  }} />
+              })
+          }
+          // 3. Applications
+          else if (item.kind === 'Application') {
               const appId = item.id.replace('app-', '')
               const appConfig = dockItems.find(a => a.id === appId)
               if (appConfig) launchApp(appConfig)
           } else {
-              // 默认预览
-              alert(`Opening ${item.name}... (Preview not implemented for this type)`)
+              alert(`Opening ${item.name}... (No handler for this file type)`)
           }
       }
   }
@@ -311,7 +301,6 @@ export const StorageManager = () => {
       ? currentItems.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()))
       : currentItems
 
-  // --- 图标渲染 ---
   const renderIcon = (item: FinderItem) => {
       if (item.icon) return item.icon
       if (item.type === 'folder') return <div className="w-full h-full text-blue-400 drop-shadow-sm"><Folder size={viewMode==='grid'?64:20} fill="currentColor" strokeWidth={1} /></div>
@@ -322,7 +311,7 @@ export const StorageManager = () => {
   return (
     <div className="flex h-full w-full bg-[#f6f6f6] dark:bg-[#1e1e1e] text-black dark:text-white font-sans select-none rounded-b-xl overflow-hidden transition-colors duration-300">
         
-        {/* Left Sidebar (Glassmorphismish) */}
+        {/* Left Sidebar */}
         <div className="w-48 bg-[#e8e8ea]/80 dark:bg-[#2b2b2b]/80 backdrop-blur-xl border-r border-gray-300/50 dark:border-white/10 flex flex-col pt-4 overflow-y-auto">
             {SIDEBAR.map((group, idx) => (
                 <div key={idx} className="mb-4">
@@ -363,7 +352,6 @@ export const StorageManager = () => {
                         <button onClick={goForward} disabled={navIndex >= navHistory.length-1} className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-30 transition-all"><ArrowRight size={16}/></button>
                     </div>
                     <div className="font-semibold text-sm flex items-center gap-2">
-                        {/* Breadcrumb-ish Title */}
                         <Folder size={16} className="text-blue-400" fill="currentColor"/>
                         {currentPath.startsWith('term-') ? currentPath.split('/').pop() : t(`fd_${currentPath}`) || currentPath}
                     </div>

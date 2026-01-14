@@ -13,7 +13,11 @@ import { MailApp } from './apps/mail'
 import { CalendarApp } from './apps/calendar'
 import { NotesApp } from './apps/notes'
 import { VSCode } from './apps/vscode'
-import { StorageManager } from './apps/storage-manager' // 新增引入
+import { StorageManager } from './apps/storage-manager'
+import { Siri } from './apps/siri'
+import { Preview } from './apps/preview'
+import { WutheringWavesLauncher } from './apps/wuthering-waves'
+import { Mic, Gamepad2, Image as ImageIcon } from 'lucide-react'
 
 const PngIcon = ({ src, alt }: { src: string; alt: string }) => (
   <img src={src} alt={alt} draggable={false} className="w-full h-full object-contain" />
@@ -25,13 +29,24 @@ export const INITIAL_APPS: AppConfig[] = [
   { id: 'safari', title: 'Safari', icon: <PngIcon src="/icons/safari.png" alt="Safari" />, width: 1024, height: 768, component: <WebBrowser initialUrl="https://github.com/LynxMuse" /> },
   { id: 'vscode', title: 'VS Code', icon: <PngIcon src="/icons/vscode.png" alt="VS Code" />, width: 1100, height: 700, component: <VSCode /> },
   { id: 'terminal', title: 'Terminal', icon: <PngIcon src="/icons/terminal.png" alt="Terminal" />, width: 600, height: 400, component: <Terminal /> },
+  
+  // Siri (新增)
+  { 
+      id: 'siri', 
+      title: 'Siri', 
+      icon: <div className="w-full h-full bg-gradient-to-br from-purple-500 to-blue-500 rounded-xl flex items-center justify-center text-white shadow-lg"><Mic /></div>, 
+      width: 320, 
+      height: 400, 
+      component: <Siri />,
+      resizable: false 
+  },
+
   { id: 'notes', title: 'Notes', icon: <PngIcon src="/icons/notes.png" alt="Notes" />, width: 800, height: 550, component: <NotesApp /> },
   { id: 'mail', title: 'Mail', icon: <PngIcon src="/icons/mail.png" alt="Mail" />, width: 900, height: 600, component: <MailApp /> },
   { id: 'calendar', title: 'Calendar', icon: <PngIcon src="/icons/calendar.png" alt="Calendar" />, width: 800, height: 600, component: <CalendarApp /> },
   { id: 'calculator', title: 'Calculator', icon: <PngIcon src="/icons/calculator.png" alt="Calculator" />, width: 320, height: 520, resizable: false, maximizable: false, component: <Calculator /> },
   { id: 'music', title: 'Music', icon: <PngIcon src="/icons/music.png" alt="Music" />, width: 800, height: 500, component: <MusicPlayer /> },
   
-  // 新增应用：Storage Manager
   { 
     id: 'storage_manager', 
     title: 'Storage', 
@@ -39,6 +54,26 @@ export const INITIAL_APPS: AppConfig[] = [
     width: 700, 
     height: 500, 
     component: <StorageManager /> 
+  },
+  
+  // 鸣潮 (新增)
+  {
+    id: 'wuthering_waves',
+    title: 'Wuthering Waves',
+    icon: <div className="w-full h-full bg-black rounded-xl flex items-center justify-center text-yellow-400 border border-yellow-500/50 shadow-lg"><Gamepad2 /></div>,
+    width: 960,
+    height: 540,
+    component: <WutheringWavesLauncher />
+  },
+
+  // Preview (隐藏应用，用于文件预览)
+  { 
+      id: 'preview', 
+      title: 'Preview', 
+      icon: <div className="w-full h-full bg-blue-500 rounded-xl flex items-center justify-center text-white"><ImageIcon /></div>, 
+      width: 800, 
+      height: 600, 
+      component: <Preview /> 
   },
   
   { id: 'about', title: 'About Lynx', icon: <PngIcon src="/icons/me.png" alt="About" />, width: 400, height: 500, component: <About /> },
