@@ -22,6 +22,7 @@ export const TRANSLATIONS = {
     'settings': 'Settings',
     'about': 'About Lynx',
     'text-editor': 'TextEdit',
+    'storage_manager': 'Storage Manager', // 新增
 
     // --- System Menu ---
     'about_mac': 'About This Portfolio',
@@ -64,6 +65,25 @@ export const TRANSLATIONS = {
     'click_apply': 'Click to apply instantly', 'new_tab': 'New Tab',
     'language': 'Language', 'wallpaper': 'Wallpaper',
     'not_playing': 'Not Playing', 'music_playing': 'Music Player',
+
+    // --- Storage Manager (New) ---
+    'total_used': 'Total Used',
+    'local_storage': 'Local Data',
+    'factory_reset': 'Factory Reset',
+    'factory_reset_confirm': 'WARNING: This will delete ALL data (Terminal files, Notes, Settings, Calendar) and reload the page.\n\nType "RESET" to confirm:',
+    'reset_cancel': 'Reset cancelled.',
+    'name': 'Name',
+    'key': 'Storage Key',
+    'size': 'Size',
+    'storage_empty': 'No local data found.',
+    'preview': 'Preview',
+    'hide_preview': 'Hide Preview',
+    'preview_hidden': 'Content hidden for security. Click Preview to view.',
+    'download': 'Download JSON',
+    'delete': 'Delete',
+    'confirm_delete': 'Are you sure you want to delete this data? This may reset the corresponding app.',
+    'delete_success': 'Data deleted successfully.',
+    'download_success': 'Backup downloaded.',
 
     // --- Terminal ---
     'term_welcome': 'Welcome to LynxMuse Terminal. Type "help" to see commands.',
@@ -112,6 +132,7 @@ export const TRANSLATIONS = {
     'mail': '邮件', 'calendar': '日历', 'calculator': '计算器', 'music': '音乐',
     'notes': '备忘录', 'vscode': 'VS Code', 'settings': '系统设置', 'about': '关于翎',
     'text-editor': '文本编辑',
+    'storage_manager': '存储空间', // 新增
 
     // --- System Menu ---
     'about_mac': '关于本站',
@@ -152,6 +173,25 @@ export const TRANSLATIONS = {
     'language': '语言', 'wallpaper': '壁纸',
     'not_playing': '未在播放', 'music_playing': '音乐播放器',
 
+    // --- Storage Manager (New) ---
+    'total_used': '已用空间',
+    'local_storage': '本地数据',
+    'factory_reset': '恢复出厂设置',
+    'factory_reset_confirm': '警告：这将删除所有数据（终端文件、备忘录、设置、日历）并重新加载页面。\n\n输入 "RESET" 确认重置：',
+    'reset_cancel': '重置已取消。',
+    'name': '名称',
+    'key': '存储键名',
+    'size': '大小',
+    'storage_empty': '未发现本地数据。',
+    'preview': '预览',
+    'hide_preview': '隐藏预览',
+    'preview_hidden': '内容已隐藏。点击预览以查看。',
+    'download': '导出 JSON',
+    'delete': '删除',
+    'confirm_delete': '确定要删除此数据吗？这将重置对应的应用状态。',
+    'delete_success': '数据已删除。',
+    'download_success': '备份已下载。',
+
     // --- Terminal ---
     'term_welcome': '欢迎使用 LynxMuse 终端。输入 "help" 查看可用命令。',
     'term_login': '上次登录时间: 今天 ttys000',
@@ -189,15 +229,17 @@ export const TRANSLATIONS = {
     'rights': '© 2026 LynxMuse (翎). 保留所有权利.',
   },
   mix: {
-    // 混合模式：关键UI保留双语，其他回退到英文
+    // 混合模式
     'finder': 'Finder 访达', 'launchpad': 'Launchpad 启动台', 'safari': 'Safari 浏览器', 'terminal': 'Terminal 终端',
     'mail': 'Mail 邮件', 'calendar': 'Calendar 日历', 'calculator': 'Calculator 计算器', 'music': 'Music 音乐',
     'notes': 'Notes 备忘录', 'vscode': 'VS Code', 'settings': 'Settings 设置', 'about': 'About 翎',
     'login_user_name': 'LynxMuse (翎)',
+    'storage_manager': 'Storage 存储管理', // 新增
     'file': 'File 文件', 'edit': 'Edit 编辑', 'view': 'View 显示', 'window': 'Window 窗口', 'help': 'Help 帮助',
     'favorites': 'Favorites 个人收藏', 'all_posts': 'Posts 所有文章',
     'about_mac': 'About This Portfolio 关于本站',
     'search': 'Search 搜索',
+    'factory_reset': 'Factory Reset 重置',
     'term_welcome': 'Welcome. 输入 "help" for commands.',
     'term_cmd_not_found': 'command not found 找不到命令',
     'rights': '© 2026 LynxMuse (翎). All rights reserved.',
