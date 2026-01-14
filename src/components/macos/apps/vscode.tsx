@@ -1,12 +1,12 @@
 'use client'
 
-import React, { useState, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { 
   Search, Files, Play, X, ChevronRight, ChevronDown, 
   LayoutTemplate, Plus, Upload, Download, Trash2, 
   FileCode, Settings, ToggleLeft, ToggleRight, GitBranch,
   Folder, FolderOpen, Archive, FilePlus, FolderPlus, 
-  Briefcase, Edit3, FolderInput, LogOut
+  Briefcase, Edit3, FolderInput, LogOut, Terminal as TerminalIcon
 } from 'lucide-react'
 import { clsx } from '../utils'
 import { useI18n } from '../i18n-context'
@@ -34,7 +34,6 @@ interface EditorConfig {
   minimap: boolean
 }
 
-// === 新增：VSCode Props 用于接收预览文件 ===
 interface VSCodeProps {
     previewFile?: {
         name: string
@@ -45,13 +44,11 @@ interface VSCodeProps {
 
 // === 2. 初始文件系统 ===
 const INITIAL_FS: FileSystemItem[] = [
-  { id: 'root-readme', parentId: null, name: 'README.md', type: 'file', language: 'markdown', content: '# VS Code Web\n\n## Marquee Selection Fixed!\n\n1. Click on empty space.\n2. Drag your mouse.\n3. Items inside the blue box will be selected!\n\nAlso supports Ctrl+Click and Shift+Click.' },
+  { id: 'root-readme', parentId: null, name: 'README.md', type: 'file', language: 'markdown', content: '# VS Code Web\n\nWelcome to LynxMuse Code Editor.\n\nFeatures:\n- Drag & Drop files\n- Marquee Selection (Box Select)\n- Import/Export Projects\n- JavaScript Console execution' },
   { id: 'src', parentId: null, name: 'src', type: 'folder', isOpen: true },
-  { id: 'index', parentId: 'src', name: 'index.html', type: 'file', language: 'html', content: '<h1>Hello World</h1>' },
-  { id: 'css', parentId: 'src', name: 'style.css', type: 'file', language: 'css', content: 'body { color: #fff; }' },
-  { id: 'utils', parentId: 'src', name: 'utils', type: 'folder', isOpen: false },
-  { id: 'u1', parentId: 'utils', name: 'api.js', type: 'file', language: 'javascript', content: '' },
-  { id: 'u2', parentId: 'utils', name: 'helpers.js', type: 'file', language: 'javascript', content: '' },
+  { id: 'index', parentId: 'src', name: 'index.html', type: 'file', language: 'html', content: '<h1>Hello World</h1>\n<script src="./app.js"></script>' },
+  { id: 'css', parentId: 'src', name: 'style.css', type: 'file', language: 'css', content: 'body { background: #1e1e1e; color: #fff; }' },
+  { id: 'js', parentId: 'src', name: 'app.js', type: 'file', language: 'javascript', content: 'console.log("System Ready");\nconsole.log("Try editing this file!");' },
 ]
 
 const TEMPLATES = {
@@ -139,11 +136,9 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
   const [openFiles, setOpenFiles] = useState<string[]>([])
   const [activeFileId, setActiveFileId] = useState<string>('')
   
-  // Selection
+  // Selection & UI
   const [selectedIds, setSelectedIds] = useState<string[]>([]) 
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null)
-  
-  // UI State
   const [sidebarView, setSidebarView] = useState<'explorer' | 'search' | 'settings'>('explorer')
   const [sidebarVisible, setSidebarVisible] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -152,16 +147,14 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
   const [showConsole, setShowConsole] = useState(false)
   const [consoleLogs, setConsoleLogs] = useState<string[]>([])
   
-  // Menus
+  // Interaction State
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [ctxMenu, setCtxMenu] = useState<{ visible: boolean, x: number, y: number, itemId: string | null }>({ visible: false, x: 0, y: 0, itemId: null })
   const [showTemplateMenu, setShowTemplateMenu] = useState(false)
-
-  // Drag & Drop
   const [draggedIds, setDraggedIds] = useState<string[]>([])
   const [dragOverId, setDragOverId] = useState<string | null>(null)
 
-  // Box Selection (Marquee)
+  // Marquee Selection State
   const [isSelecting, setIsSelecting] = useState(false)
   const [selectionBox, setSelectionBox] = useState<{ x: number, y: number, w: number, h: number } | null>(null)
   const selectionStart = useRef<{ x: number, y: number } | null>(null)
@@ -176,48 +169,41 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
   const renameInputRef = useRef<HTMLInputElement>(null)
   const textAreaRef = useRef<HTMLTextAreaElement>(null)
   const lineNumRef = useRef<HTMLDivElement>(null)
+  const terminalEndRef = useRef<HTMLDivElement>(null)
   const uploadFileRef = useRef<HTMLInputElement>(null)
   const uploadFolderRef = useRef<HTMLInputElement>(null)
 
-  // 判断是否为预览模式
   const isReadOnly = !!previewFile
 
-  // === Effect: 处理预览模式或正常模式 ===
+  // === Initialization ===
   useEffect(() => {
     if (previewFile) {
-        // 预览模式：构造一个只包含该文件的临时文件系统
         const tempId = 'preview-file'
         setFileSystem([{
-            id: tempId,
-            parentId: null,
-            name: previewFile.name,
-            type: 'file',
+            id: tempId, parentId: null, name: previewFile.name, type: 'file',
             language: (previewFile.language as Language) || 'plaintext',
-            content: previewFile.content,
-            isUnsaved: false
+            content: previewFile.content, isUnsaved: false
         }])
-        setOpenFiles([tempId])
-        setActiveFileId(tempId)
+        setOpenFiles([tempId]); setActiveFileId(tempId)
     } else {
-        // 正常模式：加载本地存储
         const saved = localStorage.getItem('vscode-fs-v8')
-        if (saved) {
-            try { setFileSystem(JSON.parse(saved)) } catch {}
-        }
+        if (saved) try { setFileSystem(JSON.parse(saved)) } catch {}
     }
   }, [previewFile])
 
-  // Persistence (只在非预览模式下保存)
   useEffect(() => {
-    if (!previewFile) {
-        localStorage.setItem('vscode-fs-v8', JSON.stringify(fileSystem))
-    }
+    if (!previewFile) localStorage.setItem('vscode-fs-v8', JSON.stringify(fileSystem))
   }, [fileSystem, previewFile])
+
+  useEffect(() => {
+      if (showConsole && terminalEndRef.current) {
+          terminalEndRef.current.scrollIntoView({ behavior: 'smooth' })
+      }
+  }, [consoleLogs, showConsole])
 
   const activeFile = useMemo(() => fileSystem.find(f => f.id === activeFileId), [fileSystem, activeFileId])
 
-  // === Logic ===
-
+  // === Core Logic ===
   const getFolderContents = (parentId: string | null) => {
     return fileSystem.filter(f => f.parentId === parentId).sort((a, b) => {
       if (a.type === b.type) return a.name.localeCompare(b.name)
@@ -232,11 +218,10 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
 
   const openFile = (id: string) => {
     if (!openFiles.includes(id)) setOpenFiles([...openFiles, id])
-    setActiveFileId(id)
-    setShowPreview(false)
+    setActiveFileId(id); setShowPreview(false)
   }
 
-  // --- Click Selection ---
+  // --- Selection Logic ---
   const handleItemClick = (e: React.MouseEvent, id: string, type: FileType) => {
     e.stopPropagation()
     if (type === 'folder' && !e.ctrlKey && !e.metaKey && !e.shiftKey) toggleFolder(e, id)
@@ -246,17 +231,17 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
         setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
         setLastSelectedId(id)
     } else if (e.shiftKey && lastSelectedId) {
+        // Simple range logic could be improved, but multi-add works for now
         setSelectedIds(prev => [...prev, id]) 
     } else {
-        setSelectedIds([id])
-        setLastSelectedId(id)
+        setSelectedIds([id]); setLastSelectedId(id)
     }
   }
 
-  // --- Box Selection Logic ---
+  // --- Marquee (Box) Selection ---
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (isReadOnly) return // 预览模式禁用
-    if (e.button !== 0) return 
+    if (isReadOnly || e.button !== 0) return 
+    // Clicked on empty space: clear selection unless modifier
     if (!e.ctrlKey && !e.metaKey) setSelectedIds([]) 
     
     setIsSelecting(true)
@@ -264,6 +249,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
     
     if (fileListRef.current) {
         const rect = fileListRef.current.getBoundingClientRect()
+        // Coordinates relative to the scrollable container
         const startX = e.clientX - rect.left
         const startY = e.clientY - rect.top + fileListRef.current.scrollTop
         selectionStart.current = { x: startX, y: startY }
@@ -286,6 +272,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
     }
     setSelectionBox(newBox)
 
+    // Collision Detection
     const fileItems = fileListRef.current.querySelectorAll('.file-item-row')
     const newSelected = new Set(initialSelectedIds)
 
@@ -296,6 +283,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
         const elWidth = htmlEl.offsetWidth
         const elHeight = htmlEl.offsetHeight
         
+        // Simple AABB collision
         const isOverlapping = !(
             elLeft > newBox.x + newBox.w ||
             elLeft + elWidth < newBox.x ||
@@ -308,21 +296,103 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
             if (id) newSelected.add(id)
         }
     })
-
     setSelectedIds(Array.from(newSelected))
   }
 
   const handleMouseUp = () => {
-    setSelectionBox(null)
-    setIsSelecting(false)
-    selectionStart.current = null
+    setSelectionBox(null); setIsSelecting(false); selectionStart.current = null
   }
 
-  // --- CRUD (ReadOnly check) ---
+  // --- Drag & Drop ---
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    if (isReadOnly) return
+    e.stopPropagation()
+    const idsToDrag = selectedIds.includes(id) ? selectedIds : [id]
+    setDraggedIds(idsToDrag)
+    e.dataTransfer.effectAllowed = 'move'
+    // Create a custom drag image if desired, otherwise default
+  }
+
+  const handleDragOver = (e: React.DragEvent, id: string | null) => {
+    if (isReadOnly) return
+    e.preventDefault(); e.stopPropagation()
+    
+    // Allow dragging onto root (id=null) or onto a folder
+    if (id === null) { 
+        setDragOverId('root')
+        return 
+    }
+    
+    const target = fileSystem.find(f => f.id === id)
+    if (target?.type === 'folder' && !draggedIds.includes(id)) {
+        setDragOverId(id)
+    } else {
+        setDragOverId(null)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent, targetPid: string | null) => {
+    if (isReadOnly) return
+    e.preventDefault(); e.stopPropagation(); setDragOverId(null)
+    
+    // 1. External File Drop
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        Array.from(e.dataTransfer.files).forEach(file => {
+            const reader = new FileReader()
+            reader.onload = (ev) => {
+                const id = Date.now().toString() + Math.random()
+                setFileSystem(prev => [...prev, { 
+                    id, parentId: targetPid, name: file.name, type: 'file', 
+                    language: 'javascript', content: ev.target?.result as string || '' 
+                }])
+            }
+            reader.readAsText(file)
+        })
+        return
+    }
+
+    // 2. Internal Move
+    if (draggedIds.length === 0) return
+    
+    // Prevent moving folder into itself
+    const validMoves = draggedIds.filter(dragId => {
+        if (dragId === targetPid) return false
+        let check = targetPid
+        while (check) { 
+            if (check === dragId) return false
+            check = fileSystem.find(f => f.id === check)?.parentId || null 
+        }
+        return true
+    })
+
+    setFileSystem(prev => prev.map(f => validMoves.includes(f.id) ? { ...f, parentId: targetPid } : f))
+    setDraggedIds([])
+  }
+
+  // --- Context Menu ---
+  const handleContextMenu = (e: React.MouseEvent, id: string | null) => {
+    if (isReadOnly) return
+    e.preventDefault(); e.stopPropagation()
+    if (id && !selectedIds.includes(id)) setSelectedIds([id])
+    if (editorContainerRef.current) {
+        const rect = editorContainerRef.current.getBoundingClientRect()
+        let x = e.clientX - rect.left
+        let y = e.clientY - rect.top
+        
+        // Boundary check
+        if (x + 160 > rect.width) x = rect.width - 165
+        if (y + 150 > rect.height) y = rect.height - 155
+
+        setCtxMenu({ visible: true, x, y, itemId: id })
+    }
+  }
+
+  // --- CRUD Operations ---
   const createItem = (type: FileType) => {
     if (isReadOnly) return
     let parentId: string | null = null
-    if (selectedIds.length > 0) {
+    // If a folder is selected, create inside it. If a file is selected, create in its parent
+    if (selectedIds.length === 1) {
       const sel = fileSystem.find(f => f.id === selectedIds[0])
       if (sel) parentId = sel.type === 'folder' ? sel.id : sel.parentId
     }
@@ -339,8 +409,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
     })
 
     if (type === 'file') { setOpenFiles(prev => [...prev, id]); setActiveFileId(id) }
-    setSelectedIds([id])
-    setRenamingId(id)
+    setSelectedIds([id]); setRenamingId(id)
     setTimeout(() => renameInputRef.current?.focus(), 50)
   }
 
@@ -354,7 +423,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
         const kids = fileSystem.filter(f => f.parentId === pid)
         return [...kids.map(k => k.id), ...kids.flatMap(k => getChildrenIds(k.id))]
     }
-    selectedIds.forEach(id => { idsToDelete = [...idsToDelete, ...getChildrenIds(id)] })
+    selectedIds.forEach(id => idsToDelete.push(...getChildrenIds(id)))
 
     setFileSystem(prev => prev.filter(f => !idsToDelete.includes(f.id)))
     setOpenFiles(prev => prev.filter(fid => !idsToDelete.includes(fid)))
@@ -368,7 +437,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
     setRenamingId(null)
   }
 
-  // --- Uploads ---
+  // --- File Actions ---
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (isReadOnly) return
     const files = e.target.files; if (!files) return
@@ -383,7 +452,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
         }
         reader.readAsText(file)
     })
-    e.target.value = ''
+    e.target.value = '' // Reset to allow re-upload
   }
 
   const handleFolderUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -462,64 +531,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
     setOutputSrc(html)
   }
 
-  // --- Drag & Drop ---
-  const handleDragStart = (e: React.DragEvent, id: string) => {
-    if (isReadOnly) return
-    e.stopPropagation()
-    const idsToDrag = selectedIds.includes(id) ? selectedIds : [id]
-    setDraggedIds(idsToDrag)
-    e.dataTransfer.effectAllowed = 'move'
-  }
-  const handleDragOver = (e: React.DragEvent, id: string | null) => {
-    if (isReadOnly) return
-    e.preventDefault(); e.stopPropagation()
-    if (id === null) { setDragOverId('root'); return }
-    const target = fileSystem.find(f => f.id === id)
-    if (target?.type === 'folder' && !draggedIds.includes(id)) setDragOverId(id)
-  }
-  const handleDrop = (e: React.DragEvent, targetPid: string | null) => {
-    if (isReadOnly) return
-    e.preventDefault(); e.stopPropagation(); setDragOverId(null)
-    
-    // External
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        Array.from(e.dataTransfer.files).forEach(file => {
-            const reader = new FileReader()
-            reader.onload = (ev) => {
-                const id = Date.now().toString() + Math.random()
-                setFileSystem(prev => [...prev, { 
-                    id, parentId: targetPid, name: file.name, type: 'file', 
-                    language: 'javascript', content: ev.target?.result as string || '' 
-                }])
-            }
-            reader.readAsText(file)
-        })
-        return
-    }
-
-    // Internal
-    if (draggedIds.length === 0) return
-    const validMoves = draggedIds.filter(dragId => {
-        if (dragId === targetPid) return false
-        let check = targetPid
-        while (check) { if (check === dragId) return false; check = fileSystem.find(f => f.id === check)?.parentId || null }
-        return true
-    })
-    setFileSystem(prev => prev.map(f => validMoves.includes(f.id) ? { ...f, parentId: targetPid } : f))
-    setDraggedIds([])
-  }
-
-  // --- Context Menu ---
-  const handleContextMenu = (e: React.MouseEvent, id: string | null) => {
-    if (isReadOnly) return
-    e.preventDefault(); e.stopPropagation()
-    if (id && !selectedIds.includes(id)) setSelectedIds([id])
-    if (editorContainerRef.current) {
-        const rect = editorContainerRef.current.getBoundingClientRect()
-        setCtxMenu({ visible: true, x: e.clientX - rect.left, y: e.clientY - rect.top, itemId: id })
-    }
-  }
-
+  // --- Rendering Helpers ---
   const FileTreeItem = ({ item, depth }: { item: FileSystemItem, depth: number }) => {
     const children = getFolderContents(item.id)
     const isSelected = selectedIds.includes(item.id)
@@ -567,24 +579,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
     )
   }
 
-  const handleEditorKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (isReadOnly) return
-    if (e.key === 'Tab') {
-        e.preventDefault(); const t = e.target as HTMLTextAreaElement; const s = t.selectionStart; 
-        const val = t.value.substring(0, s) + '  ' + t.value.substring(t.selectionEnd);
-        setFileSystem(p => p.map(f => f.id === activeFileId ? { ...f, content: val, isUnsaved: true } : f))
-        requestAnimationFrame(() => { t.selectionStart = t.selectionEnd = s + 2 })
-    }
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault(); setFileSystem(p => p.map(f => f.id === activeFileId ? { ...f, isUnsaved: false } : f))
-    }
-  }
-
-  useEffect(() => {
-    const h = (e: MessageEvent) => { if (e.data?.t === 'log') setConsoleLogs(p => [...p, `> ${e.data.m}`]) }
-    window.addEventListener('message', h); return () => window.removeEventListener('message', h)
-  }, [])
-
+  // --- Main Render ---
   const filteredFiles = useMemo(() => {
     if (!searchQuery) return []
     const res: any[] = []
@@ -620,6 +615,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
                         <button onClick={exportZip} className="p-1 hover:bg-[#3c3c3c] rounded" title={vt.export_zip}><Archive size={14}/></button>
                         <button onClick={()=>uploadFileRef.current?.click()} className="p-1 hover:bg-[#3c3c3c] rounded" title={vt.import_file}><Upload size={14}/></button>
                         <button onClick={()=>uploadFolderRef.current?.click()} className="p-1 hover:bg-[#3c3c3c] rounded" title={vt.import_folder}><FolderInput size={14}/></button>
+                        
                         <input type="file" ref={uploadFileRef} hidden multiple onChange={handleFileUpload} />
                         {/* @ts-ignore */}
                         <input type="file" ref={uploadFolderRef} hidden webkitdirectory="" directory="" multiple onChange={handleFolderUpload} />
@@ -633,7 +629,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
                         )}
                     </div>}
                 </div>
-                {/* File Tree Root + Marquee */}
+                {/* File Tree + Marquee */}
                 <div 
                     ref={fileListRef}
                     className={clsx("flex-1 overflow-y-auto custom-scrollbar p-1 relative", dragOverId === 'root' && "bg-[#2a2d2e] outline outline-1 outline-blue-500")}
@@ -682,7 +678,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
       </div>
       )}
 
-      {/* 3. Editor */}
+      {/* 3. Editor Area */}
       <div className="flex-1 flex flex-col min-w-0 bg-[#1e1e1e]">
         {activeFile ? (
             <>
@@ -725,7 +721,11 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
                                 value={activeFile.content || ''}
                                 readOnly={isReadOnly}
                                 onChange={(e) => !isReadOnly && setFileSystem(p => p.map(f => f.id === activeFileId ? { ...f, content: e.target.value, isUnsaved: true } : f))}
-                                onKeyDown={handleEditorKeyDown}
+                                onKeyDown={(e) => {
+                                    if(isReadOnly) return
+                                    if(e.key==='Tab'){e.preventDefault();const t=e.target as HTMLTextAreaElement;const s=t.selectionStart;t.value=t.value.substring(0,s)+'  '+t.value.substring(t.selectionEnd);t.selectionStart=t.selectionEnd=s+2;setFileSystem(p=>p.map(f=>f.id===activeFileId?{...f,content:t.value}:f))}
+                                    if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();setFileSystem(p=>p.map(f=>f.id===activeFileId?{...f,isUnsaved:false}:f))}
+                                }}
                                 onScroll={(e) => { if(lineNumRef.current) lineNumRef.current.scrollTop = e.currentTarget.scrollTop }}
                                 spellCheck={false}
                                 className="flex-1 h-full bg-[#1e1e1e] text-[#d4d4d4] font-mono leading-[1.5rem] pt-4 px-2 resize-none outline-none border-none tab-4"
@@ -734,9 +734,14 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
                         </div>
                         {!isReadOnly && <div className={clsx("border-t border-[#2b2b2b] bg-[#18181b] flex flex-col transition-all", showConsole?"h-32":"h-6")}>
                             <div className="h-6 px-3 flex items-center justify-between text-xs bg-[#2b2b2b] cursor-pointer hover:bg-[#333]" onClick={()=>setShowConsole(!showConsole)}>
-                                <span className="font-bold text-[#cccccc]">{vt.terminal}</span><ChevronDown size={14} className={clsx("transition-transform", !showConsole&&"-rotate-90")}/>
+                                <span className="font-bold text-[#cccccc] flex items-center gap-2"><TerminalIcon size={12}/> {vt.terminal}</span><ChevronDown size={14} className={clsx("transition-transform", !showConsole&&"-rotate-90")}/>
                             </div>
-                            {showConsole && <div className="flex-1 overflow-y-auto p-2 font-mono text-xs space-y-1 text-[#cccccc]">{consoleLogs.length===0?<div className="text-[#666]">{vt.console_ready}</div>:consoleLogs.map((l,i)=><div key={i} className="border-b border-[#333] pb-1">{l}</div>)}</div>}
+                            {showConsole && (
+                                <div className="flex-1 overflow-y-auto p-2 font-mono text-xs space-y-1 text-[#cccccc]">
+                                    {consoleLogs.length===0?<div className="text-[#666]">{vt.console_ready}</div>:consoleLogs.map((l,i)=><div key={i} className="border-b border-[#333] pb-1">{l}</div>)}
+                                    <div ref={terminalEndRef} />
+                                </div>
+                            )}
                         </div>}
                     </div>
                     {showPreview && <div className="flex-1 bg-white h-full relative flex flex-col"><div className="h-8 bg-[#f3f3f3] border-b border-[#ddd] flex items-center px-3 text-xs text-[#555] justify-between"><span>{vt.preview}</span><button onClick={()=>setShowPreview(false)} className="hover:bg-[#ddd] p-1 rounded"><X size={12}/></button></div><iframe srcDoc={outputSrc} className="flex-1 w-full border-none bg-white"/></div>}
@@ -748,7 +753,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
         <div className="h-6 bg-[#007acc] text-white flex items-center px-3 text-[11px] justify-between shrink-0 select-none cursor-default"><div className="flex gap-3"><div className="flex items-center gap-1"><GitBranch size={10} /> main</div></div><div className="flex gap-3"><div>Ln {(activeFile?.content||'').split('\n').length}</div><div>UTF-8</div><div className="uppercase">{activeFile?.language||'TXT'}</div></div></div>
       </div>
 
-      {/* 4. Full Featured Context Menu */}
+      {/* 4. Context Menu */}
       {ctxMenu.visible && !isReadOnly && (
         <div className="absolute z-50 bg-[#252526] border border-[#454545] shadow-xl rounded py-1 min-w-[160px] text-xs text-[#cccccc]" style={{ top: ctxMenu.y, left: ctxMenu.x }}>
             {ctxMenu.itemId ? (
