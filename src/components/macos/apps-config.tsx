@@ -13,7 +13,7 @@ import { MailApp } from './apps/mail'
 import { CalendarApp } from './apps/calendar'
 import { NotesApp } from './apps/notes'
 import { VSCode } from './apps/vscode'
-import { StorageManager } from './apps/storage-manager' // 新增引入
+import { StorageManager } from './apps/storage-manager'
 
 const PngIcon = ({ src, alt }: { src: string; alt: string }) => (
   <img src={src} alt={alt} draggable={false} className="w-full h-full object-contain" />
@@ -30,17 +30,7 @@ export const INITIAL_APPS: AppConfig[] = [
   { id: 'calendar', title: 'Calendar', icon: <PngIcon src="/icons/calendar.png" alt="Calendar" />, width: 800, height: 600, component: <CalendarApp /> },
   { id: 'calculator', title: 'Calculator', icon: <PngIcon src="/icons/calculator.png" alt="Calculator" />, width: 320, height: 520, resizable: false, maximizable: false, component: <Calculator /> },
   { id: 'music', title: 'Music', icon: <PngIcon src="/icons/music.png" alt="Music" />, width: 800, height: 500, component: <MusicPlayer /> },
-  
-  // 新增应用：Storage Manager
-  { 
-    id: 'storage_manager', 
-    title: 'Storage', 
-    icon: <div className="w-full h-full bg-gradient-to-br from-gray-500 to-gray-700 rounded-xl flex items-center justify-center text-white text-[10px] font-bold shadow-lg border-2 border-white/20 flex-col"><div className="text-xl mb-1">💾</div><div>DISK</div></div>, 
-    width: 700, 
-    height: 500, 
-    component: <StorageManager /> 
-  },
-  
-  { id: 'about', title: 'About Lynx', icon: <PngIcon src="/icons/me.png" alt="About" />, width: 400, height: 500, component: <About /> },
+  { id: 'storage_manager', title: 'Disk Manager', icon: <div className="w-full h-full bg-gradient-to-br from-gray-500 to-gray-700 rounded-xl flex items-center justify-center text-white text-[10px] font-bold shadow-lg border-2 border-white/20 flex-col"><div className="text-xl mb-1">💾</div><div>DISK</div></div>, width: 700, height: 500, component: <StorageManager /> },
+  { id: 'about', title: 'About Lynx', icon: <PngIcon src="/icons/me.png" alt="About" />, width: 400, height: 500, component: <About />, hiddenFromDock: true },
   { id: 'settings', title: 'Settings', icon: <PngIcon src="/icons/settings.png" alt="Settings" />, width: 600, height: 400, component: <Settings /> },
 ]

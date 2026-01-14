@@ -1,15 +1,14 @@
 'use client'
 
 import React, { useState, useEffect, useRef, useMemo } from 'react'
-import { Wifi, Battery, Search, Apple, Command, Power, Lock, LogOut } from 'lucide-react'
+import { Wifi, Battery, Search, Apple } from 'lucide-react'
 import { useOs } from './os-context'
 import { useI18n } from './i18n-context'
 import { formatTime, clsx } from './utils'
 
-// === 类型定义 ===
 interface MenuItemConfig {
   label: string
-  shortcut?: string // 例如 "Cmd+Q"
+  shortcut?: string
   onClick?: () => void
   disabled?: boolean
   divider?: boolean
@@ -18,12 +17,11 @@ interface MenuItemConfig {
 
 interface MenuColumn {
   id: string
-  label: React.ReactNode // 支持文字或图标
+  label: React.ReactNode
   items: MenuItemConfig[]
   bold?: boolean
 }
 
-// === 子组件：下拉菜单 ===
 const MenuDropdown = ({ label, items, isOpen, onOpen, onClose, bold }: { 
   label: React.ReactNode
   items: MenuItemConfig[]
@@ -83,7 +81,7 @@ const MenuDropdown = ({ label, items, isOpen, onOpen, onClose, bold }: {
                 </span>
                 {item.shortcut && (
                    <span className="text-[10px] opacity-50 font-sans tracking-widest flex items-center gap-0.5 min-w-[40px] justify-end">
-                      {formatShortcut(item.shortcut)}
+                      {item.shortcut.replace('Cmd', '⌘').replace('Shift', '⇧').replace('Ctrl', '⌃')}
                    </span>
                 )}
               </div>
@@ -95,33 +93,21 @@ const MenuDropdown = ({ label, items, isOpen, onOpen, onClose, bold }: {
   )
 }
 
-// 辅助：美化快捷键显示
-const formatShortcut = (s: string) => {
-    return s.replace('Cmd', '⌘')
-            .replace('Shift', '⇧')
-            .replace('Ctrl', '⌃')
-            .replace('Opt', '⌥')
-            .replace('Fn', 'fn')
-            .replace('+', '')
-}
-
 export const MenuBar = () => {
   const { 
     activeWindowId, dockItems, 
     toggleControlCenter, setIsLocked, toggleSpotlight, launchApp,
-    closeWindow, minimizeWindow, maximizeWindow
+    closeWindow, minimizeWindow, maximizeWindow, windows
   } = useOs()
   
   const { t } = useI18n()
-  
   const [date, setDate] = useState<Date | null>(null)
   const [batteryLevel, setBatteryLevel] = useState(100)
   const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null)
-  const [isFullScreen, setIsFullScreen] = useState(false)
 
-  // 获取当前激活 APP 信息
-  const activeApp = dockItems.find(app => app.id === activeWindowId) || dockItems.find(app => app.id === 'finder')
-  const appTitle = activeApp ? t(activeApp.id) : t('finder') // 使用翻译后的名字
+  const activeWindow = windows.find(w => w.id === activeWindowId)
+  const activeAppId = activeWindow?.appId || 'finder' 
+  const appTitle = t(activeAppId) || activeWindow?.title || 'Finder'
 
   useEffect(() => {
     setDate(new Date())
@@ -139,27 +125,23 @@ export const MenuBar = () => {
 
   const toggleFullScreen = () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(e => console.log(e))
-      setIsFullScreen(true)
+      document.documentElement.requestFullscreen().catch(() => {})
     } else {
       if (document.exitFullscreen) document.exitFullscreen()
-      setIsFullScreen(false)
     }
   }
 
-  // === 动态生成菜单结构 (useMemo 确保语言切换时更新) ===
   const MENUS: MenuColumn[] = useMemo(() => [
     {
       id: 'apple',
       label: <Apple size={15} fill="currentColor" className="-mt-0.5" />, 
       items: [
-        { label: t('about_mac'), onClick: () => launchApp(dockItems.find(a => a.id === 'about')!) },
+        { label: t('about_mac'), onClick: () => launchApp({ id: 'about', title: t('about'), width: 400, height: 500 }) },
         { divider: true, label: '' },
         { label: t('sys_settings'), onClick: () => launchApp(dockItems.find(a => a.id === 'settings')!) },
         { divider: true, label: '' },
         { label: t('sleep'), onClick: () => setIsLocked(true) },
         { label: t('restart'), onClick: () => window.location.reload() },
-        { label: t('shutdown'), onClick: () => window.location.reload() },
         { divider: true, label: '' },
         { label: t('lock_screen'), shortcut: 'Cmd+Ctrl+Q', onClick: () => setIsLocked(true) },
         { label: t('log_out'), shortcut: 'Cmd+Shift+Q', onClick: () => window.location.reload(), danger: true },
@@ -170,14 +152,11 @@ export const MenuBar = () => {
       label: appTitle,
       bold: true,
       items: [
-        { label: `${t('about_app')} ${appTitle}`, onClick: () => alert(`${appTitle} v1.0`) },
+        { label: `${t('about')} ${appTitle}`, onClick: () => alert(`About ${appTitle}`) },
         { divider: true, label: '' },
-        { label: t('settings'), shortcut: 'Cmd+,', onClick: () => launchApp(dockItems.find(a => a.id === 'settings')!) },
+        { label: t('app_settings'), shortcut: 'Cmd+,', onClick: () => launchApp(dockItems.find(a => a.id === 'settings')!) },
         { divider: true, label: '' },
         { label: `${t('hide_app')} ${appTitle}`, shortcut: 'Cmd+H', onClick: () => activeWindowId && minimizeWindow(activeWindowId) },
-        { label: t('hide_others'), shortcut: 'Opt+Cmd+H', disabled: true },
-        { label: t('show_all'), disabled: true },
-        { divider: true, label: '' },
         { label: `${t('quit_app')} ${appTitle}`, shortcut: 'Cmd+Q', onClick: () => activeWindowId && closeWindow(activeWindowId), danger: true },
       ]
     },
@@ -185,35 +164,18 @@ export const MenuBar = () => {
       id: 'file',
       label: t('file'),
       items: [
-        { label: t('new_window'), shortcut: 'Cmd+N', onClick: () => activeWindowId && launchApp(dockItems.find(a => a.id === activeWindowId)!) },
-        { label: t('new_folder'), shortcut: 'Shift+Cmd+N', disabled: true },
-        { label: t('open'), shortcut: 'Cmd+O', disabled: true },
+        { label: t('new_window'), shortcut: 'Cmd+N', onClick: () => activeWindowId && launchApp(dockItems.find(a => a.id === activeWindow?.appId)!) },
         { divider: true, label: '' },
         { label: t('close_window'), shortcut: 'Cmd+W', onClick: () => activeWindowId && closeWindow(activeWindowId) },
-      ]
-    },
-    {
-      id: 'edit',
-      label: t('edit'),
-      items: [
-        { label: t('undo'), shortcut: 'Cmd+Z', disabled: true },
-        { label: t('redo'), shortcut: 'Shift+Cmd+Z', disabled: true },
-        { divider: true, label: '' },
-        { label: t('cut'), shortcut: 'Cmd+X', disabled: true },
-        { label: t('copy'), shortcut: 'Cmd+C', disabled: true },
-        { label: t('paste'), shortcut: 'Cmd+V', disabled: true },
-        { label: t('select_all'), shortcut: 'Cmd+A', disabled: true },
       ]
     },
     {
       id: 'view',
       label: t('view'),
       items: [
-        { label: isFullScreen ? t('exit_fullscreen') : t('enter_fullscreen'), shortcut: 'Fn+F', onClick: toggleFullScreen },
+        { label: typeof document !== 'undefined' && document.fullscreenElement ? t('exit_fullscreen') : t('enter_fullscreen'), shortcut: 'Fn+F', onClick: toggleFullScreen },
         { divider: true, label: '' },
-        { label: t('actual_size'), disabled: true },
-        { label: t('zoom_in'), disabled: true },
-        { label: t('zoom_out'), disabled: true },
+        { label: t('refresh'), shortcut: 'Cmd+R', onClick: () => window.location.reload() },
       ]
     },
     {
@@ -222,8 +184,6 @@ export const MenuBar = () => {
       items: [
         { label: t('minimize'), shortcut: 'Cmd+M', onClick: () => activeWindowId && minimizeWindow(activeWindowId) },
         { label: t('zoom'), onClick: () => activeWindowId && maximizeWindow(activeWindowId) },
-        { divider: true, label: '' },
-        { label: t('bring_all_front'), disabled: true },
       ]
     },
     {
@@ -231,16 +191,12 @@ export const MenuBar = () => {
       label: t('help'),
       items: [
         { label: t('search_help'), shortcut: 'Cmd+?', onClick: () => toggleSpotlight() },
-        { divider: true, label: '' },
-        { label: t('get_help'), disabled: true },
       ]
     }
-  ], [t, appTitle, activeWindowId, activeApp, dockItems, isFullScreen, launchApp, setIsLocked, minimizeWindow, closeWindow, maximizeWindow, toggleSpotlight])
+  ], [t, appTitle, activeWindowId, activeWindow, dockItems, launchApp, setIsLocked, minimizeWindow, closeWindow, maximizeWindow, toggleSpotlight])
 
   return (
     <div className="h-8 w-full bg-white/40 dark:bg-[#1e1e1e]/50 backdrop-blur-xl border-b border-black/5 dark:border-white/5 absolute top-0 left-0 z-[9999] flex items-center justify-between px-2 text-black dark:text-white select-none transition-colors">
-      
-      {/* 左侧菜单 */}
       <div className="flex items-center h-full px-1">
         {MENUS.map((menu, idx) => (
           <MenuDropdown 
@@ -255,7 +211,6 @@ export const MenuBar = () => {
         ))}
       </div>
 
-      {/* 右侧状态栏 */}
       <div className="flex items-center gap-2 text-xs font-medium px-2">
         <div className="hidden sm:flex items-center gap-2 opacity-90">
              <div className="hover:bg-white/20 p-1.5 rounded transition-colors cursor-default" title={`Battery: ${batteryLevel}%`}>
@@ -269,7 +224,6 @@ export const MenuBar = () => {
              </div>
         </div>
         
-        {/* 控制中心 Toggle */}
         <div 
             className="hover:bg-white/20 px-2 py-1 rounded transition-colors cursor-default flex items-center gap-2"
             title={t('control_center')}
@@ -284,7 +238,6 @@ export const MenuBar = () => {
             </div>
         </div>
 
-        {/* 日期时间 */}
         <div 
           className="hover:bg-white/20 px-3 py-1 rounded transition-colors cursor-default whitespace-nowrap min-w-[70px] text-center font-semibold" 
           onClick={() => launchApp(dockItems.find(a => a.id === 'calendar')!)}

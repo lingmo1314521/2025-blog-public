@@ -1,4 +1,3 @@
-// components/macos/i18n-context.tsx
 'use client'
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react'
@@ -44,7 +43,8 @@ export const I18nProvider = ({ children }: { children: ReactNode }) => {
 
   const t = (key: string): string => {
     // @ts-ignore
-    return TRANSLATIONS[language]?.[key] || key
+    const dict = TRANSLATIONS[language] || TRANSLATIONS['en']
+    return dict[key] || TRANSLATIONS['en'][key as keyof typeof TRANSLATIONS['en']] || key
   }
 
   return (

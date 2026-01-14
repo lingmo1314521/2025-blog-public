@@ -1,7 +1,6 @@
-// components/macos/types.ts
 import { ReactNode } from 'react'
 
-export type AppID = 'finder' | 'launchpad' | 'blog' | 'settings' | 'about' | 'github' | 'mail' | 'terminal' | 'calculator' | 'calendar' | 'music' | 'notes' | 'vscode' | 'safari' | string
+export type AppID = 'finder' | 'launchpad' | 'settings' | 'about' | 'mail' | 'terminal' | 'calculator' | 'calendar' | 'music' | 'notes' | 'vscode' | 'safari' | 'storage_manager' | string
 
 export interface AppConfig {
   id: AppID
@@ -14,6 +13,7 @@ export interface AppConfig {
   component: ReactNode
   resizable?: boolean
   maximizable?: boolean
+  hiddenFromDock?: boolean 
 }
 
 export interface WindowState {
@@ -43,14 +43,11 @@ export interface OsContextState {
   dockItems: AppConfig[]
   registry: AppConfig[]
   
-  // 系统状态
-  isMenuOpen: boolean
   isLaunchpadOpen: boolean
   isControlCenterOpen: boolean
   isLocked: boolean
   isSpotlightOpen: boolean
   
-  // 新增：全局系统设置状态
   brightness: number
   volume: number
   setBrightness: (val: number) => void
@@ -58,13 +55,12 @@ export interface OsContextState {
 
   notifications: Notification[]
 
-  launchApp: (app: AppConfig) => void
+  launchApp: (app: AppConfig | Partial<AppConfig>) => void
   closeWindow: (id: string) => void
   minimizeWindow: (id: string) => void
   maximizeWindow: (id: string) => void
   restoreWindow: (id: string) => void
   focusWindow: (id: string) => void
-  bringToFront: (id: string) => void
   resizeWindow: (id: string, width: number, height: number) => void
   updateWindowPos: (id: string, x: number, y: number) => void
   
