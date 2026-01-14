@@ -3,6 +3,8 @@
 import React, { useState, useRef, useEffect, useMemo, createContext, useContext } from 'react'
 import { 
   Search, Files, Play, X, ChevronRight, ChevronDown, 
+  LayoutTemplate, Plus, Upload, Download, Trash2, 
+  FileCode, // <--- 修复：补回了这个丢失的图标导入
   Settings, ToggleLeft, ToggleRight, GitBranch,
   Folder, FolderOpen, Archive, FilePlus, FolderPlus, 
   Briefcase, Edit3, FolderInput, Terminal as TerminalIcon,
@@ -166,7 +168,7 @@ const FileTreeItem = ({ item, depth }: { item: FileSystemItem, depth: number }) 
 
 export const VSCode = ({ previewFile }: VSCodeProps) => {
   const { t: translate } = useI18n()
-  const t = (key: string) => translate(key) // Wrapper for simplicity
+  const t = (key: string) => translate(key) 
 
   const isReadOnly = !!previewFile
 
@@ -199,6 +201,11 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
   const [dragOverId, setDragOverId] = useState<string | null>(null)
   const [showTemplateMenu, setShowTemplateMenu] = useState(false)
 
+  // Marquee Selection
+  const [isSelecting, setIsSelecting] = useState(false)
+  const [selectionBox, setSelectionBox] = useState<{ x: number, y: number, w: number, h: number } | null>(null)
+  const selectionStart = useRef<{ x: number, y: number } | null>(null)
+  
   // Refs
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const fileListRef = useRef<HTMLDivElement>(null)
@@ -306,7 +313,8 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
 
   const handleDragOver = (e: React.DragEvent, id: string | null) => {
       if (isReadOnly) return
-      e.preventDefault(); e.stopPropagation()
+      e.preventDefault()
+      e.stopPropagation()
       if (id === null) { setDragOverId('root'); return }
       const item = fs.find(f => f.id === id)
       if (item?.type === 'folder' && !draggedIds.includes(id)) setDragOverId(id)
@@ -441,7 +449,6 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
       { id: 'new_folder', label: 'File: New Folder', action: () => createFile('folder') },
       { id: 'save', label: 'File: Save', action: () => activeFile && updateFileContent(activeFile.id, activeFile.content || '') },
       { id: 'close_tab', label: 'View: Close Tab', action: () => activeFileId && closeTab(activeFileId) },
-      { id: 'format', label: 'Format Document', action: () => alert('Formatting not implemented yet') },
       { id: 'toggle_wrap', label: 'View: Toggle Word Wrap', action: () => setConfig(c => ({...c, wordWrap: !c.wordWrap})) },
       { id: 'toggle_lines', label: 'View: Toggle Line Numbers', action: () => setConfig(c => ({...c, showLineNumbers: !c.showLineNumbers})) },
       { id: 'increase_font', label: 'View: Zoom In', action: () => setConfig(c => ({...c, fontSize: c.fontSize + 1})) },
@@ -490,11 +497,18 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
                         <div 
                             ref={fileListRef}
                             className={clsx("flex-1 overflow-y-auto custom-scrollbar relative", dragOverId === 'root' && "bg-[#2a2d2e] outline outline-1 outline-blue-500")}
+                            onMouseDown={handleMouseDown}
+                            onMouseMove={handleMouseMove}
+                            onMouseUp={handleMouseUp}
+                            onMouseLeave={handleMouseUp}
                             onDragOver={(e) => !isReadOnly && handleDragOver(e, null)}
                             onDrop={(e) => !isReadOnly && handleDrop(e, 'root')}
                             onContextMenu={(e) => !isReadOnly && handleContextMenu(e, null)}
                         >
                             {fs.filter(f => f.parentId === null).map(item => <FileTreeItem key={item.id} item={item} depth={0} />)}
+                            {isSelecting && selectionBox && (
+                                <div className="absolute bg-blue-500/20 border border-blue-500 pointer-events-none z-50" style={{ left: selectionBox.x, top: selectionBox.y, width: selectionBox.w, height: selectionBox.h }} />
+                            )}
                         </div>
                     </>
                 )}
@@ -647,16 +661,9 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
                         </div>
                     </>
                 ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-[#555] gap-4">
-                        <Command size={64} className="opacity-20"/>
-                        <div className="text-center">
-                            <p className="text-sm">Show All Commands</p>
-                            <div className="flex items-center gap-1 justify-center mt-1"><kbd className="bg-[#333] px-1.5 rounded text-xs">Cmd</kbd> + <kbd className="bg-[#333] px-1.5 rounded text-xs">Shift</kbd> + <kbd className="bg-[#333] px-1.5 rounded text-xs">P</kbd></div>
-                        </div>
-                    </div>
+                    <div className="flex-1 flex flex-col items-center justify-center text-[#555]"><Files size={64} className="mb-4 opacity-20"/><p>Select a file to start</p></div>
                 )}
                 
-                {/* Footer */}
                 <div className="h-5 bg-[#007acc] text-white flex items-center px-3 text-[10px] justify-between shrink-0 select-none cursor-default">
                     <div className="flex gap-3"><div className="flex items-center gap-1"><GitBranch size={10} /> main</div></div>
                     <div className="flex gap-3">
@@ -673,7 +680,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
                     {ctxMenu.itemId ? (
                         <>
                             <div onClick={() => { setRenamingId(ctxMenu.itemId); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Edit3 size={12}/> Rename</div>
-                            <div onClick={() => { deleteFiles([ctxMenu.itemId!]); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2 text-red-400"><Trash2 size={12}/> Delete</div>
+                            <div onClick={() => { deleteFiles(selectedIds.includes(ctxMenu.itemId!) ? selectedIds : [ctxMenu.itemId!]); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2 text-red-400"><Trash2 size={12}/> Delete</div>
                             <div className="h-[1px] bg-[#454545] my-1" />
                             <div className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Download size={12}/> Download</div>
                         </>
@@ -681,6 +688,8 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
                         <>
                             <div onClick={() => { createFile('file'); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><FilePlus size={12}/> New File</div>
                             <div onClick={() => { createFile('folder'); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><FolderPlus size={12}/> New Folder</div>
+                            <div className="h-[1px] bg-[#454545] my-1" />
+                            <div onClick={() => { uploadFileRef.current?.click(); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Upload size={12}/> Upload</div>
                         </>
                     )}
                 </div>
