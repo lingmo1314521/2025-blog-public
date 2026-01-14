@@ -1,6 +1,7 @@
+// components/macos/window-frame.tsx
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { motion, useDragControls, useMotionValue } from 'motion/react'
 import { X, Minus, Maximize2, Minimize2 } from 'lucide-react'
 import { useOs } from './os-context'
@@ -15,7 +16,7 @@ interface WindowFrameProps {
 }
 
 export const WindowFrame = ({ windowState, children }: WindowFrameProps) => {
-  const { id, position, size, zIndex, isMinimized, isMaximized } = windowState
+  const { id, title, position, size, zIndex, isMinimized, isMaximized } = windowState
   const { focusWindow, closeWindow, minimizeWindow, maximizeWindow, restoreWindow, resizeWindow, updateWindowPos, registry, dockItems } = useOs()
   const { t } = useI18n()
   
@@ -95,7 +96,8 @@ export const WindowFrame = ({ windowState, children }: WindowFrameProps) => {
 
   if (isMinimized) return null
 
-  const displayTitle = windowState.id.startsWith('post-') ? windowState.title : t(windowState.appId)
+  // 动态标题：如果是博客文章(post-xxx)，显示原标题；否则尝试翻译 AppName
+  const displayTitle = windowState.id.startsWith('post-') ? title : t(windowState.appId)
 
   return (
     <motion.div

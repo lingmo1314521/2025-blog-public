@@ -1,3 +1,4 @@
+// components/macos/os-context.tsx
 'use client'
 
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react'
@@ -33,6 +34,8 @@ export const OsProvider = ({ children, installedApps }: OsProviderProps) => {
 
   // 亮度效果实现
   useEffect(() => {
+    // 通过给 body 添加 filter 来模拟屏幕亮度
+    // 注意：这可能会影响性能，但在模拟器中效果很好
     document.documentElement.style.filter = `brightness(${brightness}%)`
   }, [brightness])
 
@@ -48,42 +51,26 @@ export const OsProvider = ({ children, installedApps }: OsProviderProps) => {
     setIsSpotlightOpen(false)
   }, [getTopZIndex])
 
-  const launchApp = useCallback((appPayload: AppConfig | Partial<AppConfig>) => {
+  const launchApp = useCallback((app: AppConfig) => {
     setIsLaunchpadOpen(false)
     setIsControlCenterOpen(false)
     setIsSpotlightOpen(false)
-
-    // 查找是否是已安装 App
-    const baseApp = registry.find(a => a.id === appPayload.id) || installedApps.find(a => a.id === appPayload.id)
-    
-    // 如果没有找到 baseApp，但 payload 里有 component (例如打开文件)，则视为临时 App
-    if (!baseApp && !appPayload.component) {
-        console.warn('App not found:', appPayload.id)
-        return
-    }
-
-    const finalApp = { ...baseApp, ...appPayload } as AppConfig
-
-    setRegistry((prev) => { if (prev.find(a => a.id === finalApp.id)) return prev; return [...prev, finalApp] })
-    
+    setRegistry((prev) => { if (prev.find(a => a.id === app.id)) return prev; return [...prev, app] })
     setWindows((prev) => {
-      const existing = prev.find((w) => w.id === finalApp.id)
+      const existing = prev.find((w) => w.appId === app.id)
       if (existing) {
-        return prev.map(w => w.id === existing.id ? { ...w, isMinimized: false, zIndex: getTopZIndex() + 1 } : w)
+        if (existing.isMinimized) return prev.map(w => w.id === existing.id ? { ...w, isMinimized: false, zIndex: getTopZIndex() + 1 } : w)
+        return prev 
       }
       return [...prev, {
-        id: finalApp.id, 
-        appId: finalApp.id, 
-        title: finalApp.title, 
-        isMinimized: false, 
-        isMaximized: false,
+        id: app.id, appId: app.id, title: app.title, isMinimized: false, isMaximized: false,
         zIndex: getTopZIndex() + 1,
         position: { x: 100 + (prev.length % 5) * 30, y: 80 + (prev.length % 5) * 30 }, 
-        size: { width: finalApp.width || 800, height: finalApp.height || 600 },
+        size: { width: app.width || 800, height: app.height || 600 },
       }]
     })
-    setTimeout(() => setActiveWindowId(finalApp.id), 0)
-  }, [getTopZIndex, registry, installedApps])
+    setTimeout(() => setActiveWindowId(app.id), 0)
+  }, [getTopZIndex])
 
   const closeWindow = useCallback((id: string) => {
     setWindows((prev) => prev.filter((w) => w.id !== id))
@@ -113,6 +100,7 @@ export const OsProvider = ({ children, installedApps }: OsProviderProps) => {
     setWindows((prev) => prev.map((w) => w.id === id ? { ...w, position: { x, y } } : w))
   }, [])
 
+  const bringToFront = useCallback((id: string) => focusWindow(id), [focusWindow])
   const toggleLaunchpad = useCallback((v?: boolean) => setIsLaunchpadOpen(p => v ?? !p), [])
   const toggleControlCenter = useCallback((v?: boolean) => setIsControlCenterOpen(p => v ?? !p), [])
   const toggleSpotlight = useCallback((v?: boolean) => setIsSpotlightOpen(p => v ?? !p), [])
@@ -132,9 +120,11 @@ export const OsProvider = ({ children, installedApps }: OsProviderProps) => {
         windows, activeWindowId, 
         dockItems: installedApps,
         registry,
-        isLaunchpadOpen, isControlCenterOpen, isLocked, isSpotlightOpen, notifications,
+        isMenuOpen: false, isLaunchpadOpen, isControlCenterOpen, isLocked, isSpotlightOpen, notifications,
+        // 全局设置
         brightness, volume, setBrightness, setVolume,
-        launchApp, closeWindow, minimizeWindow, maximizeWindow, restoreWindow, focusWindow, resizeWindow, updateWindowPos,
+        
+        launchApp, closeWindow, minimizeWindow, maximizeWindow, restoreWindow, focusWindow, bringToFront, resizeWindow, updateWindowPos,
         toggleLaunchpad, toggleControlCenter, setIsLocked, toggleSpotlight, addNotification, removeNotification
     }}>
       {children}

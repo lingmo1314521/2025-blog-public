@@ -14,6 +14,8 @@ import { Spotlight } from './spotlight'
 import { Notifications } from './notifications'
 import { AppConfig } from './types'
 import { DocViewer } from './apps/doc-viewer'
+// 删除 WriteApp 的引用
+// import { WriteApp } from './apps/write-app' 
 import { FileText, Edit3 } from 'lucide-react'
 
 const DesktopContent = ({ wallpaper, setWallpaper }: { wallpaper: string, setWallpaper: (url: string) => void }) => {
@@ -31,6 +33,7 @@ const DesktopContent = ({ wallpaper, setWallpaper }: { wallpaper: string, setWal
     const handleRefresh = () => { document.body.style.opacity = '0.5'; setTimeout(() => document.body.style.opacity = '1', 100); }
     const handleChangeWallpaper = () => { const s = dockItems.find((a:any) => a.id === 'settings'); if(s) launchApp(s); }
 
+    // 处理打开文件 (阅读模式)
     const handleOpenFile = (meta: any) => {
          launchApp({
             id: `post-${meta.slug}`,
@@ -42,14 +45,16 @@ const DesktopContent = ({ wallpaper, setWallpaper }: { wallpaper: string, setWal
          })
     }
 
+    // 处理编辑文件 (编辑模式 - 改为 iframe 加载原网页)
     const handleEditFile = (meta: any) => {
         launchApp({
             id: `editor-${meta.slug}`,
-            title: `Edit: ${meta.title}`,
+            title: `编辑: ${meta.title}`,
             icon: <div className="w-5 h-5 text-blue-500"><Edit3 size={20} /></div>,
-            width: 1200, 
+            width: 1200, // 编辑器稍微宽一点
             height: 800,
-            component: <DocViewer url={`/write/${meta.slug}?embedded=true`} title={`Edit: ${meta.title}`} />
+            // 指向你的 /write/[slug] 路由，并开启嵌入模式
+            component: <DocViewer url={`/write/${meta.slug}?embedded=true`} title={`编辑: ${meta.title}`} />
         })
     }
 
@@ -95,7 +100,7 @@ const DesktopContent = ({ wallpaper, setWallpaper }: { wallpaper: string, setWal
                     onChangeWallpaper={handleChangeWallpaper}
                     onOpen={handleOpenFile}
                     onEdit={handleEditFile}
-                    onDelete={() => alert('请在编辑模式下删除')}
+                    onDelete={() => alert('请在编辑模式下删除')} // 或者你可以让 DocViewer 加载的页面里去处理删除
                 />
             )}
         </div>
