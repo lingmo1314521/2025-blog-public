@@ -5,13 +5,13 @@ import {
   // 基础图标
   Search, Files, Play, X, ChevronRight, ChevronDown, 
   Settings, ToggleLeft, ToggleRight, GitBranch,
-  // 文件操作图标
+  // 文件图标
   Folder, FolderOpen, Archive, FilePlus, FolderPlus, 
   Briefcase, Edit3, FolderInput, Terminal as TerminalIcon,
-  // 功能图标 (确保所有用到的都在这里)
+  // 功能图标
   Command, Search as SearchIcon, MoreHorizontal, 
   Download, Upload, FileCode, LayoutTemplate, 
-  Trash2, Check
+  Trash2, Check // 确保所有图标都已导入
 } from 'lucide-react'
 import { clsx } from '../utils'
 import { useI18n } from '../i18n-context'
@@ -76,7 +76,7 @@ const VSCodeContext = createContext<VSCodeContextType | null>(null)
 // 3. 初始数据
 // ==========================================
 const INITIAL_FS: FileSystemItem[] = [
-  { id: 'root-readme', parentId: null, name: 'README.md', type: 'file', language: 'markdown', content: '# VS Code Web\n\nWelcome to LynxMuse Code Editor.\n\n### Features:\n- 📂 **Folder Upload**: Right click or use menu to upload.\n- 🔍 **Search**: Find text in all files.\n- ⌨️ **Command Palette**: `Cmd+Shift+P`' },
+  { id: 'root-readme', parentId: null, name: 'README.md', type: 'file', language: 'markdown', content: '# VS Code Web\n\nWelcome to LynxMuse Code Editor.\n\n### Features:\n- 📂 **Folder Upload**: Right click context menu supported.\n- 🔍 **Search**: Find text in all files.\n- ⌨️ **Command Palette**: `Cmd+Shift+P`' },
   { id: 'src', parentId: null, name: 'src', type: 'folder', isOpen: true },
   { id: 'index', parentId: 'src', name: 'index.html', type: 'file', language: 'html', content: '<h1>Hello World</h1>\n<script src="./app.js"></script>' },
   { id: 'css', parentId: 'src', name: 'style.css', type: 'file', language: 'css', content: 'body {\n  background: #1e1e1e;\n  color: #fff;\n  font-family: sans-serif;\n}' },
@@ -215,6 +215,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
   const textAreaRef = useRef<HTMLTextAreaElement>(null)
   const lineNumRef = useRef<HTMLDivElement>(null)
   const terminalEndRef = useRef<HTMLDivElement>(null)
+  // Input Refs moved to persistent location
   const uploadFileRef = useRef<HTMLInputElement>(null)
   const uploadFolderRef = useRef<HTMLInputElement>(null)
 
@@ -264,7 +265,6 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
   // === Derived State ===
   const activeFile = useMemo(() => fs.find(f => f.id === activeFileId), [fs, activeFileId])
   
-  // Search Results
   const searchResults = useMemo(() => {
       if (!searchQuery) return []
       const res: any[] = []
@@ -443,7 +443,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
               reader.onload = (ev) => createFile('file', null, file.name, ev.target?.result as string)
               reader.readAsText(file)
           })
-          e.target.value = '' // Reset input
+          e.target.value = '' // Reset
       }
   }
 
@@ -496,24 +496,9 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
           })
           
           setFs(prev => [...prev, ...newItems])
-          e.target.value = '' // Reset input
+          e.target.value = '' // Reset
       }
   }
-
-  // --- Commands for Palette ---
-  const commands = [
-      { id: 'new_file', label: 'File: New File', action: () => createFile('file') },
-      { id: 'new_folder', label: 'File: New Folder', action: () => createFile('folder') },
-      { id: 'save', label: 'File: Save', action: () => activeFile && updateFileContent(activeFile.id, activeFile.content || '') },
-      { id: 'close_tab', label: 'View: Close Tab', action: () => activeFileId && closeTab(activeFileId) },
-      { id: 'toggle_wrap', label: 'View: Toggle Word Wrap', action: () => setConfig(c => ({...c, wordWrap: !c.wordWrap})) },
-      { id: 'toggle_lines', label: 'View: Toggle Line Numbers', action: () => setConfig(c => ({...c, showLineNumbers: !c.showLineNumbers})) },
-      { id: 'increase_font', label: 'View: Zoom In', action: () => setConfig(c => ({...c, fontSize: c.fontSize + 1})) },
-      { id: 'decrease_font', label: 'View: Zoom Out', action: () => setConfig(c => ({...c, fontSize: Math.max(10, c.fontSize - 1)})) },
-      { id: 'export_zip', label: 'File: Export Project to ZIP', action: handleZipExport },
-  ]
-
-  const filteredCommands = commands.filter(c => c.label.toLowerCase().includes(paletteQuery.toLowerCase()))
 
   // --- Handlers: Marquee Selection ---
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -563,6 +548,35 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
       selectionStart.current = null
   }
 
+  // --- Download Helper ---
+  const handleDownloadFile = (id: string) => {
+      const file = fs.find(f => f.id === id)
+      if (file && file.type === 'file') {
+          const blob = new Blob([file.content || ''], { type: 'text/plain' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = file.name
+          a.click()
+          URL.revokeObjectURL(url)
+      }
+  }
+
+  // --- Commands ---
+  const commands = [
+      { id: 'new_file', label: 'File: New File', action: () => createFile('file') },
+      { id: 'new_folder', label: 'File: New Folder', action: () => createFile('folder') },
+      { id: 'save', label: 'File: Save', action: () => activeFile && updateFileContent(activeFile.id, activeFile.content || '') },
+      { id: 'close_tab', label: 'View: Close Tab', action: () => activeFileId && closeTab(activeFileId) },
+      { id: 'toggle_wrap', label: 'View: Toggle Word Wrap', action: () => setConfig(c => ({...c, wordWrap: !c.wordWrap})) },
+      { id: 'toggle_lines', label: 'View: Toggle Line Numbers', action: () => setConfig(c => ({...c, showLineNumbers: !c.showLineNumbers})) },
+      { id: 'increase_font', label: 'View: Zoom In', action: () => setConfig(c => ({...c, fontSize: c.fontSize + 1})) },
+      { id: 'decrease_font', label: 'View: Zoom Out', action: () => setConfig(c => ({...c, fontSize: Math.max(10, c.fontSize - 1)})) },
+      { id: 'export_zip', label: 'File: Export Project to ZIP', action: handleZipExport },
+  ]
+
+  const filteredCommands = commands.filter(c => c.label.toLowerCase().includes(paletteQuery.toLowerCase()))
+
   // === RENDER ===
   return (
     <VSCodeContext.Provider value={{
@@ -581,7 +595,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
 
             {/* 2. Sidebar */}
             {sidebarVisible && (
-            <div className="w-64 bg-[#252526] flex flex-col border-r border-[#2b2b2b] shrink-0 transition-all">
+            <div className="w-64 bg-[#252526] flex flex-col border-r border-[#2b2b2b] shrink-0 transition-all relative">
                 {sidebarView === 'explorer' && (
                     <>
                         <div className="h-9 px-3 flex items-center justify-between bg-[#252526] text-[11px] font-bold uppercase tracking-wider text-[#bbbbbb] shrink-0 group">
@@ -787,7 +801,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
                             <div onClick={(e) => { e.stopPropagation(); setRenamingId(ctxMenu.itemId); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Edit3 size={12}/> {t('rename')}</div>
                             <div onClick={(e) => { e.stopPropagation(); deleteFiles(selectedIds.includes(ctxMenu.itemId!) ? selectedIds : [ctxMenu.itemId!]); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2 text-red-400"><Trash2 size={12}/> {t('delete')}</div>
                             <div className="h-[1px] bg-[#454545] my-1" />
-                            <div className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Download size={12}/> {t('download')}</div>
+                            <div onClick={(e) => { e.stopPropagation(); handleDownloadFile(ctxMenu.itemId!); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Download size={12}/> {t('download')}</div>
                         </>
                     ) : (
                         <>
@@ -795,12 +809,13 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
                             <div onClick={(e) => { e.stopPropagation(); createFile('folder'); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><FolderPlus size={12}/> {t('new_folder')}</div>
                             <div className="h-[1px] bg-[#454545] my-1" />
                             <div onClick={(e) => { e.stopPropagation(); uploadFileRef.current?.click(); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Upload size={12}/> {t('upload')}</div>
+                            <div onClick={(e) => { e.stopPropagation(); uploadFolderRef.current?.click(); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><FolderInput size={12}/> Import Folder</div>
                         </>
                     )}
                 </div>
             )}
 
-            {/* Global Hidden Inputs for Upload (Moved here to ensure they always exist) */}
+            {/* Global Hidden Inputs for Upload */}
             <input type="file" ref={uploadFileRef} hidden multiple onChange={handleFileUpload} />
             {/* @ts-ignore */}
             <input type="file" ref={uploadFolderRef} hidden webkitdirectory="" directory="" multiple onChange={handleFolderUpload} />
