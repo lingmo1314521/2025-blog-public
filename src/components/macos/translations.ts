@@ -3,7 +3,7 @@ export type Language = 'en' | 'zh' | 'mix'
 
 export const TRANSLATIONS = {
   en: {
-    // --- Identity ---
+    // ... (保留之前的 Identity, System Menu, Top Bar 等)
     'login_user_name': 'LynxMuse',
     'login_placeholder': 'Enter Password',
     'click_to_sleep': 'Click to Sleep',
@@ -22,7 +22,7 @@ export const TRANSLATIONS = {
     'settings': 'Settings',
     'about': 'About Lynx',
     'text-editor': 'TextEdit',
-    'storage_manager': 'File Manager',
+    'storage_manager': 'Finder', // 改回 Finder，更贴切
 
     // --- System Menu ---
     'about_mac': 'About This Portfolio',
@@ -66,14 +66,31 @@ export const TRANSLATIONS = {
     'zoom_in': 'Zoom In', 'zoom_out': 'Zoom Out',
     'format_doc': 'Format Document',
 
-    // --- File Manager (Storage) ---
-    'fm_applications': 'APPLICATIONS',
-    'fm_system': 'SYSTEM DATA',
-    'fm_delete_all': 'Format Disk (Reset All)',
-    'fm_delete_confirm': 'WARNING: This will wipe ALL virtual data (Terminal files, Notes, VS Code projects) and reload. Continue?',
-    'fm_preview_vscode': 'Preview in VS Code',
-    'fm_no_files': 'No files found in this container.',
-    'fm_items': 'items',
+    // --- Finder Specific (New) ---
+    'fd_favorites': 'Favorites',
+    'fd_locations': 'Locations',
+    'fd_icloud': 'iCloud',
+    'fd_tags': 'Tags',
+    'fd_airdrop': 'AirDrop',
+    'fd_recents': 'Recents',
+    'fd_applications': 'Applications',
+    'fd_desktop': 'Desktop',
+    'fd_documents': 'Documents',
+    'fd_downloads': 'Downloads',
+    'fd_developer': 'Developer',
+    'fd_trash': 'Bin',
+    'fd_network': 'Network',
+    'fd_macintosh_hd': 'Macintosh HD',
+    'fd_kind': 'Kind',
+    'fd_date_modified': 'Date Modified',
+    'fd_size': 'Size',
+    'fd_name': 'Name',
+    'fd_items': 'items',
+    'fd_folder': 'Folder',
+    'fd_text_doc': 'Text Document',
+    'fd_json_doc': 'JSON File',
+    'fd_unknown': 'File',
+    'fd_format_disk': 'Erase All Content...',
 
     // --- Terminal ---
     'term_welcome': 'Welcome to LynxMuse Terminal. Type "help" to see commands.',
@@ -121,11 +138,20 @@ export const TRANSLATIONS = {
     'click_to_sleep': '点击休眠',
 
     // --- Apps Names ---
-    'finder': '访达', 'launchpad': '启动台', 'safari': 'Safari浏览器', 'terminal': '终端',
-    'mail': '邮件', 'calendar': '日历', 'calculator': '计算器', 'music': '音乐',
-    'notes': '备忘录', 'vscode': 'VS Code', 'settings': '系统设置', 'about': '关于翎',
+    'finder': '访达',
+    'launchpad': '启动台',
+    'safari': 'Safari浏览器',
+    'terminal': '终端',
+    'mail': '邮件',
+    'calendar': '日历',
+    'calculator': '计算器',
+    'music': '音乐',
+    'notes': '备忘录',
+    'vscode': 'VS Code',
+    'settings': '系统设置',
+    'about': '关于翎',
     'text-editor': '文本编辑',
-    'storage_manager': '文件管理',
+    'storage_manager': '访达', // 改回访达
 
     // --- System Menu ---
     'about_mac': '关于本站',
@@ -169,14 +195,31 @@ export const TRANSLATIONS = {
     'zoom_in': '放大', 'zoom_out': '缩小',
     'format_doc': '格式化文档',
 
-    // --- File Manager (Storage) ---
-    'fm_applications': '应用程序',
-    'fm_system': '系统数据',
-    'fm_delete_all': '格式化磁盘 (全部重置)',
-    'fm_delete_confirm': '警告：这将清除所有虚拟数据（终端文件、备忘录、代码项目等）并重新加载页面。是否继续？',
-    'fm_preview_vscode': '在 VS Code 中预览',
-    'fm_no_files': '此容器内暂无文件。',
-    'fm_items': '项',
+    // --- Finder Specific (New) ---
+    'fd_favorites': '个人收藏',
+    'fd_locations': '位置',
+    'fd_icloud': 'iCloud',
+    'fd_tags': '标签',
+    'fd_airdrop': '隔空投送',
+    'fd_recents': '最近使用',
+    'fd_applications': '应用程序',
+    'fd_desktop': '桌面',
+    'fd_documents': '文稿',
+    'fd_downloads': '下载',
+    'fd_developer': '开发者',
+    'fd_trash': '废纸篓',
+    'fd_network': '网络',
+    'fd_macintosh_hd': 'Macintosh HD',
+    'fd_kind': '种类',
+    'fd_date_modified': '修改日期',
+    'fd_size': '大小',
+    'fd_name': '名称',
+    'fd_items': '项',
+    'fd_folder': '文件夹',
+    'fd_text_doc': '纯文本',
+    'fd_json_doc': 'JSON 文档',
+    'fd_unknown': '文件',
+    'fd_format_disk': '抹掉所有内容...',
 
     // --- Terminal ---
     'term_welcome': '欢迎使用 LynxMuse 终端。输入 "help" 查看可用命令。',
@@ -223,12 +266,16 @@ export const TRANSLATIONS = {
     'mail': 'Mail 邮件', 'calendar': 'Calendar 日历', 'calculator': 'Calculator 计算器', 'music': 'Music 音乐',
     'notes': 'Notes 备忘录', 'vscode': 'VS Code', 'settings': 'Settings 设置', 'about': 'About 翎',
     'login_user_name': 'LynxMuse (翎)',
-    'storage_manager': 'File Manager 文件管理',
+    'storage_manager': 'Finder 访达',
     'file': 'File 文件', 'edit': 'Edit 编辑', 'view': 'View 显示', 'window': 'Window 窗口', 'help': 'Help 帮助',
     'favorites': 'Favorites 个人收藏', 'all_posts': 'Posts 所有文章',
     'about_mac': 'About This Portfolio 关于本站',
     'search': 'Search 搜索',
-    'fm_delete_all': 'Format Disk 格式化',
+    'fd_favorites': 'Favorites 收藏',
+    'fd_applications': 'Applications 应用',
+    'fd_desktop': 'Desktop 桌面',
+    'fd_documents': 'Documents 文稿',
+    'fd_format_disk': 'Format Disk 格式化',
     'term_welcome': 'Welcome. 输入 "help" for commands.',
     'term_cmd_not_found': 'command not found 找不到命令',
     'rights': '© 2026 LynxMuse (翎). All rights reserved.',

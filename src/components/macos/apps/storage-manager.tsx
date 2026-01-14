@@ -1,280 +1,470 @@
 'use client'
 
-import React, { useState, useEffect, useMemo } from 'react'
-import { HardDrive, Trash2, Download, RefreshCw, Folder, FileText, ChevronRight, LayoutGrid, List as ListIcon, Code, StickyNote, Calendar, Terminal, Settings } from 'lucide-react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
+import { 
+  HardDrive, Trash2, Download, RefreshCw, Folder, FileText, 
+  ChevronRight, LayoutGrid, List as ListIcon, Code, StickyNote, 
+  Calendar, Terminal, Settings, ArrowLeft, ArrowRight, Search, 
+  Clock, Cloud, Airplay, Monitor, Smartphone, AppWindow, FileCode,
+  Image as ImageIcon, Music
+} from 'lucide-react'
 import { clsx } from '../utils'
 import { useI18n } from '../i18n-context'
 import { useOs } from '../os-context'
-import { VSCode } from './vscode'
+import { VSCode } from './vscode' // 用于预览文本文件
 
 // === 类型定义 ===
-interface VirtualFile {
+interface FinderItem {
   id: string
   name: string
-  appName: string // 所属 App (Folder Name)
-  content: string
-  size: number
+  kind: string // 显示在列表视图的种类
+  date: string
+  size?: number
   type: 'file' | 'folder'
-  originalKey: string // 对应的 localStorage key
-  originalId?: string // 对应 App 内部的 ID (如 Note ID)
+  icon?: React.ReactNode
+  
+  // 真实数据源
+  source: 'terminal' | 'vscode' | 'notes' | 'calendar' | 'system'
+  originalPath?: string // 对于 Terminal 必填
+  content?: string      // 文件内容
+  children?: FinderItem[] // 文件夹的子内容
 }
 
-// === 解析器逻辑 ===
+// 侧边栏配置
+const SIDEBAR = [
+  { section: 'fd_favorites', items: [
+    { id: 'airdrop', icon: Airplay, label: 'fd_airdrop', color: 'text-blue-500' },
+    { id: 'recents', icon: Clock, label: 'fd_recents', color: 'text-blue-500' },
+    { id: 'applications', icon: AppWindow, label: 'fd_applications', color: 'text-blue-500' },
+    { id: 'desktop', icon: Monitor, label: 'fd_desktop', color: 'text-blue-500' },
+    { id: 'documents', icon: FileText, label: 'fd_documents', color: 'text-blue-500' },
+    { id: 'downloads', icon: Download, label: 'fd_downloads', color: 'text-blue-500' },
+  ]},
+  { section: 'fd_icloud', items: [
+    { id: 'icloud', icon: Cloud, label: 'fd_icloud', color: 'text-blue-500' },
+  ]},
+  { section: 'fd_locations', items: [
+    { id: 'macintosh', icon: HardDrive, label: 'fd_macintosh_hd', color: 'text-gray-500' },
+    { id: 'network', icon: GlobeIcon, label: 'fd_network', color: 'text-blue-500' },
+  ]}
+]
 
-// 1. 解析 Terminal 文件系统 (递归)
-const parseTerminalFS = (fs: any, path = ''): VirtualFile[] => {
-  let files: VirtualFile[] = []
-  if (!fs || !fs.children) return files
+function GlobeIcon(props: any) {
+    return <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+}
+
+// === 解析器：将 localStorage 转换为 FinderItem 树 ===
+
+const parseTerminalFS = (fs: any, path = ''): FinderItem[] => {
+  let items: FinderItem[] = []
+  if (!fs || !fs.children) return items
 
   Object.values(fs.children).forEach((node: any) => {
-    if (node.type === 'file') {
-      files.push({
-        id: `term-${path}-${node.name}`,
-        name: node.name,
-        appName: 'Terminal',
-        content: node.content || '',
-        size: (node.content || '').length,
-        type: 'file',
-        originalKey: 'macos-terminal-fs'
-      })
-    } else if (node.type === 'dir') {
-      files = [...files, ...parseTerminalFS(node, `${path}/${node.name}`)]
-    }
+    const fullPath = `${path}/${node.name}`
+    const isDir = node.type === 'dir'
+    
+    items.push({
+      id: `term-${fullPath}`,
+      name: node.name,
+      kind: isDir ? 'Folder' : 'Unix Executable File',
+      date: 'Today',
+      size: isDir ? undefined : (node.content?.length || 0),
+      type: isDir ? 'folder' : 'file',
+      source: 'terminal',
+      originalPath: fullPath,
+      content: node.content,
+      children: isDir ? parseTerminalFS(node, fullPath) : undefined
+    })
   })
-  return files
+  return items
 }
 
-// 2. 解析 Notes
-const parseNotes = (notesJson: string): VirtualFile[] => {
+const parseVSCode = (fsJson: string): FinderItem[] => {
+  try {
+    const fs = JSON.parse(fsJson)
+    // VSCode 存储是一个扁平数组，我们需要构建树 (简化版：全部放在 Developer 文件夹下)
+    // 真实情况应该递归构建，这里为了简化，我们只列出根目录文件，或者扁平展示
+    const items = fs.filter((f: any) => f.type === 'file').map((f: any) => ({
+      id: `vscode-${f.id}`,
+      name: f.name,
+      kind: 'Source Code',
+      date: 'Yesterday',
+      size: f.content?.length,
+      type: 'file' as const,
+      source: 'vscode' as const,
+      content: f.content,
+      icon: <Code size={32} className="text-blue-500" />
+    }))
+    return items
+  } catch { return [] }
+}
+
+const parseNotes = (notesJson: string): FinderItem[] => {
   try {
     const notes = JSON.parse(notesJson)
     return notes.map((note: any) => ({
       id: `note-${note.id}`,
-      name: `${note.title || 'Untitled'}.txt`,
-      appName: 'Notes',
-      content: note.content || '',
-      size: (note.content || '').length,
-      type: 'file',
-      originalKey: 'macos-notes',
-      originalId: note.id
+      name: `${note.title}.txt`,
+      kind: 'Text Document',
+      date: note.date,
+      size: note.content?.length,
+      type: 'file' as const,
+      source: 'notes' as const,
+      content: note.content,
+      icon: <StickyNote size={32} className="text-yellow-500" />
     }))
   } catch { return [] }
 }
 
-// 3. 解析 VS Code
-const parseVSCode = (fsJson: string): VirtualFile[] => {
-  try {
-    const fs = JSON.parse(fsJson)
-    return fs.filter((f: any) => f.type === 'file').map((f: any) => ({
-      id: `vscode-${f.id}`,
-      name: f.name,
-      appName: 'VS Code',
-      content: f.content || '',
-      size: (f.content || '').length,
-      type: 'file',
-      originalKey: 'vscode-fs-v8'
-    }))
-  } catch { return [] }
-}
-
-// 4. 解析 Calendar
-const parseCalendar = (eventsJson: string): VirtualFile[] => {
-  try {
-    const events = JSON.parse(eventsJson)
-    return events.map((ev: any) => ({
-      id: `cal-${ev.id}`,
-      name: `${ev.dateStr}-${ev.title}.json`,
-      appName: 'Calendar',
-      content: JSON.stringify(ev, null, 2),
-      size: JSON.stringify(ev).length,
-      type: 'file',
-      originalKey: 'macos-calendar-events'
-    }))
-  } catch { return [] }
-}
+// === 主组件 ===
 
 export const StorageManager = () => {
   const { t } = useI18n()
-  const { addNotification, launchApp } = useOs()
+  const { launchApp, dockItems } = useOs()
   
   // State
-  const [files, setFiles] = useState<VirtualFile[]>([])
-  const [selectedFolder, setSelectedFolder] = useState<string>('All')
-  const [selectedFile, setSelectedFile] = useState<VirtualFile | null>(null)
+  const [currentPath, setCurrentPath] = useState<string>('recents') // 当前选中的侧边栏 ID
+  const [navHistory, setNavHistory] = useState<string[]>(['recents'])
+  const [navIndex, setNavIndex] = useState(0)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
-  const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [selectedItems, setSelectedItems] = useState<string[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  
+  // File System State
+  const [fileSystem, setFileSystem] = useState<{
+    terminalRoot: FinderItem[],
+    vscodeFiles: FinderItem[],
+    notesFiles: FinderItem[],
+    apps: FinderItem[]
+  }>({ terminalRoot: [], vscodeFiles: [], notesFiles: [], apps: [] })
 
-  // 核心：实时轮询 (模拟文件系统监听)
+  // 轮询数据
   useEffect(() => {
     const scan = () => {
-      let allFiles: VirtualFile[] = []
-      
-      // Terminal
+      let termRoot: FinderItem[] = []
+      let vsFiles: FinderItem[] = []
+      let ntFiles: FinderItem[] = []
+
+      // 1. Terminal
       const termFS = localStorage.getItem('macos-terminal-fs')
       if (termFS) {
-          try { allFiles = [...allFiles, ...parseTerminalFS(JSON.parse(termFS))] } catch {}
+          try { termRoot = parseTerminalFS(JSON.parse(termFS)) } catch {}
       }
 
-      // Notes
-      const notes = localStorage.getItem('macos-notes')
-      if (notes) allFiles = [...allFiles, ...parseNotes(notes)]
-
-      // VS Code
+      // 2. VS Code
       const vscode = localStorage.getItem('vscode-fs-v8')
-      if (vscode) allFiles = [...allFiles, ...parseVSCode(vscode)]
+      if (vscode) vsFiles = parseVSCode(vscode)
 
-      // Calendar
-      const cal = localStorage.getItem('macos-calendar-events')
-      if (cal) allFiles = [...allFiles, ...parseCalendar(cal)]
+      // 3. Notes
+      const notes = localStorage.getItem('macos-notes')
+      if (notes) ntFiles = parseNotes(notes)
 
-      setFiles(allFiles)
-    }
+      // 4. Applications (Static)
+      const appFiles = dockItems.map(app => ({
+          id: `app-${app.id}`,
+          name: app.title,
+          kind: 'Application',
+          date: '2024/5/20',
+          size: 0,
+          type: 'file' as const,
+          source: 'system' as const,
+          icon: <div className="w-full h-full scale-75">{app.icon}</div>
+      }))
 
-    scan()
-    const interval = setInterval(scan, 2000) // 2秒轮询一次
-    return () => clearInterval(interval)
-  }, [refreshTrigger])
-
-  const folders = ['All', ...Array.from(new Set(files.map(f => f.appName)))]
-  const displayFiles = selectedFolder === 'All' ? files : files.filter(f => f.appName === selectedFolder)
-
-  // Actions
-  const handleOpen = (file: VirtualFile) => {
-      launchApp({
-          id: `preview-${file.id}`,
-          title: `Preview: ${file.name}`,
-          icon: <Code />,
-          width: 800,
-          height: 600,
-          component: <VSCode previewFile={{ name: file.name, content: file.content, language: file.name.split('.').pop() }} />
+      setFileSystem({ 
+          terminalRoot: termRoot, 
+          vscodeFiles: vsFiles, 
+          notesFiles: ntFiles,
+          apps: appFiles
       })
+    }
+    scan()
+    const interval = setInterval(scan, 2000)
+    return () => clearInterval(interval)
+  }, [dockItems])
+
+  // --- 核心逻辑：根据当前 Path 计算显示的内容 ---
+  const getCurrentItems = (): FinderItem[] => {
+      // 1. 特殊侧边栏路径
+      if (currentPath === 'recents') {
+          // 聚合所有最近文件
+          return [
+              ...findDeepFiles(fileSystem.terminalRoot).slice(0, 5),
+              ...fileSystem.notesFiles,
+              ...fileSystem.vscodeFiles
+          ].sort(() => 0.5 - Math.random()) // 简单打乱模拟
+      }
+      if (currentPath === 'applications') return fileSystem.apps
+      if (currentPath === 'documents') return [...fileSystem.vscodeFiles, ...fileSystem.notesFiles]
+      if (currentPath === 'downloads') return [] // 空文件夹演示
+      if (currentPath === 'desktop') {
+          // 尝试寻找 Terminal 中的 Desktop 文件夹
+          const home = fileSystem.terminalRoot.find(f => f.name === 'home')
+          const user = home?.children?.find(f => f.name === 'user' || f.name === 'lynx')
+          const desktop = user?.children?.find(f => f.name === 'desktop' || f.name === 'Desktop')
+          return desktop?.children || []
+      }
+      if (currentPath === 'macintosh') {
+          return [
+              { id: 'dir-apps', name: 'Applications', kind: 'Folder', date: '--', type: 'folder', source: 'system', children: fileSystem.apps },
+              { id: 'dir-users', name: 'Users', kind: 'Folder', date: '--', type: 'folder', source: 'system', children: fileSystem.terminalRoot },
+              { id: 'dir-sys', name: 'System', kind: 'Folder', date: '--', type: 'folder', source: 'system', children: [] },
+          ]
+      }
+
+      // 2. 虚拟文件夹导航 (ID 路径解析)
+      // 如果 currentPath 看起来像 ID，我们需要在树中找到它
+      if (currentPath.startsWith('term-') || currentPath.startsWith('dir-')) {
+          const target = findItemById(currentPath, getAllRootItems())
+          return target?.children || []
+      }
+
+      return []
+  }
+
+  // --- 辅助函数 ---
+  const getAllRootItems = () => [
+      ...fileSystem.terminalRoot,
+      { id: 'dir-apps', children: fileSystem.apps } as FinderItem,
+      { id: 'dir-users', children: fileSystem.terminalRoot } as FinderItem
+  ]
+
+  const findDeepFiles = (items: FinderItem[]): FinderItem[] => {
+      let res: FinderItem[] = []
+      items.forEach(item => {
+          if (item.type === 'file') res.push(item)
+          if (item.children) res = [...res, ...findDeepFiles(item.children)]
+      })
+      return res
+  }
+
+  const findItemById = (id: string, scope: FinderItem[]): FinderItem | undefined => {
+      for (const item of scope) {
+          if (item.id === id) return item
+          if (item.children) {
+              const found = findItemById(id, item.children)
+              if (found) return found
+          }
+      }
+      return undefined
+  }
+
+  // --- 交互 ---
+  const navigate = (path: string) => {
+      const newHistory = navHistory.slice(0, navIndex + 1)
+      newHistory.push(path)
+      setNavHistory(newHistory)
+      setNavIndex(newHistory.length - 1)
+      setCurrentPath(path)
+      setSelectedItems([])
+  }
+
+  const goBack = () => {
+      if (navIndex > 0) {
+          setNavIndex(navIndex - 1)
+          setCurrentPath(navHistory[navIndex - 1])
+      }
+  }
+
+  const goForward = () => {
+      if (navIndex < navHistory.length - 1) {
+          setNavIndex(navIndex + 1)
+          setCurrentPath(navHistory[navIndex + 1])
+      }
+  }
+
+  const handleDoubleClick = (item: FinderItem) => {
+      if (item.type === 'folder') {
+          navigate(item.id)
+      } else {
+          // 打开文件逻辑
+          if (item.source === 'vscode' || item.name.endsWith('.txt') || item.name.endsWith('.md') || item.name.endsWith('.js') || item.name.endsWith('.ts') || item.name.endsWith('.css') || item.name.endsWith('.html')) {
+              launchApp({
+                  id: `edit-${item.id}`,
+                  title: item.name,
+                  icon: <Code />,
+                  width: 800, 
+                  height: 600,
+                  component: <VSCode previewFile={{ name: item.name, content: item.content || '', language: item.name.split('.').pop() }} />
+              })
+          } else if (item.kind === 'Application') {
+              // 尝试启动应用
+              const appId = item.id.replace('app-', '')
+              const appConfig = dockItems.find(a => a.id === appId)
+              if (appConfig) launchApp(appConfig)
+          } else {
+              // 默认预览
+              alert(`Opening ${item.name}... (Preview not implemented for this type)`)
+          }
+      }
   }
 
   const handleDeleteAll = () => {
-      if (confirm(t('fm_delete_confirm'))) {
+      if (confirm(t('fd_format_disk'))) {
           localStorage.clear()
           window.location.reload()
       }
   }
 
-  // Icons Helper
-  const getAppIcon = (appName: string) => {
-      switch(appName) {
-          case 'Terminal': return <Terminal size={18} />
-          case 'Notes': return <StickyNote size={18} />
-          case 'Calendar': return <Calendar size={18} />
-          case 'VS Code': return <Code size={18} />
-          default: return <Folder size={18} />
-      }
+  const currentItems = getCurrentItems()
+  const displayItems = searchQuery 
+      ? currentItems.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      : currentItems
+
+  // --- 图标渲染 ---
+  const renderIcon = (item: FinderItem) => {
+      if (item.icon) return item.icon
+      if (item.type === 'folder') return <div className="w-full h-full text-blue-400 drop-shadow-sm"><Folder size={viewMode==='grid'?64:20} fill="currentColor" strokeWidth={1} /></div>
+      if (item.name.endsWith('.png') || item.name.endsWith('.jpg')) return <ImageIcon size={viewMode==='grid'?48:20} className="text-purple-500" />
+      return <FileText size={viewMode==='grid'?48:20} className="text-gray-400" strokeWidth={1} />
   }
 
   return (
-    <div className="flex h-full w-full bg-[#f5f5f7] dark:bg-[#1e1e1e] text-black dark:text-white font-sans select-none rounded-b-xl overflow-hidden">
+    <div className="flex h-full w-full bg-[#f6f6f6] dark:bg-[#1e1e1e] text-black dark:text-white font-sans select-none rounded-b-xl overflow-hidden transition-colors duration-300">
         
-        {/* Sidebar */}
-        <div className="w-48 bg-[#e8e8ea] dark:bg-[#252525]/90 backdrop-blur-xl border-r border-gray-300 dark:border-white/10 flex flex-col pt-4 px-2">
-            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-2 mb-2">{t('fm_applications')}</div>
-            <div className="flex flex-col gap-0.5">
-                {folders.map(folder => (
-                    <div 
-                        key={folder}
-                        onClick={() => { setSelectedFolder(folder); setSelectedFile(null) }}
-                        className={clsx(
-                            "flex items-center gap-2 px-2 py-1.5 rounded-md text-sm cursor-pointer transition-colors",
-                            selectedFolder === folder ? "bg-blue-500 text-white" : "hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300"
-                        )}
-                    >
-                        {folder === 'All' ? <HardDrive size={16} /> : getAppIcon(folder)}
-                        <span className="truncate">{folder}</span>
+        {/* Left Sidebar (Glassmorphismish) */}
+        <div className="w-48 bg-[#e8e8ea]/80 dark:bg-[#2b2b2b]/80 backdrop-blur-xl border-r border-gray-300/50 dark:border-white/10 flex flex-col pt-4 overflow-y-auto">
+            {SIDEBAR.map((group, idx) => (
+                <div key={idx} className="mb-4">
+                    <div className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">{t(group.section)}</div>
+                    <div className="flex flex-col gap-0.5 px-2">
+                        {group.items.map(item => (
+                            <div 
+                                key={item.id}
+                                onClick={() => navigate(item.id)}
+                                className={clsx(
+                                    "flex items-center gap-2 px-2 py-1.5 rounded-md text-sm cursor-pointer transition-colors",
+                                    currentPath === item.id ? "bg-black/10 dark:bg-white/10" : "hover:bg-black/5 dark:hover:bg-white/5"
+                                )}
+                            >
+                                <item.icon size={16} className={item.color} />
+                                <span className="truncate">{t(item.label) || item.label}</span>
+                            </div>
+                        ))}
                     </div>
-                ))}
-            </div>
-
-            <div className="mt-auto mb-4 px-2">
-                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">{t('fm_system')}</div>
-                <button 
-                    onClick={handleDeleteAll}
-                    className="w-full flex items-center gap-2 px-2 py-1.5 bg-red-100 hover:bg-red-200 text-red-600 dark:bg-red-900/30 dark:hover:bg-red-900/50 rounded-md text-xs font-bold transition-colors"
-                >
-                    <Trash2 size={14} /> {t('fm_delete_all')}
+                </div>
+            ))}
+            
+            <div className="mt-auto p-4">
+                <button onClick={handleDeleteAll} className="flex items-center gap-2 text-xs text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 px-2 py-1 rounded transition-colors w-full">
+                    <Trash2 size={12} /> {t('fd_format_disk')}
                 </button>
             </div>
         </div>
 
         {/* Main Content */}
         <div className="flex-1 flex flex-col h-full bg-white dark:bg-[#1e1e1e]">
+            
             {/* Toolbar */}
-            <div className="h-10 border-b border-gray-200 dark:border-white/10 flex items-center justify-between px-4 bg-gray-50/50 dark:bg-[#252525]">
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <HardDrive size={14} />
-                    <ChevronRight size={14} />
-                    <span>{selectedFolder}</span>
+            <div className="h-12 border-b border-gray-200 dark:border-white/10 flex items-center justify-between px-4 bg-[#f6f6f6] dark:bg-[#252525] transition-colors">
+                <div className="flex items-center gap-4">
+                    <div className="flex gap-1 text-gray-500">
+                        <button onClick={goBack} disabled={navIndex <= 0} className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-30 transition-all"><ArrowLeft size={16}/></button>
+                        <button onClick={goForward} disabled={navIndex >= navHistory.length-1} className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-30 transition-all"><ArrowRight size={16}/></button>
+                    </div>
+                    <div className="font-semibold text-sm flex items-center gap-2">
+                        {/* Breadcrumb-ish Title */}
+                        <Folder size={16} className="text-blue-400" fill="currentColor"/>
+                        {currentPath.startsWith('term-') ? currentPath.split('/').pop() : t(`fd_${currentPath}`) || currentPath}
+                    </div>
                 </div>
-                <div className="flex items-center gap-2 bg-gray-200 dark:bg-white/10 rounded-md p-0.5">
-                    <button onClick={() => setViewMode('grid')} className={clsx("p-1 rounded", viewMode === 'grid' && "bg-white dark:bg-[#333] shadow-sm")}><LayoutGrid size={14}/></button>
-                    <button onClick={() => setViewMode('list')} className={clsx("p-1 rounded", viewMode === 'list' && "bg-white dark:bg-[#333] shadow-sm")}><ListIcon size={14}/></button>
+
+                <div className="flex items-center gap-3">
+                    <div className="flex bg-gray-200 dark:bg-white/10 rounded-md p-0.5 border border-gray-300 dark:border-white/5">
+                        <button onClick={() => setViewMode('grid')} className={clsx("p-1 rounded transition-all", viewMode === 'grid' && "bg-white dark:bg-[#3e3e3e] shadow-sm")}><LayoutGrid size={14}/></button>
+                        <button onClick={() => setViewMode('list')} className={clsx("p-1 rounded transition-all", viewMode === 'list' && "bg-white dark:bg-[#3e3e3e] shadow-sm")}><ListIcon size={14}/></button>
+                    </div>
+                    <div className="relative">
+                        <Search size={12} className="absolute left-2.5 top-1.5 text-gray-400" />
+                        <input 
+                            type="text" 
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder={t('search')} 
+                            className="w-32 focus:w-48 transition-all bg-white dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-md py-1 pl-7 pr-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50" 
+                        />
+                    </div>
                 </div>
             </div>
 
             {/* File Area */}
             <div 
-                className={clsx(
-                    "flex-1 overflow-y-auto p-4",
-                    viewMode === 'grid' ? "grid grid-cols-[repeat(auto-fill,minmax(90px,1fr))] gap-4 content-start" : "flex flex-col gap-1"
-                )}
-                onClick={() => setSelectedFile(null)}
+                className="flex-1 overflow-y-auto"
+                onClick={() => setSelectedItems([])}
             >
-                {displayFiles.length === 0 && (
-                    <div className="col-span-full h-full flex flex-col items-center justify-center text-gray-400">
-                        <Folder size={48} className="opacity-20 mb-2" />
-                        <div className="text-sm">{t('fm_no_files')}</div>
+                {displayItems.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-gray-400">
+                        <span className="text-4xl mb-2 opacity-20">📂</span>
+                        <span className="text-sm">{t('fm_no_files')}</span>
                     </div>
+                ) : (
+                    viewMode === 'grid' ? (
+                        <div className="grid grid-cols-[repeat(auto-fill,minmax(90px,1fr))] gap-4 p-4 content-start">
+                            {displayItems.map(item => (
+                                <div
+                                    key={item.id}
+                                    onClick={(e) => { e.stopPropagation(); setSelectedItems([item.id]) }}
+                                    onDoubleClick={() => handleDoubleClick(item)}
+                                    className={clsx(
+                                        "group flex flex-col items-center gap-1.5 p-2 rounded-md border border-transparent transition-all",
+                                        selectedItems.includes(item.id) 
+                                            ? "bg-blue-100 dark:bg-blue-900/40 border-blue-200 dark:border-blue-500/30" 
+                                            : "hover:bg-gray-100 dark:hover:bg-white/5"
+                                    )}
+                                >
+                                    <div className="w-16 h-16 flex items-center justify-center transition-transform group-active:scale-95">
+                                        {renderIcon(item)}
+                                    </div>
+                                    <div className={clsx(
+                                        "text-xs text-center w-full break-words line-clamp-2 px-1 rounded leading-tight",
+                                        selectedItems.includes(item.id) ? "text-blue-600 dark:text-blue-100 font-medium" : "text-gray-700 dark:text-gray-300"
+                                    )}>
+                                        {item.name}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col w-full min-w-full">
+                            {/* Table Header */}
+                            <div className="flex items-center px-4 py-1.5 text-[11px] font-semibold text-gray-500 border-b border-gray-200 dark:border-white/5 bg-gray-50/50 dark:bg-[#252525]">
+                                <div className="flex-1">{t('fd_name')}</div>
+                                <div className="w-32">{t('fd_date_modified')}</div>
+                                <div className="w-24">{t('fd_size')}</div>
+                                <div className="w-32">{t('fd_kind')}</div>
+                            </div>
+                            {/* Table Body */}
+                            {displayItems.map((item, idx) => (
+                                <div
+                                    key={item.id}
+                                    onClick={(e) => { e.stopPropagation(); setSelectedItems([item.id]) }}
+                                    onDoubleClick={() => handleDoubleClick(item)}
+                                    className={clsx(
+                                        "flex items-center px-4 py-1.5 text-xs border-b border-gray-100 dark:border-white/5 cursor-default transition-colors",
+                                        selectedItems.includes(item.id) 
+                                            ? "bg-blue-500 text-white" 
+                                            : "hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 even:bg-gray-50/30 dark:even:bg-white/2"
+                                    )}
+                                >
+                                    <div className="flex-1 flex items-center gap-2 truncate pr-4">
+                                        <div className={clsx("w-4 h-4", selectedItems.includes(item.id) ? "text-white" : "")}>
+                                            {item.icon || (item.type === 'folder' ? <Folder size={14} fill="currentColor" className={selectedItems.includes(item.id) ? "" : "text-blue-400"} /> : <FileText size={14} />)}
+                                        </div>
+                                        <span className="truncate">{item.name}</span>
+                                    </div>
+                                    <div className="w-32 opacity-70">{item.date}</div>
+                                    <div className="w-24 opacity-70 font-mono">{item.size ? (item.size > 1024 ? `${(item.size/1024).toFixed(1)} KB` : `${item.size} B`) : '--'}</div>
+                                    <div className="w-32 opacity-70 truncate">{t(item.kind) || item.kind}</div>
+                                </div>
+                            ))}
+                        </div>
+                    )
                 )}
-
-                {displayFiles.map(file => (
-                    <div
-                        key={file.id}
-                        onClick={(e) => { e.stopPropagation(); setSelectedFile(file) }}
-                        onDoubleClick={(e) => { e.stopPropagation(); handleOpen(file) }}
-                        className={clsx(
-                            "cursor-default rounded-md transition-colors",
-                            viewMode === 'grid' 
-                                ? "flex flex-col items-center gap-2 p-2 hover:bg-gray-100 dark:hover:bg-white/5" 
-                                : "flex items-center gap-3 px-3 py-2 border-b border-gray-50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/5",
-                            selectedFile?.id === file.id && "bg-blue-100 dark:bg-blue-900/30 ring-1 ring-blue-400"
-                        )}
-                    >
-                        {viewMode === 'grid' ? (
-                            <>
-                                <div className="w-12 h-12 flex items-center justify-center text-blue-500">
-                                    <FileText size={40} strokeWidth={1} />
-                                </div>
-                                <div className="text-xs text-center w-full break-words line-clamp-2 leading-tight">
-                                    {file.name}
-                                </div>
-                            </>
-                        ) : (
-                            <>
-                                <FileText size={16} className="text-blue-500 shrink-0" />
-                                <div className="text-sm flex-1 truncate">{file.name}</div>
-                                <div className="text-xs text-gray-400 font-mono">{file.size} B</div>
-                            </>
-                        )}
-                    </div>
-                ))}
             </div>
 
-            {/* Status Bar / Info Panel */}
-            <div className="h-8 border-t border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-[#252525] flex items-center justify-between px-4 text-xs text-gray-500">
-                <div>{displayFiles.length} items</div>
-                {selectedFile && (
-                    <div className="flex gap-4">
-                        <span>{selectedFile.size} bytes</span>
-                        <span className="text-blue-500 cursor-pointer hover:underline" onClick={() => handleOpen(selectedFile)}>
-                            {t('fm_preview_vscode')}
-                        </span>
-                    </div>
-                )}
+            {/* Status Bar */}
+            <div className="h-6 bg-[#f6f6f6] dark:bg-[#252525] border-t border-gray-200 dark:border-white/10 flex items-center justify-center text-[10px] text-gray-500 select-none">
+                {displayItems.length} {t('fd_items')}, {Math.floor(Math.random() * 50 + 20)} GB available
             </div>
         </div>
     </div>
