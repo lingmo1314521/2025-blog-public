@@ -3,10 +3,12 @@
 import React, { useState, useRef, useEffect, useMemo, createContext, useContext } from 'react'
 import { 
   Search, Files, Play, X, ChevronRight, ChevronDown, 
+  LayoutTemplate, Plus, Upload, Download, Trash2, 
+  FileCode, // 核心修复：确保导入了 FileCode
   Settings, ToggleLeft, ToggleRight, GitBranch,
   Folder, FolderOpen, Archive, FilePlus, FolderPlus, 
   Briefcase, Edit3, FolderInput, Terminal as TerminalIcon,
-  Command, Search as SearchIcon, MoreHorizontal, Download, Upload
+  Command, Search as SearchIcon, MoreHorizontal
 } from 'lucide-react'
 import { clsx } from '../utils'
 import { useI18n } from '../i18n-context'
@@ -106,7 +108,7 @@ const FileIcon = React.memo(({ name, type, isOpen }: { name: string, type: FileT
     case 'tsx': return <span className="text-[#3178c6] font-bold text-[10px] w-4 text-center select-none">TS</span>
     case 'json': return <span className="text-yellow-400 font-bold text-[10px] w-4 text-center select-none">{}</span>
     case 'md': return <span className="text-blue-300 font-bold text-[10px] w-4 text-center select-none">MD</span>
-    default: return <FileCode size={14} className="text-blue-400 shrink-0" /> // Re-added FileCode
+    default: return <FileCode size={14} className="text-blue-400 shrink-0" />
   }
 })
 FileIcon.displayName = 'FileIcon'
@@ -300,55 +302,6 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
       }
   }
 
-  // --- Handlers: Marquee Selection (RESTORED) ---
-  const handleMouseDown = (e: React.MouseEvent) => {
-      if (isReadOnly || e.button !== 0) return
-      if (!e.ctrlKey && !e.metaKey) setSelectedIds([])
-      setIsSelecting(true)
-      if (fileListRef.current) {
-          const rect = fileListRef.current.getBoundingClientRect()
-          const x = e.clientX - rect.left
-          const y = e.clientY - rect.top + fileListRef.current.scrollTop
-          selectionStart.current = { x, y }
-          setSelectionBox({ x, y, w: 0, h: 0 })
-      }
-  }
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-      if (!isSelecting || !selectionStart.current || !fileListRef.current) return
-      const rect = fileListRef.current.getBoundingClientRect()
-      const x = e.clientX - rect.left
-      const y = e.clientY - rect.top + fileListRef.current.scrollTop
-      
-      const newBox = {
-          x: Math.min(x, selectionStart.current.x),
-          y: Math.min(y, selectionStart.current.y),
-          w: Math.abs(x - selectionStart.current.x),
-          h: Math.abs(y - selectionStart.current.y)
-      }
-      setSelectionBox(newBox)
-
-      const items = fileListRef.current.querySelectorAll('.file-item-row')
-      const newSelected = new Set(e.ctrlKey || e.metaKey ? selectedIds : [])
-      items.forEach((el) => {
-          const htmlEl = el as HTMLElement
-          const elTop = htmlEl.offsetTop
-          const elHeight = htmlEl.offsetHeight
-          if (elTop < newBox.y + newBox.h && elTop + elHeight > newBox.y) {
-              const id = htmlEl.getAttribute('data-file-id')
-              if (id) newSelected.add(id)
-          }
-      })
-      setSelectedIds(Array.from(newSelected))
-  }
-
-  const handleMouseUp = () => {
-      setIsSelecting(false)
-      setSelectionBox(null)
-      selectionStart.current = null
-  }
-
-  // --- Drag & Drop ---
   const handleDragStart = (e: React.DragEvent, id: string) => {
       if (isReadOnly) return
       e.stopPropagation()
@@ -505,6 +458,54 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
 
   const filteredCommands = commands.filter(c => c.label.toLowerCase().includes(paletteQuery.toLowerCase()))
 
+  // --- Handlers: Marquee Selection ---
+  const handleMouseDown = (e: React.MouseEvent) => {
+      if (isReadOnly || e.button !== 0) return
+      if (!e.ctrlKey && !e.metaKey) setSelectedIds([])
+      setIsSelecting(true)
+      if (fileListRef.current) {
+          const rect = fileListRef.current.getBoundingClientRect()
+          const x = e.clientX - rect.left
+          const y = e.clientY - rect.top + fileListRef.current.scrollTop
+          selectionStart.current = { x, y }
+          setSelectionBox({ x, y, w: 0, h: 0 })
+      }
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+      if (!isSelecting || !selectionStart.current || !fileListRef.current) return
+      const rect = fileListRef.current.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const y = e.clientY - rect.top + fileListRef.current.scrollTop
+      
+      const newBox = {
+          x: Math.min(x, selectionStart.current.x),
+          y: Math.min(y, selectionStart.current.y),
+          w: Math.abs(x - selectionStart.current.x),
+          h: Math.abs(y - selectionStart.current.y)
+      }
+      setSelectionBox(newBox)
+
+      const items = fileListRef.current.querySelectorAll('.file-item-row')
+      const newSelected = new Set(e.ctrlKey || e.metaKey ? selectedIds : [])
+      items.forEach((el) => {
+          const htmlEl = el as HTMLElement
+          const elTop = htmlEl.offsetTop
+          const elHeight = htmlEl.offsetHeight
+          if (elTop < newBox.y + newBox.h && elTop + elHeight > newBox.y) {
+              const id = htmlEl.getAttribute('data-file-id')
+              if (id) newSelected.add(id)
+          }
+      })
+      if (newSelected.size > 0) setSelectedIds(Array.from(newSelected))
+  }
+
+  const handleMouseUp = () => {
+      setIsSelecting(false)
+      setSelectionBox(null)
+      selectionStart.current = null
+  }
+
   // === RENDER ===
   return (
     <VSCodeContext.Provider value={{
@@ -546,8 +547,8 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
                             className={clsx("flex-1 overflow-y-auto custom-scrollbar relative", dragOverId === 'root' && "bg-[#2a2d2e] outline outline-1 outline-blue-500")}
                             onMouseDown={handleMouseDown}
                             onMouseMove={handleMouseMove}
-                            onMouseUp={() => { setIsSelecting(false); setSelectionBox(null) }}
-                            onMouseLeave={() => { setIsSelecting(false); setSelectionBox(null) }}
+                            onMouseUp={handleMouseUp}
+                            onMouseLeave={handleMouseUp}
                             onDragOver={(e) => !isReadOnly && handleDragOver(e, null)}
                             onDrop={(e) => !isReadOnly && handleDrop(e, 'root')}
                             onContextMenu={(e) => !isReadOnly && handleContextMenu(e, null)}
