@@ -14,10 +14,9 @@ import { CalendarApp } from './apps/calendar'
 import { NotesApp } from './apps/notes'
 import { VSCode } from './apps/vscode'
 import { StorageManager } from './apps/storage-manager'
-import { Siri } from './apps/siri'
 import { Preview } from './apps/preview'
 import { WutheringWavesLauncher } from './apps/wuthering-waves'
-import { Mic, Gamepad2, Image as ImageIcon } from 'lucide-react'
+import { Gamepad2, Image as ImageIcon } from 'lucide-react'
 
 const PngIcon = ({ src, alt }: { src: string; alt: string }) => (
   <img src={src} alt={alt} draggable={false} className="w-full h-full object-contain" />
@@ -30,17 +29,6 @@ export const INITIAL_APPS: AppConfig[] = [
   { id: 'vscode', title: 'VS Code', icon: <PngIcon src="/icons/vscode.png" alt="VS Code" />, width: 1100, height: 700, component: <VSCode /> },
   { id: 'terminal', title: 'Terminal', icon: <PngIcon src="/icons/terminal.png" alt="Terminal" />, width: 600, height: 400, component: <Terminal /> },
   
-  // Siri
-  { 
-      id: 'siri', 
-      title: 'Siri', 
-      icon: <div className="w-full h-full bg-gradient-to-br from-purple-500 to-blue-500 rounded-xl flex items-center justify-center text-white shadow-lg"><Mic /></div>, 
-      width: 320, 
-      height: 400, 
-      component: <Siri />,
-      resizable: false 
-  },
-
   { id: 'notes', title: 'Notes', icon: <PngIcon src="/icons/notes.png" alt="Notes" />, width: 800, height: 550, component: <NotesApp /> },
   { id: 'mail', title: 'Mail', icon: <PngIcon src="/icons/mail.png" alt="Mail" />, width: 900, height: 600, component: <MailApp /> },
   { id: 'calendar', title: 'Calendar', icon: <PngIcon src="/icons/calendar.png" alt="Calendar" />, width: 800, height: 600, component: <CalendarApp /> },
@@ -56,13 +44,13 @@ export const INITIAL_APPS: AppConfig[] = [
     component: <StorageManager /> 
   },
   
-  // 鸣潮 (更新：适应云游戏尺寸)
+  // 鸣潮
   {
     id: 'wuthering_waves',
     title: 'Wuthering Waves',
     icon: <div className="w-full h-full bg-black rounded-xl flex items-center justify-center text-yellow-400 border border-yellow-500/50 shadow-lg"><Gamepad2 /></div>,
     width: 1280,
-    height: 760, // 稍微高一点，留出顶部工具栏空间
+    height: 760,
     minWidth: 1024,
     minHeight: 576,
     component: <WutheringWavesLauncher />

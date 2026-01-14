@@ -23,17 +23,8 @@ export const TRANSLATIONS = {
     'about': 'About Lynx',
     'text-editor': 'TextEdit',
     'storage_manager': 'Finder',
-    'siri': 'Siri',
     'preview': 'Preview',
     'wuthering_waves': 'Wuthering Waves',
-
-    // --- Siri Specific ---
-    'siri_listening': 'Listening...',
-    'siri_not_supported': 'Speech recognition not supported in this browser.',
-    'siri_launching_game': 'Launching Wuthering Waves...',
-    'siri_opening': 'Opening',
-    'siri_sorry': 'Sorry, I didn\'t catch that.',
-    'siri_hint': 'Try saying "Open Terminal" or "Launch Wuthering Waves"',
 
     // --- System Menu ---
     'about_mac': 'About This Portfolio',
@@ -174,17 +165,8 @@ export const TRANSLATIONS = {
     'about': '关于翎',
     'text-editor': '文本编辑',
     'storage_manager': '访达',
-    'siri': 'Siri',
     'preview': '预览',
     'wuthering_waves': '鸣潮',
-
-    // --- Siri Specific ---
-    'siri_listening': '正在聆听...',
-    'siri_not_supported': '当前浏览器不支持语音识别。',
-    'siri_launching_game': '正在启动鸣潮...',
-    'siri_opening': '正在打开',
-    'siri_sorry': '抱歉，我没听清。',
-    'siri_hint': '试着说 "打开终端" 或 "鸣潮启动"',
 
     // --- System Menu ---
     'about_mac': '关于本站',
@@ -309,7 +291,7 @@ export const TRANSLATIONS = {
     'finder': 'Finder 访达', 'launchpad': 'Launchpad 启动台', 'safari': 'Safari 浏览器', 'terminal': 'Terminal 终端',
     'mail': 'Mail 邮件', 'calendar': 'Calendar 日历', 'calculator': 'Calculator 计算器', 'music': 'Music 音乐',
     'notes': 'Notes 备忘录', 'vscode': 'VS Code', 'settings': 'Settings 设置', 'about': 'About 翎',
-    'siri': 'Siri', 'wuthering_waves': 'Wuthering Waves 鸣潮',
+    'wuthering_waves': 'Wuthering Waves 鸣潮',
     'preview': 'Preview 预览',
     
     'login_user_name': 'LynxMuse (翎)',
@@ -328,7 +310,5 @@ export const TRANSLATIONS = {
     'rights': '© 2026 LynxMuse (翎). All rights reserved.',
     'cmd_palette': 'Command Palette 命令面板',
     'user_settings': 'User Settings 用户设置',
-    'siri_listening': 'Listening 正在聆听...',
-    'siri_launching_game': 'Launching 鸣潮启动...',
   }
 }

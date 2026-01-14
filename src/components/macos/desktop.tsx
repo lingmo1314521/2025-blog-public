@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { OsProvider, useOs } from './os-context'
-import { I18nProvider, useI18n } from './i18n-context'
+import { I18nProvider } from './i18n-context'
 import { WindowFrame } from './window-frame'
 import { Dock } from './dock'
 import { MenuBar } from './menu-bar'
@@ -14,75 +14,14 @@ import { Spotlight } from './spotlight'
 import { Notifications } from './notifications'
 import { AppConfig } from './types'
 import { DocViewer } from './apps/doc-viewer'
-import { FileText, Edit3, Mic } from 'lucide-react'
-
-// --- 弹窗组件: 麦克风权限 ---
-const MicPermissionModal = ({ onClose }: { onClose: () => void }) => {
-    const handleAllow = () => {
-        // 请求麦克风权限
-        navigator.mediaDevices.getUserMedia({ audio: true })
-            .then(() => {
-                localStorage.setItem('mic-permission', 'granted')
-                onClose()
-            })
-            .catch(() => {
-                alert('Permission denied. You can enable it in browser settings.')
-                onClose()
-            })
-    }
-
-    return (
-        <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-            <div className="bg-[#e8e8e8] dark:bg-[#2c2c2c] w-80 rounded-xl shadow-2xl p-5 flex flex-col items-center gap-4 border border-white/20">
-                <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center text-white shadow-lg">
-                    <Mic size={24} />
-                </div>
-                <div className="text-center">
-                    <h3 className="font-bold text-lg mb-1 dark:text-white">Siri (Beta)</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-300 leading-relaxed">
-                        This website includes a voice assistant. Would you like to enable microphone access to use voice commands?
-                    </p>
-                </div>
-                <div className="flex gap-3 w-full mt-2">
-                    <button onClick={onClose} className="flex-1 py-1.5 rounded-lg bg-gray-200 dark:bg-white/10 hover:bg-gray-300 dark:hover:bg-white/20 text-sm font-medium transition-colors">
-                        Don't Allow
-                    </button>
-                    <button onClick={handleAllow} className="flex-1 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium shadow-md transition-all">
-                        Allow
-                    </button>
-                </div>
-            </div>
-        </div>
-    )
-}
+import { FileText, Edit3 } from 'lucide-react'
 
 const DesktopContent = ({ wallpaper, setWallpaper }: { wallpaper: string, setWallpaper: (url: string) => void }) => {
-    const { windows, dockItems, registry, launchApp, isLocked } = useOs() as any 
+    const { windows, dockItems, registry, launchApp } = useOs() as any 
     
     const allApps: AppConfig[] = registry || dockItems
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: ContextMenuType; meta?: any } | null>(null)
     
-    // --- 麦克风权限检测逻辑 ---
-    const [showMicPrompt, setShowMicPrompt] = useState(false)
-
-    useEffect(() => {
-        if (!isLocked) {
-            // 延迟一点检测，等待 UI 动画
-            const timer = setTimeout(() => {
-                const hasPermission = localStorage.getItem('mic-permission') === 'granted'
-                if (!hasPermission) {
-                    // 检查浏览器是否已经授权（避免重复弹窗）
-                    navigator.permissions.query({ name: 'microphone' as any }).then((permissionStatus) => {
-                        if (permissionStatus.state !== 'granted') {
-                            setShowMicPrompt(true)
-                        }
-                    })
-                }
-            }, 1500)
-            return () => clearTimeout(timer)
-        }
-    }, [isLocked])
-
     const handleContextMenu = (e: React.MouseEvent, type: ContextMenuType = 'desktop', meta?: any) => { 
         e.preventDefault(); 
         e.stopPropagation(); 
@@ -126,9 +65,6 @@ const DesktopContent = ({ wallpaper, setWallpaper }: { wallpaper: string, setWal
             <ControlCenter />
             <Spotlight />
             <Notifications />
-            
-            {/* 弹窗挂载点 */}
-            {showMicPrompt && <MicPermissionModal onClose={() => setShowMicPrompt(false)} />}
             
             <div className="absolute inset-0">
                 {windows.map((window: any) => {
