@@ -7,16 +7,14 @@ import { useOs } from '../os-context'
 import { useI18n } from '../i18n-context'
 
 export const Siri = () => {
-  const { launchApp, dockItems } = useOs()
+  const { launchApp, dockItems, wwLaunchMode, openGameModeSelector } = useOs()
   const { language, t } = useI18n()
   const [isListening, setIsListening] = useState(false)
   const [transcript, setTranscript] = useState(t('siri_listening'))
-  const [OrbColor, setOrbColor] = useState(['#F00', '#0F0', '#00F'])
 
   const recognitionRef = useRef<any>(null)
 
   useEffect(() => {
-    // 浏览器兼容性检查
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition()
@@ -40,7 +38,6 @@ export const Siri = () => {
       }
 
       recognitionRef.current = recognition
-      // 自动开始监听
       recognition.start()
     } else {
       setTranscript(t('siri_not_supported'))
@@ -48,21 +45,26 @@ export const Siri = () => {
   }, [language])
 
   const processCommand = (cmd: string) => {
-    // 1. 鸣潮启动 (Wuthering Waves)
+    // 1. 鸣潮启动
     if (cmd.includes('鸣潮') || cmd.includes('wuthering') || cmd.includes('waves') || cmd.includes('启动')) {
         const game = dockItems.find(a => a.id === 'wuthering_waves')
         if (game) {
+            // --- 核心修改：检查模式 ---
+            if (!wwLaunchMode) {
+                setTranscript("Which mode? Cloud or Local?")
+                setTimeout(() => openGameModeSelector(), 800)
+                return
+            }
+
             setTranscript(t('siri_launching_game'))
-            setTimeout(() => launchApp(game), 1000)
+            setTimeout(() => launchApp(game, { mode: wwLaunchMode }), 1000)
             return
         }
     }
 
     // 2. 通用应用启动
-    // 遍历所有 App，匹配名称
     const targetApp = dockItems.find(app => {
         const name = t(app.id).toLowerCase()
-        // 简单匹配：比如 "打开终端" -> 包含 "终端"
         return cmd.includes(name) || cmd.includes(app.title.toLowerCase())
     })
 
@@ -81,7 +83,6 @@ export const Siri = () => {
 
   return (
     <div className="flex flex-col items-center justify-center h-full w-full bg-black/40 backdrop-blur-2xl text-white relative overflow-hidden">
-        {/* Siri Orb Animation */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-80">
             <motion.div 
                 animate={{ 

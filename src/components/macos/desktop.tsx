@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { OsProvider, useOs } from './os-context'
-import { I18nProvider } from './i18n-context'
+import { I18nProvider, useI18n } from './i18n-context'
 import { WindowFrame } from './window-frame'
 import { Dock } from './dock'
 import { MenuBar } from './menu-bar'
@@ -14,15 +14,135 @@ import { Spotlight } from './spotlight'
 import { Notifications } from './notifications'
 import { AppConfig } from './types'
 import { DocViewer } from './apps/doc-viewer'
-// 删除 WriteApp 的引用
-// import { WriteApp } from './apps/write-app' 
-import { FileText, Edit3 } from 'lucide-react'
+import { FileText, Edit3, Mic, Cloud, HardDrive, X } from 'lucide-react'
+
+// --- 弹窗组件: 麦克风权限 ---
+const MicPermissionModal = ({ onClose }: { onClose: () => void }) => {
+    const { t } = useI18n()
+    const handleAllow = () => {
+        // 请求麦克风权限
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(() => {
+                localStorage.setItem('mic-permission', 'granted')
+                onClose()
+            })
+            .catch(() => {
+                alert('Permission denied. You can enable it in browser settings.')
+                onClose()
+            })
+    }
+
+    return (
+        <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="bg-[#e8e8e8] dark:bg-[#2c2c2c] w-80 rounded-xl shadow-2xl p-5 flex flex-col items-center gap-4 border border-white/20">
+                <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center text-white shadow-lg">
+                    <Mic size={24} />
+                </div>
+                <div className="text-center">
+                    <h3 className="font-bold text-lg mb-1 dark:text-white">Siri (Beta)</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-300 leading-relaxed">
+                        This website includes a voice assistant. Would you like to enable microphone access to use voice commands?
+                    </p>
+                </div>
+                <div className="flex gap-3 w-full mt-2">
+                    <button onClick={onClose} className="flex-1 py-1.5 rounded-lg bg-gray-200 dark:bg-white/10 hover:bg-gray-300 dark:hover:bg-white/20 text-sm font-medium transition-colors">
+                        Don't Allow
+                    </button>
+                    <button onClick={handleAllow} className="flex-1 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium shadow-md transition-all">
+                        Allow
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// --- 弹窗组件: 鸣潮启动模式选择 ---
+const GameModeSelector = () => {
+    const { setWwLaunchMode, closeGameModeSelector, launchApp, dockItems } = useOs()
+    const { t } = useI18n()
+
+    const handleSelect = (mode: 'cloud' | 'local') => {
+        setWwLaunchMode(mode)
+        closeGameModeSelector()
+        // 选择后立即启动
+        const app = dockItems.find(a => a.id === 'wuthering_waves')
+        if (app) launchApp(app, { mode }) 
+    }
+
+    return (
+        <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
+            <div className="bg-[#1e1e1e] text-white w-[400px] rounded-2xl shadow-2xl overflow-hidden border border-white/10">
+                <div className="p-6 text-center border-b border-white/10 relative">
+                    <h3 className="text-xl font-bold mb-1">Launch Wuthering Waves</h3>
+                    <p className="text-gray-400 text-sm">Choose how you want to launch the game</p>
+                    <button onClick={closeGameModeSelector} className="absolute top-4 right-4 text-gray-500 hover:text-white"><X size={16}/></button>
+                </div>
+                <div className="grid grid-cols-2 p-4 gap-4">
+                    <button 
+                        onClick={() => handleSelect('local')}
+                        className="flex flex-col items-center gap-3 p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-transparent hover:border-yellow-500/50 group"
+                    >
+                        <div className="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <HardDrive size={24} className="text-gray-300"/>
+                        </div>
+                        <div className="text-center">
+                            <div className="font-bold text-sm">Local PC</div>
+                            <div className="text-[10px] text-gray-500 mt-1">Wuthering Waves.exe</div>
+                        </div>
+                    </button>
+                    <button 
+                        onClick={() => handleSelect('cloud')}
+                        className="flex flex-col items-center gap-3 p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-transparent hover:border-blue-500/50 group"
+                    >
+                        <div className="w-12 h-12 rounded-full bg-blue-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <Cloud size={24} className="text-blue-400"/>
+                        </div>
+                        <div className="text-center">
+                            <div className="font-bold text-sm">Cloud Gaming</div>
+                            <div className="text-[10px] text-gray-500 mt-1">No download required</div>
+                        </div>
+                    </button>
+                </div>
+                <div className="px-6 pb-4 text-center">
+                    <p className="text-[10px] text-gray-600">You can change this later in Settings.</p>
+                </div>
+            </div>
+        </div>
+    )
+}
 
 const DesktopContent = ({ wallpaper, setWallpaper }: { wallpaper: string, setWallpaper: (url: string) => void }) => {
-    const { windows, dockItems, registry, launchApp } = useOs() as any 
-    const allApps: AppConfig[] = registry || dockItems
+    const { 
+        windows, dockItems, registry, launchApp, 
+        isLocked, 
+        isGameModeSelectorOpen 
+    } = useOs() as any 
     
+    const allApps: AppConfig[] = registry || dockItems
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: ContextMenuType; meta?: any } | null>(null)
+    
+    // --- 新增：麦克风权限检测逻辑 ---
+    const [showMicPrompt, setShowMicPrompt] = useState(false)
+
+    useEffect(() => {
+        if (!isLocked) {
+            // 延迟一点检测，等待 UI 动画
+            const timer = setTimeout(() => {
+                const hasPermission = localStorage.getItem('mic-permission') === 'granted'
+                if (!hasPermission) {
+                    // 检查浏览器是否已经授权（避免重复弹窗）
+                    navigator.permissions.query({ name: 'microphone' as any }).then((permissionStatus) => {
+                        if (permissionStatus.state !== 'granted') {
+                            setShowMicPrompt(true)
+                        }
+                    })
+                }
+            }, 1500)
+            return () => clearTimeout(timer)
+        }
+    }, [isLocked])
+    // ---------------------------------
 
     const handleContextMenu = (e: React.MouseEvent, type: ContextMenuType = 'desktop', meta?: any) => { 
         e.preventDefault(); 
@@ -33,7 +153,6 @@ const DesktopContent = ({ wallpaper, setWallpaper }: { wallpaper: string, setWal
     const handleRefresh = () => { document.body.style.opacity = '0.5'; setTimeout(() => document.body.style.opacity = '1', 100); }
     const handleChangeWallpaper = () => { const s = dockItems.find((a:any) => a.id === 'settings'); if(s) launchApp(s); }
 
-    // 处理打开文件 (阅读模式)
     const handleOpenFile = (meta: any) => {
          launchApp({
             id: `post-${meta.slug}`,
@@ -45,15 +164,13 @@ const DesktopContent = ({ wallpaper, setWallpaper }: { wallpaper: string, setWal
          })
     }
 
-    // 处理编辑文件 (编辑模式 - 改为 iframe 加载原网页)
     const handleEditFile = (meta: any) => {
         launchApp({
             id: `editor-${meta.slug}`,
             title: `编辑: ${meta.title}`,
             icon: <div className="w-5 h-5 text-blue-500"><Edit3 size={20} /></div>,
-            width: 1200, // 编辑器稍微宽一点
+            width: 1200,
             height: 800,
-            // 指向你的 /write/[slug] 路由，并开启嵌入模式
             component: <DocViewer url={`/write/${meta.slug}?embedded=true`} title={`编辑: ${meta.title}`} />
         })
     }
@@ -71,11 +188,20 @@ const DesktopContent = ({ wallpaper, setWallpaper }: { wallpaper: string, setWal
             <Spotlight />
             <Notifications />
             
+            {/* 新增：弹窗挂载点 */}
+            {showMicPrompt && <MicPermissionModal onClose={() => setShowMicPrompt(false)} />}
+            {isGameModeSelectorOpen && <GameModeSelector />}
+            
             <div className="absolute inset-0">
                 {windows.map((window: any) => {
                     const app = allApps.find((a: any) => a.id === window.appId)
                     let component = app?.component
                     
+                    // 注入 props (例如游戏启动模式)
+                    if (window.props && React.isValidElement(component)) {
+                        component = React.cloneElement(component as React.ReactElement, { ...window.props })
+                    }
+
                     if (window.appId === 'settings') {
                         component = React.cloneElement(component as React.ReactElement, { setWallpaper })
                     }
@@ -100,7 +226,6 @@ const DesktopContent = ({ wallpaper, setWallpaper }: { wallpaper: string, setWal
                     onChangeWallpaper={handleChangeWallpaper}
                     onOpen={handleOpenFile}
                     onEdit={handleEditFile}
-                    onDelete={() => alert('请在编辑模式下删除')} // 或者你可以让 DocViewer 加载的页面里去处理删除
                 />
             )}
         </div>

@@ -2,7 +2,7 @@
 'use client'
 
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react'
-import { AppConfig, OsContextState, WindowState, Notification } from './types'
+import { AppConfig, OsContextState, WindowState, Notification, WWLaunchMode } from './types'
 
 const OsContext = createContext<OsContextState | null>(null)
 
@@ -28,14 +28,31 @@ export const OsProvider = ({ children, installedApps }: OsProviderProps) => {
   const [isSpotlightOpen, setIsSpotlightOpen] = useState(false)
   const [notifications, setNotifications] = useState<Notification[]>([])
 
-  // 全局系统设置
   const [brightness, setBrightness] = useState(100)
   const [volume, setVolume] = useState(80)
 
-  // 亮度效果实现
+  // 新增：鸣潮相关状态
+  const [wwLaunchMode, setWwLaunchModeState] = useState<WWLaunchMode>(null)
+  const [isGameModeSelectorOpen, setIsGameModeSelectorOpen] = useState(false)
+
+  // 初始化加载设置
   useEffect(() => {
-    // 通过给 body 添加 filter 来模拟屏幕亮度
-    // 注意：这可能会影响性能，但在模拟器中效果很好
+    const savedMode = localStorage.getItem('ww-launch-mode') as WWLaunchMode
+    if (savedMode === 'cloud' || savedMode === 'local') {
+      setWwLaunchModeState(savedMode)
+    }
+  }, [])
+
+  const setWwLaunchMode = (mode: WWLaunchMode) => {
+    setWwLaunchModeState(mode)
+    if (mode) localStorage.setItem('ww-launch-mode', mode)
+    else localStorage.removeItem('ww-launch-mode')
+  }
+
+  const openGameModeSelector = useCallback(() => setIsGameModeSelectorOpen(true), [])
+  const closeGameModeSelector = useCallback(() => setIsGameModeSelectorOpen(false), [])
+
+  useEffect(() => {
     document.documentElement.style.filter = `brightness(${brightness}%)`
   }, [brightness])
 
@@ -51,22 +68,29 @@ export const OsProvider = ({ children, installedApps }: OsProviderProps) => {
     setIsSpotlightOpen(false)
   }, [getTopZIndex])
 
-  const launchApp = useCallback((app: AppConfig) => {
+  // 修改：launchApp 支持 props
+  const launchApp = useCallback((app: AppConfig, props?: any) => {
     setIsLaunchpadOpen(false)
     setIsControlCenterOpen(false)
     setIsSpotlightOpen(false)
     setRegistry((prev) => { if (prev.find(a => a.id === app.id)) return prev; return [...prev, app] })
     setWindows((prev) => {
+      // 如果已存在，更新 props 并前置
       const existing = prev.find((w) => w.appId === app.id)
       if (existing) {
-        if (existing.isMinimized) return prev.map(w => w.id === existing.id ? { ...w, isMinimized: false, zIndex: getTopZIndex() + 1 } : w)
-        return prev 
+        return prev.map(w => w.id === existing.id ? { 
+            ...w, 
+            isMinimized: false, 
+            zIndex: getTopZIndex() + 1,
+            props: props || w.props // 更新 props
+        } : w)
       }
       return [...prev, {
         id: app.id, appId: app.id, title: app.title, isMinimized: false, isMaximized: false,
         zIndex: getTopZIndex() + 1,
         position: { x: 100 + (prev.length % 5) * 30, y: 80 + (prev.length % 5) * 30 }, 
         size: { width: app.width || 800, height: app.height || 600 },
+        props: props
       }]
     })
     setTimeout(() => setActiveWindowId(app.id), 0)
@@ -121,9 +145,12 @@ export const OsProvider = ({ children, installedApps }: OsProviderProps) => {
         dockItems: installedApps,
         registry,
         isMenuOpen: false, isLaunchpadOpen, isControlCenterOpen, isLocked, isSpotlightOpen, notifications,
-        // 全局设置
         brightness, volume, setBrightness, setVolume,
         
+        // 传递新状态
+        wwLaunchMode, setWwLaunchMode, 
+        isGameModeSelectorOpen, openGameModeSelector, closeGameModeSelector,
+
         launchApp, closeWindow, minimizeWindow, maximizeWindow, restoreWindow, focusWindow, bringToFront, resizeWindow, updateWindowPos,
         toggleLaunchpad, toggleControlCenter, setIsLocked, toggleSpotlight, addNotification, removeNotification
     }}>

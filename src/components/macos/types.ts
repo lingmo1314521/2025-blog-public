@@ -1,7 +1,10 @@
 // components/macos/types.ts
 import { ReactNode } from 'react'
 
-export type AppID = 'finder' | 'launchpad' | 'blog' | 'settings' | 'about' | 'github' | 'mail' | 'terminal' | 'calculator' | 'calendar' | 'music' | 'notes' | 'vscode' | 'safari' | string
+export type AppID = 'finder' | 'launchpad' | 'blog' | 'settings' | 'about' | 'github' | 'mail' | 'terminal' | 'calculator' | 'calendar' | 'music' | 'notes' | 'vscode' | 'safari' | 'siri' | 'wuthering_waves' | 'preview' | 'storage_manager' | string
+
+// 新增：鸣潮启动模式类型
+export type WWLaunchMode = 'cloud' | 'local' | null
 
 export interface AppConfig {
   id: AppID
@@ -27,6 +30,8 @@ export interface WindowState {
   size: { width: number; height: number }
   lastSize?: { width: number; height: number }
   lastPosition?: { x: number; y: number }
+  // 新增：传递给窗口组件的额外参数（例如启动模式）
+  props?: any 
 }
 
 export interface Notification {
@@ -43,14 +48,12 @@ export interface OsContextState {
   dockItems: AppConfig[]
   registry: AppConfig[]
   
-  // 系统状态
   isMenuOpen: boolean
   isLaunchpadOpen: boolean
   isControlCenterOpen: boolean
   isLocked: boolean
   isSpotlightOpen: boolean
   
-  // 新增：全局系统设置状态
   brightness: number
   volume: number
   setBrightness: (val: number) => void
@@ -58,7 +61,16 @@ export interface OsContextState {
 
   notifications: Notification[]
 
-  launchApp: (app: AppConfig) => void
+  // 新增：鸣潮启动模式状态
+  wwLaunchMode: WWLaunchMode
+  setWwLaunchMode: (mode: WWLaunchMode) => void
+  
+  // 新增：控制游戏模式选择弹窗
+  isGameModeSelectorOpen: boolean
+  openGameModeSelector: () => void
+  closeGameModeSelector: () => void
+
+  launchApp: (app: AppConfig, props?: any) => void // 修改：支持传递 props
   closeWindow: (id: string) => void
   minimizeWindow: (id: string) => void
   maximizeWindow: (id: string) => void
