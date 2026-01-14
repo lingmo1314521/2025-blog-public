@@ -2,16 +2,16 @@
 
 import React, { useState, useRef, useEffect, useMemo, createContext, useContext } from 'react'
 import { 
-  // --- 基础图标 ---
+  // 基础图标
   Search, Files, Play, X, ChevronRight, ChevronDown, 
   Settings, ToggleLeft, ToggleRight, GitBranch,
-  // --- 文件/文件夹图标 ---
+  // 文件操作图标
   Folder, FolderOpen, Archive, FilePlus, FolderPlus, 
   Briefcase, Edit3, FolderInput, Terminal as TerminalIcon,
-  // --- 功能图标 ---
+  // 功能图标 (确保所有用到的都在这里)
   Command, Search as SearchIcon, MoreHorizontal, 
   Download, Upload, FileCode, LayoutTemplate, 
-  Trash2 // <--- 修复：补回了 Trash2 图标
+  Trash2, Check
 } from 'lucide-react'
 import { clsx } from '../utils'
 import { useI18n } from '../i18n-context'
@@ -76,7 +76,7 @@ const VSCodeContext = createContext<VSCodeContextType | null>(null)
 // 3. 初始数据
 // ==========================================
 const INITIAL_FS: FileSystemItem[] = [
-  { id: 'root-readme', parentId: null, name: 'README.md', type: 'file', language: 'markdown', content: '# VS Code Web\n\nWelcome to LynxMuse Code Editor.\n\n### Features:\n- 📂 **Folder Upload**: Click "..." to upload local folders.\n- 🔍 **Search**: Find text in all files.\n- ⌨️ **Command Palette**: `Cmd+Shift+P`' },
+  { id: 'root-readme', parentId: null, name: 'README.md', type: 'file', language: 'markdown', content: '# VS Code Web\n\nWelcome to LynxMuse Code Editor.\n\n### Features:\n- 📂 **Folder Upload**: Right click or use menu to upload.\n- 🔍 **Search**: Find text in all files.\n- ⌨️ **Command Palette**: `Cmd+Shift+P`' },
   { id: 'src', parentId: null, name: 'src', type: 'folder', isOpen: true },
   { id: 'index', parentId: 'src', name: 'index.html', type: 'file', language: 'html', content: '<h1>Hello World</h1>\n<script src="./app.js"></script>' },
   { id: 'css', parentId: 'src', name: 'style.css', type: 'file', language: 'css', content: 'body {\n  background: #1e1e1e;\n  color: #fff;\n  font-family: sans-serif;\n}' },
@@ -435,6 +435,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
       const a = document.createElement('a'); a.href = url; a.download = 'project.zip'; a.click()
   }
 
+  // --- File/Folder Upload Handlers ---
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files) {
           Array.from(e.target.files).forEach(file => {
@@ -442,24 +443,22 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
               reader.onload = (ev) => createFile('file', null, file.name, ev.target?.result as string)
               reader.readAsText(file)
           })
-          e.target.value = ''
+          e.target.value = '' // Reset input
       }
   }
 
   const handleFolderUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files) {
           const newItems: FileSystemItem[] = []
-          const folderMap = new Map<string, string>() // path -> id
+          const folderMap = new Map<string, string>()
 
           Array.from(e.target.files).forEach(file => {
               const path = file.webkitRelativePath
-              if (!path) return // fallback if not supported
+              if (!path) return 
 
               const parts = path.split('/')
               const fileName = parts.pop()!
-              const folderPath = parts.join('/')
               
-              // 1. Ensure folders exist
               let currentPid: string | null = null
               let currentPath = ''
               
@@ -481,7 +480,6 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
                   }
               })
 
-              // 2. Add File
               const reader = new FileReader()
               reader.onload = (ev) => {
                   setFs(prev => [...prev, {
@@ -498,7 +496,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
           })
           
           setFs(prev => [...prev, ...newItems])
-          e.target.value = ''
+          e.target.value = '' // Reset input
       }
   }
 
@@ -591,7 +589,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
                             {!isReadOnly && <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button onClick={() => createFile('file')} className="p-1 hover:bg-[#3c3c3c] rounded" title={t('new_file')}><FilePlus size={14}/></button>
                                 <button onClick={() => createFile('folder')} className="p-1 hover:bg-[#3c3c3c] rounded" title={t('new_folder')}><FolderPlus size={14}/></button>
-                                <button onClick={() => {e.stopPropagation(); setShowTemplateMenu(!showTemplateMenu)}} className="p-1 hover:bg-[#3c3c3c] rounded"><MoreHorizontal size={14}/></button>
+                                <button onClick={(e) => {e.stopPropagation(); setShowTemplateMenu(!showTemplateMenu)}} className="p-1 hover:bg-[#3c3c3c] rounded"><MoreHorizontal size={14}/></button>
                             </div>}
                         </div>
                         {showTemplateMenu && (
@@ -599,9 +597,6 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
                                 <div onClick={handleZipExport} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer text-xs flex gap-2 items-center"><Archive size={12}/> {t('export_zip')}</div>
                                 <div onClick={()=>uploadFileRef.current?.click()} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer text-xs flex gap-2 items-center"><Upload size={12}/> {t('import_file')}</div>
                                 <div onClick={()=>uploadFolderRef.current?.click()} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer text-xs flex gap-2 items-center"><FolderInput size={12}/> Import Folder</div>
-                                <input type="file" ref={uploadFileRef} hidden multiple onChange={handleFileUpload} />
-                                {/* @ts-ignore */}
-                                <input type="file" ref={uploadFolderRef} hidden webkitdirectory="" directory="" multiple onChange={handleFolderUpload} />
                             </div>
                         )}
                         <div 
@@ -789,21 +784,26 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
                 <div className="absolute z-50 bg-[#252526] border border-[#454545] shadow-xl rounded py-1 min-w-[160px] text-xs text-[#cccccc]" style={{ top: ctxMenu.y, left: ctxMenu.x }} onClick={e => e.stopPropagation()}>
                     {ctxMenu.itemId ? (
                         <>
-                            <div onClick={() => { setRenamingId(ctxMenu.itemId); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Edit3 size={12}/> {t('rename')}</div>
-                            <div onClick={() => { deleteFiles(selectedIds.includes(ctxMenu.itemId!) ? selectedIds : [ctxMenu.itemId!]); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2 text-red-400"><Trash2 size={12}/> {t('delete')}</div>
+                            <div onClick={(e) => { e.stopPropagation(); setRenamingId(ctxMenu.itemId); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Edit3 size={12}/> {t('rename')}</div>
+                            <div onClick={(e) => { e.stopPropagation(); deleteFiles(selectedIds.includes(ctxMenu.itemId!) ? selectedIds : [ctxMenu.itemId!]); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2 text-red-400"><Trash2 size={12}/> {t('delete')}</div>
                             <div className="h-[1px] bg-[#454545] my-1" />
                             <div className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Download size={12}/> {t('download')}</div>
                         </>
                     ) : (
                         <>
-                            <div onClick={() => { createFile('file'); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><FilePlus size={12}/> {t('new_file')}</div>
-                            <div onClick={() => { createFile('folder'); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><FolderPlus size={12}/> {t('new_folder')}</div>
+                            <div onClick={(e) => { e.stopPropagation(); createFile('file'); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><FilePlus size={12}/> {t('new_file')}</div>
+                            <div onClick={(e) => { e.stopPropagation(); createFile('folder'); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><FolderPlus size={12}/> {t('new_folder')}</div>
                             <div className="h-[1px] bg-[#454545] my-1" />
-                            <div onClick={() => { uploadFileRef.current?.click(); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Upload size={12}/> {t('upload')}</div>
+                            <div onClick={(e) => { e.stopPropagation(); uploadFileRef.current?.click(); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Upload size={12}/> {t('upload')}</div>
                         </>
                     )}
                 </div>
             )}
+
+            {/* Global Hidden Inputs for Upload (Moved here to ensure they always exist) */}
+            <input type="file" ref={uploadFileRef} hidden multiple onChange={handleFileUpload} />
+            {/* @ts-ignore */}
+            <input type="file" ref={uploadFolderRef} hidden webkitdirectory="" directory="" multiple onChange={handleFolderUpload} />
 
             {/* Command Palette Overlay */}
             {showPalette && (
