@@ -6,13 +6,17 @@ import {
   LayoutTemplate, Plus, Upload, Download, Trash2, 
   FileCode, Settings, ToggleLeft, ToggleRight, GitBranch,
   Folder, FolderOpen, Archive, FilePlus, FolderPlus, 
-  Briefcase, Edit3, FolderInput, LogOut, Terminal as TerminalIcon
+  Briefcase, Edit3, FolderInput, LogOut, Terminal as TerminalIcon,
+  MoreVertical, RefreshCw
 } from 'lucide-react'
 import { clsx } from '../utils'
 import { useI18n } from '../i18n-context'
 import JSZip from 'jszip'
 
-// === 1. 类型定义 ===
+// ==========================================
+// 1. 类型定义 (Types)
+// ==========================================
+
 type FileType = 'file' | 'folder'
 type Language = 'html' | 'css' | 'javascript' | 'typescript' | 'json' | 'plaintext' | 'markdown'
 
@@ -23,7 +27,7 @@ interface FileSystemItem {
   type: FileType
   language?: Language
   content?: string
-  isOpen?: boolean
+  isOpen?: boolean // 文件夹是否展开
   isUnsaved?: boolean
 }
 
@@ -42,7 +46,7 @@ interface VSCodeProps {
     }
 }
 
-// === 2. 初始文件系统 ===
+// 初始文件系统数据
 const INITIAL_FS: FileSystemItem[] = [
   { id: 'root-readme', parentId: null, name: 'README.md', type: 'file', language: 'markdown', content: '# VS Code Web\n\nWelcome to LynxMuse Code Editor.\n\nFeatures:\n- Drag & Drop files\n- Marquee Selection (Box Select)\n- Import/Export Projects\n- JavaScript Console execution' },
   { id: 'src', parentId: null, name: 'src', type: 'folder', isOpen: true },
@@ -51,66 +55,135 @@ const INITIAL_FS: FileSystemItem[] = [
   { id: 'js', parentId: 'src', name: 'app.js', type: 'file', language: 'javascript', content: 'console.log("System Ready");\nconsole.log("Try editing this file!");' },
 ]
 
-const TEMPLATES = {
-  vanilla: [
-    { id: '1', parentId: null, name: 'index.html', type: 'file', language: 'html', content: '<!DOCTYPE html>\n<h1>Vanilla JS</h1>' },
-    { id: '2', parentId: null, name: 'style.css', type: 'file', language: 'css', content: 'body { background: #333; color: #fff; }' },
-    { id: '3', parentId: null, name: 'app.js', type: 'file', language: 'javascript', content: 'console.log("Loaded");' }
-  ],
-  react: [
-    { id: 'r1', parentId: null, name: 'App.tsx', type: 'file', language: 'typescript', content: 'export const App = () => <h1>React</h1>' },
-    { id: 'r2', parentId: null, name: 'components', type: 'folder', isOpen: true },
-    { id: 'r3', parentId: 'r2', name: 'Button.tsx', type: 'file', language: 'typescript', content: '<button>Click</button>' }
-  ]
+// ==========================================
+// 2. 逻辑 Hook (FileSystem Logic)
+// ==========================================
+
+const useVirtualFileSystem = (initialData: FileSystemItem[], isReadOnly: boolean) => {
+    const [fs, setFs] = useState<FileSystemItem[]>(initialData)
+    const [openFiles, setOpenFiles] = useState<string[]>([])
+    const [activeFileId, setActiveFileId] = useState<string | null>(null)
+    const [selectedIds, setSelectedIds] = useState<string[]>([])
+    
+    // 初始化/持久化
+    useEffect(() => {
+        if (!isReadOnly) {
+            const saved = localStorage.getItem('vscode-fs-v8')
+            if (saved) {
+                try { setFs(JSON.parse(saved)) } catch {}
+            }
+        } else {
+            setFs(initialData) // 预览模式直接使用传入数据
+            if (initialData.length > 0 && initialData[0].type === 'file') {
+                setOpenFiles([initialData[0].id])
+                setActiveFileId(initialData[0].id)
+            }
+        }
+    }, [isReadOnly]) // 仅挂载时执行，或 preview 模式切换时
+
+    useEffect(() => {
+        if (!isReadOnly && fs !== initialData) {
+            localStorage.setItem('vscode-fs-v8', JSON.stringify(fs))
+        }
+    }, [fs, isReadOnly])
+
+    // --- CRUD ---
+    const updateFileContent = (id: string, content: string) => {
+        if (isReadOnly) return
+        setFs(prev => prev.map(f => f.id === id ? { ...f, content, isUnsaved: true } : f))
+    }
+
+    const saveFile = (id: string) => {
+        if (isReadOnly) return
+        setFs(prev => prev.map(f => f.id === id ? { ...f, isUnsaved: false } : f))
+    }
+
+    const createFile = (type: FileType, parentId: string | null = null, name?: string, content?: string) => {
+        if (isReadOnly) return
+        const id = Date.now().toString() + Math.random().toString(36).substr(2, 5)
+        const newItem: FileSystemItem = {
+            id,
+            parentId,
+            name: name || (type === 'folder' ? 'New Folder' : 'untitled.txt'),
+            type,
+            language: 'plaintext',
+            content: content || '',
+            isOpen: true
+        }
+        setFs(prev => [...prev, newItem])
+        return id
+    }
+
+    const deleteFiles = (ids: string[]) => {
+        if (isReadOnly) return
+        // 递归查找所有子文件 ID
+        const findAllChildren = (pids: string[]): string[] => {
+            const children = fs.filter(f => f.parentId && pids.includes(f.parentId)).map(f => f.id)
+            if (children.length === 0) return []
+            return [...children, ...findAllChildren(children)]
+        }
+        const allIdsToDelete = [...ids, ...findAllChildren(ids)]
+        
+        setFs(prev => prev.filter(f => !allIdsToDelete.includes(f.id)))
+        setOpenFiles(prev => prev.filter(id => !allIdsToDelete.includes(id)))
+        if (activeFileId && allIdsToDelete.includes(activeFileId)) setActiveFileId(null)
+        setSelectedIds([])
+    }
+
+    const renameFile = (id: string, newName: string) => {
+        if (isReadOnly || !newName.trim()) return
+        setFs(prev => prev.map(f => f.id === id ? { ...f, name: newName } : f))
+    }
+
+    const moveFiles = (ids: string[], targetParentId: string | null) => {
+        if (isReadOnly) return
+        // 防止移动到自己或自己的子文件夹中
+        const isInvalidMove = (dragId: string, targetId: string | null) => {
+            if (dragId === targetId) return true
+            let current = targetId
+            while (current) {
+                const parent = fs.find(f => f.id === current)
+                if (parent?.id === dragId) return true
+                current = parent?.parentId || null
+            }
+            return false
+        }
+
+        const validIds = ids.filter(id => !isInvalidMove(id, targetParentId))
+        setFs(prev => prev.map(f => validIds.includes(f.id) ? { ...f, parentId: targetParentId } : f))
+    }
+
+    const toggleFolder = (id: string) => {
+        setFs(prev => prev.map(f => f.id === id ? { ...f, isOpen: !f.isOpen } : f))
+    }
+
+    // --- Tab Management ---
+    const closeTab = (id: string) => {
+        const newOpen = openFiles.filter(fid => fid !== id)
+        setOpenFiles(newOpen)
+        if (activeFileId === id) {
+            setActiveFileId(newOpen.length > 0 ? newOpen[newOpen.length - 1] : null)
+        }
+    }
+
+    const activateTab = (id: string) => {
+        if (!openFiles.includes(id)) setOpenFiles(prev => [...prev, id])
+        setActiveFileId(id)
+    }
+
+    return {
+        fs, setFs,
+        openFiles, activeFileId, setActiveFileId,
+        selectedIds, setSelectedIds,
+        updateFileContent, saveFile, createFile, deleteFiles, renameFile, moveFiles, toggleFolder,
+        closeTab, activateTab
+    }
 }
 
-// === 3. 翻译字典 ===
-const VSCODE_TEXT = {
-  en: {
-    explorer: 'Explorer', search: 'Search', settings: 'Settings',
-    new_file: 'New File', new_folder: 'New Folder', new_project: 'New Project',
-    import_file: 'Import File', import_folder: 'Import Folder',
-    delete: 'Delete', rename: 'Rename', download: 'Download', export_zip: 'Export ZIP',
-    run: 'Run', preview: 'Preview', terminal: 'Terminal',
-    console_ready: 'Console Ready',
-    del_confirm: 'Delete selected items?',
-    search_ph: 'Search files...', no_res: 'No results.',
-    projects: 'PROJECTS',
-    tpl_vanilla: 'Vanilla HTML/JS', tpl_react: 'React App',
-    editor_config: 'EDITOR CONFIGURATION',
-    font_size: 'Font Size', word_wrap: 'Word Wrap', line_numbers: 'Line Numbers'
-  },
-  zh: {
-    explorer: '资源管理器', search: '搜索', settings: '设置',
-    new_file: '新建文件', new_folder: '新建文件夹', new_project: '新建项目',
-    import_file: '导入文件', import_folder: '导入文件夹',
-    delete: '删除', rename: '重命名', download: '下载', export_zip: '导出项目 (ZIP)',
-    run: '运行', preview: '预览', terminal: '终端',
-    console_ready: '控制台就绪',
-    del_confirm: '确定删除选中的项目吗？',
-    search_ph: '搜索文件...', no_res: '无结果',
-    projects: '项目列表',
-    tpl_vanilla: 'HTML/JS 基础模版', tpl_react: 'React 组件模版',
-    editor_config: '编辑器配置',
-    font_size: '字体大小', word_wrap: '自动换行', line_numbers: '显示行号'
-  },
-  mix: {
-    explorer: 'Explorer 资源', search: 'Search 搜索', settings: 'Settings 设置',
-    new_file: 'New File 新建', new_folder: 'New Folder 文件夹', new_project: 'New Project 项目',
-    import_file: 'Import File 导入文件', import_folder: 'Import Folder 导入文件夹',
-    delete: 'Delete 删除', rename: 'Rename 重命名', download: 'Download 下载', export_zip: 'Export 导出',
-    run: 'Run 运行', preview: 'Preview 预览', terminal: 'Terminal 终端',
-    console_ready: 'Ready 就绪',
-    del_confirm: 'Delete? 确认删除?',
-    search_ph: 'Search 搜索...', no_res: 'No results 无结果',
-    projects: 'PROJECTS 项目',
-    tpl_vanilla: 'Vanilla HTML/JS', tpl_react: 'React App',
-    editor_config: 'EDITOR CONFIG 配置',
-    font_size: 'Font Size 字体', word_wrap: 'Word Wrap 换行', line_numbers: 'Line Num 行号'
-  }
-}
+// ==========================================
+// 3. 子组件 (Sub Components)
+// ==========================================
 
-// === 图标组件 ===
 const FileIcon = React.memo(({ name, type, isOpen }: { name: string, type: FileType, isOpen?: boolean }) => {
   if (type === 'folder') return isOpen ? <ChevronDown size={14} className="text-gray-400 shrink-0"/> : <ChevronRight size={14} className="text-gray-400 shrink-0"/>
   const ext = name.split('.').pop()?.toLowerCase()
@@ -127,18 +200,24 @@ const FileIcon = React.memo(({ name, type, isOpen }: { name: string, type: FileT
 })
 FileIcon.displayName = 'FileIcon'
 
+// ==========================================
+// 4. 主组件 (Main Component)
+// ==========================================
+
 export const VSCode = ({ previewFile }: VSCodeProps) => {
-  const { language } = useI18n()
-  const vt = VSCODE_TEXT[language as keyof typeof VSCODE_TEXT] || VSCODE_TEXT['en']
-  
-  // === State ===
-  const [fileSystem, setFileSystem] = useState<FileSystemItem[]>(INITIAL_FS)
-  const [openFiles, setOpenFiles] = useState<string[]>([])
-  const [activeFileId, setActiveFileId] = useState<string>('')
-  
-  // Selection & UI
-  const [selectedIds, setSelectedIds] = useState<string[]>([]) 
-  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null)
+  const { t } = useI18n()
+  const isReadOnly = !!previewFile
+
+  // --- Logic Hooks ---
+  const { 
+      fs, setFs, 
+      openFiles, activeFileId, setActiveFileId, 
+      selectedIds, setSelectedIds, 
+      updateFileContent, saveFile, createFile, deleteFiles, renameFile, moveFiles, toggleFolder, 
+      closeTab, activateTab 
+  } = useVirtualFileSystem(INITIAL_FS, isReadOnly)
+
+  // --- UI State ---
   const [sidebarView, setSidebarView] = useState<'explorer' | 'search' | 'settings'>('explorer')
   const [sidebarVisible, setSidebarVisible] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -146,634 +225,505 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
   const [outputSrc, setOutputSrc] = useState('')
   const [showConsole, setShowConsole] = useState(false)
   const [consoleLogs, setConsoleLogs] = useState<string[]>([])
-  
-  // Interaction State
+  const [config, setConfig] = useState<EditorConfig>({ fontSize: 14, wordWrap: false, showLineNumbers: true, minimap: false })
+
+  // --- Interaction State ---
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [ctxMenu, setCtxMenu] = useState<{ visible: boolean, x: number, y: number, itemId: string | null }>({ visible: false, x: 0, y: 0, itemId: null })
-  const [showTemplateMenu, setShowTemplateMenu] = useState(false)
-  const [draggedIds, setDraggedIds] = useState<string[]>([])
   const [dragOverId, setDragOverId] = useState<string | null>(null)
-
+  
   // Marquee Selection State
   const [isSelecting, setIsSelecting] = useState(false)
   const [selectionBox, setSelectionBox] = useState<{ x: number, y: number, w: number, h: number } | null>(null)
   const selectionStart = useRef<{ x: number, y: number } | null>(null)
-  const fileListRef = useRef<HTMLDivElement>(null)
-  const [initialSelectedIds, setInitialSelectedIds] = useState<string[]>([]) 
-
-  // Config
-  const [config, setConfig] = useState<EditorConfig>({ fontSize: 14, wordWrap: false, showLineNumbers: true, minimap: false })
-
+  
   // Refs
-  const editorContainerRef = useRef<HTMLDivElement>(null)
-  const renameInputRef = useRef<HTMLInputElement>(null)
-  const textAreaRef = useRef<HTMLTextAreaElement>(null)
-  const lineNumRef = useRef<HTMLDivElement>(null)
+  const fileListRef = useRef<HTMLDivElement>(null)
+  const editorRef = useRef<HTMLTextAreaElement>(null)
   const terminalEndRef = useRef<HTMLDivElement>(null)
   const uploadFileRef = useRef<HTMLInputElement>(null)
   const uploadFolderRef = useRef<HTMLInputElement>(null)
+  const renameInputRef = useRef<HTMLInputElement>(null)
 
-  const isReadOnly = !!previewFile
+  // Derived
+  const activeFile = useMemo(() => fs.find(f => f.id === activeFileId), [fs, activeFileId])
+  const filteredFiles = useMemo(() => {
+      if (!searchQuery) return []
+      const res: any[] = []
+      fs.filter(f => f.type === 'file').forEach(f => {
+          (f.content || '').split('\n').forEach((line, i) => {
+              if (line.toLowerCase().includes(searchQuery.toLowerCase())) res.push({ ...f, line: i + 1, match: line.trim() })
+          })
+      })
+      return res
+  }, [fs, searchQuery])
 
-  // === Initialization ===
-  useEffect(() => {
-    if (previewFile) {
-        const tempId = 'preview-file'
-        setFileSystem([{
-            id: tempId, parentId: null, name: previewFile.name, type: 'file',
-            language: (previewFile.language as Language) || 'plaintext',
-            content: previewFile.content, isUnsaved: false
-        }])
-        setOpenFiles([tempId]); setActiveFileId(tempId)
-    } else {
-        const saved = localStorage.getItem('vscode-fs-v8')
-        if (saved) try { setFileSystem(JSON.parse(saved)) } catch {}
-    }
-  }, [previewFile])
-
-  useEffect(() => {
-    if (!previewFile) localStorage.setItem('vscode-fs-v8', JSON.stringify(fileSystem))
-  }, [fileSystem, previewFile])
-
-  useEffect(() => {
-      if (showConsole && terminalEndRef.current) {
-          terminalEndRef.current.scrollIntoView({ behavior: 'smooth' })
-      }
-  }, [consoleLogs, showConsole])
-
-  const activeFile = useMemo(() => fileSystem.find(f => f.id === activeFileId), [fileSystem, activeFileId])
-
-  // === Core Logic ===
+  // --- Handlers: File System UI ---
   const getFolderContents = (parentId: string | null) => {
-    return fileSystem.filter(f => f.parentId === parentId).sort((a, b) => {
-      if (a.type === b.type) return a.name.localeCompare(b.name)
-      return a.type === 'folder' ? -1 : 1
-    })
+      return fs.filter(f => f.parentId === parentId).sort((a, b) => {
+          if (a.type === b.type) return a.name.localeCompare(b.name)
+          return a.type === 'folder' ? -1 : 1
+      })
   }
 
-  const toggleFolder = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation()
-    setFileSystem(prev => prev.map(f => f.id === id ? { ...f, isOpen: !f.isOpen } : f))
-  }
-
-  const openFile = (id: string) => {
-    if (!openFiles.includes(id)) setOpenFiles([...openFiles, id])
-    setActiveFileId(id); setShowPreview(false)
-  }
-
-  // --- Selection Logic ---
   const handleItemClick = (e: React.MouseEvent, id: string, type: FileType) => {
-    e.stopPropagation()
-    if (type === 'folder' && !e.ctrlKey && !e.metaKey && !e.shiftKey) toggleFolder(e, id)
-    if (type === 'file' && !e.ctrlKey && !e.metaKey && !e.shiftKey) openFile(id)
-
-    if (e.ctrlKey || e.metaKey) {
-        setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
-        setLastSelectedId(id)
-    } else if (e.shiftKey && lastSelectedId) {
-        // Simple range logic could be improved, but multi-add works for now
-        setSelectedIds(prev => [...prev, id]) 
-    } else {
-        setSelectedIds([id]); setLastSelectedId(id)
-    }
+      e.stopPropagation()
+      // Normal click
+      if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+          if (type === 'folder') toggleFolder(id)
+          else activateTab(id)
+          setSelectedIds([id])
+          return
+      }
+      // Multi select
+      if (e.ctrlKey || e.metaKey) {
+          setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
+      } else if (e.shiftKey) {
+          setSelectedIds(prev => [...prev, id]) // Simplified shift select
+      }
   }
 
-  // --- Marquee (Box) Selection ---
+  // --- Handlers: Marquee Selection ---
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (isReadOnly || e.button !== 0) return 
-    // Clicked on empty space: clear selection unless modifier
-    if (!e.ctrlKey && !e.metaKey) setSelectedIds([]) 
-    
-    setIsSelecting(true)
-    setInitialSelectedIds(e.ctrlKey || e.metaKey ? selectedIds : [])
-    
-    if (fileListRef.current) {
-        const rect = fileListRef.current.getBoundingClientRect()
-        // Coordinates relative to the scrollable container
-        const startX = e.clientX - rect.left
-        const startY = e.clientY - rect.top + fileListRef.current.scrollTop
-        selectionStart.current = { x: startX, y: startY }
-        setSelectionBox({ x: startX, y: startY, w: 0, h: 0 })
-    }
+      if (isReadOnly || e.button !== 0) return
+      // Clicked on empty space
+      if (!e.ctrlKey && !e.metaKey) setSelectedIds([])
+      
+      setIsSelecting(true)
+      if (fileListRef.current) {
+          const rect = fileListRef.current.getBoundingClientRect()
+          const x = e.clientX - rect.left
+          const y = e.clientY - rect.top + fileListRef.current.scrollTop
+          selectionStart.current = { x, y }
+          setSelectionBox({ x, y, w: 0, h: 0 })
+      }
   }
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isSelecting || !selectionStart.current || !fileListRef.current) return
-    
-    const rect = fileListRef.current.getBoundingClientRect()
-    const currentX = e.clientX - rect.left
-    const currentY = e.clientY - rect.top + fileListRef.current.scrollTop
-    
-    const newBox = {
-        x: Math.min(currentX, selectionStart.current.x),
-        y: Math.min(currentY, selectionStart.current.y),
-        w: Math.abs(currentX - selectionStart.current.x),
-        h: Math.abs(currentY - selectionStart.current.y)
-    }
-    setSelectionBox(newBox)
+      if (!isSelecting || !selectionStart.current || !fileListRef.current) return
+      
+      const rect = fileListRef.current.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const y = e.clientY - rect.top + fileListRef.current.scrollTop
+      
+      const newBox = {
+          x: Math.min(x, selectionStart.current.x),
+          y: Math.min(y, selectionStart.current.y),
+          w: Math.abs(x - selectionStart.current.x),
+          h: Math.abs(y - selectionStart.current.y)
+      }
+      setSelectionBox(newBox)
 
-    // Collision Detection
-    const fileItems = fileListRef.current.querySelectorAll('.file-item-row')
-    const newSelected = new Set(initialSelectedIds)
-
-    fileItems.forEach((el) => {
-        const htmlEl = el as HTMLElement
-        const elTop = htmlEl.offsetTop
-        const elLeft = htmlEl.offsetLeft
-        const elWidth = htmlEl.offsetWidth
-        const elHeight = htmlEl.offsetHeight
-        
-        // Simple AABB collision
-        const isOverlapping = !(
-            elLeft > newBox.x + newBox.w ||
-            elLeft + elWidth < newBox.x ||
-            elTop > newBox.y + newBox.h ||
-            elTop + elHeight < newBox.y
-        )
-
-        if (isOverlapping) {
-            const id = htmlEl.getAttribute('data-id')
-            if (id) newSelected.add(id)
-        }
-    })
-    setSelectedIds(Array.from(newSelected))
+      // Collision Detection
+      const items = fileListRef.current.querySelectorAll('[data-file-id]')
+      const newSelected: string[] = []
+      items.forEach((el) => {
+          const htmlEl = el as HTMLElement
+          const elTop = htmlEl.offsetTop
+          const elHeight = htmlEl.offsetHeight
+          // Simple vertical intersection check for list items
+          if (elTop < newBox.y + newBox.h && elTop + elHeight > newBox.y) {
+              newSelected.push(htmlEl.getAttribute('data-file-id')!)
+          }
+      })
+      if (newSelected.length > 0) setSelectedIds(newSelected)
   }
 
-  const handleMouseUp = () => {
-    setSelectionBox(null); setIsSelecting(false); selectionStart.current = null
-  }
+  const handleMouseUp = () => { setIsSelecting(false); setSelectionBox(null) }
 
-  // --- Drag & Drop ---
+  // --- Handlers: Drag & Drop ---
   const handleDragStart = (e: React.DragEvent, id: string) => {
-    if (isReadOnly) return
-    e.stopPropagation()
-    const idsToDrag = selectedIds.includes(id) ? selectedIds : [id]
-    setDraggedIds(idsToDrag)
-    e.dataTransfer.effectAllowed = 'move'
-    // Create a custom drag image if desired, otherwise default
+      if (isReadOnly) return
+      e.stopPropagation()
+      e.dataTransfer.setData('text/plain', JSON.stringify(selectedIds.includes(id) ? selectedIds : [id]))
+      e.dataTransfer.effectAllowed = 'move'
   }
 
   const handleDragOver = (e: React.DragEvent, id: string | null) => {
-    if (isReadOnly) return
-    e.preventDefault(); e.stopPropagation()
-    
-    // Allow dragging onto root (id=null) or onto a folder
-    if (id === null) { 
-        setDragOverId('root')
-        return 
-    }
-    
-    const target = fileSystem.find(f => f.id === id)
-    if (target?.type === 'folder' && !draggedIds.includes(id)) {
-        setDragOverId(id)
-    } else {
-        setDragOverId(null)
-    }
+      if (isReadOnly) return
+      e.preventDefault(); e.stopPropagation()
+      
+      if (id === null) {
+          setDragOverId('root') // Root
+      } else {
+          const target = fs.find(f => f.id === id)
+          if (target?.type === 'folder') setDragOverId(id)
+          else setDragOverId(null)
+      }
   }
 
-  const handleDrop = (e: React.DragEvent, targetPid: string | null) => {
-    if (isReadOnly) return
-    e.preventDefault(); e.stopPropagation(); setDragOverId(null)
-    
-    // 1. External File Drop
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        Array.from(e.dataTransfer.files).forEach(file => {
-            const reader = new FileReader()
-            reader.onload = (ev) => {
-                const id = Date.now().toString() + Math.random()
-                setFileSystem(prev => [...prev, { 
-                    id, parentId: targetPid, name: file.name, type: 'file', 
-                    language: 'javascript', content: ev.target?.result as string || '' 
-                }])
-            }
-            reader.readAsText(file)
-        })
-        return
-    }
+  const handleDrop = (e: React.DragEvent, targetId: string | null) => {
+      if (isReadOnly) return
+      e.preventDefault(); e.stopPropagation(); setDragOverId(null)
 
-    // 2. Internal Move
-    if (draggedIds.length === 0) return
-    
-    // Prevent moving folder into itself
-    const validMoves = draggedIds.filter(dragId => {
-        if (dragId === targetPid) return false
-        let check = targetPid
-        while (check) { 
-            if (check === dragId) return false
-            check = fileSystem.find(f => f.id === check)?.parentId || null 
-        }
-        return true
-    })
+      // 1. Internal Move
+      const data = e.dataTransfer.getData('text/plain')
+      if (data) {
+          try {
+              const ids = JSON.parse(data)
+              moveFiles(ids, targetId === 'root' ? null : targetId)
+          } catch {}
+          return
+      }
 
-    setFileSystem(prev => prev.map(f => validMoves.includes(f.id) ? { ...f, parentId: targetPid } : f))
-    setDraggedIds([])
+      // 2. External File Drop
+      if (e.dataTransfer.files?.length) {
+          Array.from(e.dataTransfer.files).forEach(file => {
+              const reader = new FileReader()
+              reader.onload = (ev) => {
+                  createFile('file', targetId === 'root' ? null : targetId, file.name, ev.target?.result as string)
+              }
+              reader.readAsText(file)
+          })
+      }
+  }
+
+  // --- Handlers: Editor Actions ---
+  const handleRun = () => {
+      if (!activeFile) return
+      setShowPreview(true); setConsoleLogs([])
+      if (activeFile.language === 'html') {
+          setOutputSrc(activeFile.content || '')
+      } else if (activeFile.language === 'javascript') {
+          // Sandboxed console interception
+          const script = `
+            <script>
+                const _log = console.log;
+                console.log = (...args) => {
+                    window.parent.postMessage({ type: 'console', content: args.join(' ') }, '*');
+                    _log(...args);
+                };
+                try { ${activeFile.content} } catch(e) { console.log('Error:', e.message); }
+            </script>
+          `
+          setOutputSrc(`<html><body>${script}</body></html>`)
+          setShowConsole(true)
+      } else {
+          setOutputSrc(`<html><body><pre>${activeFile.content}</pre></body></html>`)
+      }
+  }
+
+  useEffect(() => {
+      const handler = (e: MessageEvent) => {
+          if (e.data?.type === 'console') {
+              setConsoleLogs(prev => [...prev, `> ${e.data.content}`])
+          }
+      }
+      window.addEventListener('message', handler)
+      return () => window.removeEventListener('message', handler)
+  }, [])
+
+  // --- Handlers: File Import/Export ---
+  const handleZipExport = async () => {
+      const zip = new JSZip()
+      const addToZip = (pid: string | null, folder: any) => {
+          fs.filter(f => f.parentId === pid).forEach(f => {
+              if (f.type === 'file') folder.file(f.name, f.content || '')
+              else addToZip(f.id, folder.folder(f.name))
+          })
+      }
+      addToZip(null, zip)
+      const blob = await zip.generateAsync({ type: 'blob' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a'); a.href = url; a.download = 'project.zip'; a.click()
+  }
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files) {
+          Array.from(e.target.files).forEach(file => {
+              const reader = new FileReader()
+              reader.onload = (ev) => createFile('file', null, file.name, ev.target?.result as string)
+              reader.readAsText(file)
+          })
+          e.target.value = '' // Allow re-upload
+      }
   }
 
   // --- Context Menu ---
   const handleContextMenu = (e: React.MouseEvent, id: string | null) => {
-    if (isReadOnly) return
-    e.preventDefault(); e.stopPropagation()
-    if (id && !selectedIds.includes(id)) setSelectedIds([id])
-    if (editorContainerRef.current) {
-        const rect = editorContainerRef.current.getBoundingClientRect()
-        let x = e.clientX - rect.left
-        let y = e.clientY - rect.top
-        
-        // Boundary check
-        if (x + 160 > rect.width) x = rect.width - 165
-        if (y + 150 > rect.height) y = rect.height - 155
-
-        setCtxMenu({ visible: true, x, y, itemId: id })
-    }
+      if (isReadOnly) return
+      e.preventDefault(); e.stopPropagation()
+      if (id && !selectedIds.includes(id)) setSelectedIds([id])
+      
+      const containerRect = editorContainerRef.current?.getBoundingClientRect()
+      if (containerRect) {
+          let x = e.clientX - containerRect.left
+          let y = e.clientY - containerRect.top
+          // Boundary check
+          if (x + 150 > containerRect.width) x -= 150
+          if (y + 200 > containerRect.height) y -= 200
+          setCtxMenu({ visible: true, x, y, itemId: id })
+      }
   }
 
-  // --- CRUD Operations ---
-  const createItem = (type: FileType) => {
-    if (isReadOnly) return
-    let parentId: string | null = null
-    // If a folder is selected, create inside it. If a file is selected, create in its parent
-    if (selectedIds.length === 1) {
-      const sel = fileSystem.find(f => f.id === selectedIds[0])
-      if (sel) parentId = sel.type === 'folder' ? sel.id : sel.parentId
-    }
-
-    const id = Date.now().toString()
-    const newItem: FileSystemItem = {
-      id, parentId, name: type === 'folder' ? 'NewFolder' : 'untitled.js', type,
-      language: 'javascript', content: type === 'file' ? '' : undefined, isOpen: true
-    }
-
-    setFileSystem(prev => {
-      const next = [...prev, newItem]
-      return parentId ? next.map(f => f.id === parentId ? { ...f, isOpen: true } : f) : next
-    })
-
-    if (type === 'file') { setOpenFiles(prev => [...prev, id]); setActiveFileId(id) }
-    setSelectedIds([id]); setRenamingId(id)
-    setTimeout(() => renameInputRef.current?.focus(), 50)
-  }
-
-  const deleteSelected = () => {
-    if (isReadOnly) return
-    if (selectedIds.length === 0) return
-    if (!confirm(vt.del_confirm)) return
-    
-    let idsToDelete = [...selectedIds]
-    const getChildrenIds = (pid: string): string[] => {
-        const kids = fileSystem.filter(f => f.parentId === pid)
-        return [...kids.map(k => k.id), ...kids.flatMap(k => getChildrenIds(k.id))]
-    }
-    selectedIds.forEach(id => idsToDelete.push(...getChildrenIds(id)))
-
-    setFileSystem(prev => prev.filter(f => !idsToDelete.includes(f.id)))
-    setOpenFiles(prev => prev.filter(fid => !idsToDelete.includes(fid)))
-    setSelectedIds([])
-    if (idsToDelete.includes(activeFileId)) setActiveFileId('')
-  }
-
-  const handleRename = (id: string, newName: string) => {
-    if (isReadOnly) return
-    if (newName.trim()) setFileSystem(prev => prev.map(f => f.id === id ? { ...f, name: newName } : f))
-    setRenamingId(null)
-  }
-
-  // --- File Actions ---
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (isReadOnly) return
-    const files = e.target.files; if (!files) return
-    Array.from(files).forEach(file => {
-        const reader = new FileReader()
-        reader.onload = (ev) => {
-            const id = Date.now().toString() + Math.random()
-            setFileSystem(prev => [...prev, { 
-                id, parentId: null, name: file.name, type: 'file', 
-                language: 'javascript', content: ev.target?.result as string || '' 
-            }])
-        }
-        reader.readAsText(file)
-    })
-    e.target.value = '' // Reset to allow re-upload
-  }
-
-  const handleFolderUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (isReadOnly) return
-    const files = e.target.files; if (!files) return
-    const newItems: FileSystemItem[] = []
-    const folderMap = new Map<string, string>()
-
-    Array.from(files).forEach(file => {
-        const path = file.webkitRelativePath
-        const parts = path.split('/')
-        let currentParentId: string | null = null
-
-        for (let i = 0; i < parts.length - 1; i++) {
-            const folderPath = parts.slice(0, i + 1).join('/')
-            if (!folderMap.has(folderPath)) {
-                const folderId = Date.now().toString() + Math.random()
-                newItems.push({ id: folderId, parentId: currentParentId, name: parts[i], type: 'folder', isOpen: false })
-                folderMap.set(folderPath, folderId)
-                currentParentId = folderId
-            } else {
-                currentParentId = folderMap.get(folderPath)!
-            }
-        }
-
-        const reader = new FileReader()
-        reader.onload = (ev) => {
-            const fileId = Date.now().toString() + Math.random()
-            setFileSystem(prev => [...prev, {
-                id: fileId, parentId: currentParentId, name: file.name, type: 'file',
-                language: 'javascript', content: ev.target?.result as string || ''
-            }])
-        }
-        reader.readAsText(file)
-    })
-    setFileSystem(prev => [...prev, ...newItems])
-    e.target.value = ''
-  }
-
-  const exportZip = async () => {
-    const zip = new JSZip()
-    const add = (pid: string | null, folder: any) => {
-      fileSystem.filter(f => f.parentId === pid).forEach(f => {
-        if (f.type === 'file') folder.file(f.name, f.content || '')
-        else add(f.id, folder.folder(f.name))
-      })
-    }
-    add(null, zip)
-    const blob = await zip.generateAsync({ type: 'blob' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = 'project.zip'; a.click()
-  }
-
-  const loadTemplate = (key: 'vanilla' | 'react') => {
-    if (isReadOnly) return
-    if (confirm('Overwrite current files?')) {
-        // @ts-ignore
-        setFileSystem(TEMPLATES[key]); setOpenFiles([]); setActiveFileId(''); setShowTemplateMenu(false)
-    }
-  }
-
-  const runCode = () => {
-    if (!activeFile || activeFile.type !== 'file') return
-    setShowPreview(true); setConsoleLogs([])
-    let html = ''
-    if (activeFile.language === 'html') html = activeFile.content || ''
-    else if (activeFile.language === 'javascript') {
-      html = `<html><body><script>
-        const _log=console.log; console.log=(...a)=>{window.parent.postMessage({t:'log',m:a.join(' ')},'*');_log(...a)};
-        try{${activeFile.content}}catch(e){console.log('Error:',e.message)}
-      </script></body></html>`
-      setShowConsole(true)
-    } else {
-      html = `<html><style>${activeFile.content}</style><body><h1>CSS Preview</h1></body></html>`
-    }
-    setOutputSrc(html)
-  }
-
-  // --- Rendering Helpers ---
+  // --- Render Components ---
   const FileTreeItem = ({ item, depth }: { item: FileSystemItem, depth: number }) => {
-    const children = getFolderContents(item.id)
-    const isSelected = selectedIds.includes(item.id)
-    const isOver = dragOverId === item.id
-    
-    return (
-      <div className="select-none">
-        <div 
-          draggable={!isReadOnly}
-          data-id={item.id}
-          className={clsx(
-            "file-item-row flex items-center gap-1 py-1 px-2 cursor-pointer border-l-2 text-[13px] relative",
-            isSelected ? "bg-[#37373d] border-blue-400 text-white" : "border-transparent text-[#cccccc] hover:bg-[#2a2d2e]",
-            isOver && "bg-[#2a2d2e] outline outline-1 outline-blue-500"
-          )}
-          style={{ paddingLeft: `${depth * 12 + 8}px` }}
-          onDragStart={(e) => handleDragStart(e, item.id)}
-          onDragOver={(e) => handleDragOver(e, item.id)}
-          onDrop={(e) => handleDrop(e, item.id)}
-          onContextMenu={(e) => handleContextMenu(e, item.id)}
-          onClick={(e) => handleItemClick(e, item.id, item.type)}
-        >
-          <div className="w-4 shrink-0 flex justify-center" onClick={(e) => { e.stopPropagation(); toggleFolder(e, item.id) }}>
-             {item.type === 'folder' && (item.isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />)}
+      const children = getFolderContents(item.id)
+      const isSelected = selectedIds.includes(item.id)
+      const isOver = dragOverId === item.id
+
+      return (
+          <div className="select-none">
+              <div
+                  data-file-id={item.id}
+                  draggable={!isReadOnly}
+                  onDragStart={(e) => handleDragStart(e, item.id)}
+                  onDragOver={(e) => handleDragOver(e, item.id)}
+                  onDrop={(e) => handleDrop(e, item.id)}
+                  onClick={(e) => handleItemClick(e, item.id, item.type)}
+                  onContextMenu={(e) => handleContextMenu(e, item.id)}
+                  className={clsx(
+                      "file-item-row flex items-center gap-1 py-0.5 px-2 cursor-pointer border-l-2 text-[13px] relative transition-colors",
+                      isSelected ? "bg-[#37373d] border-blue-400 text-white" : "border-transparent text-[#cccccc] hover:bg-[#2a2d2e]",
+                      isOver && "bg-[#094771] outline outline-1 outline-blue-400"
+                  )}
+                  style={{ paddingLeft: `${depth * 12 + 8}px` }}
+              >
+                  <div className="w-4 shrink-0 flex justify-center" onClick={(e) => { e.stopPropagation(); toggleFolder(item.id) }}>
+                      {item.type === 'folder' && (item.isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />)}
+                  </div>
+                  <FileIcon name={item.name} type={item.type} isOpen={item.isOpen} />
+                  
+                  {renamingId === item.id ? (
+                      <input 
+                          ref={renameInputRef}
+                          defaultValue={item.name}
+                          className="bg-[#3c3c3c] text-white border border-blue-500 h-5 px-1 ml-1 w-full text-[13px] outline-none"
+                          autoFocus
+                          onClick={e => e.stopPropagation()}
+                          onBlur={(e) => { renameFile(item.id, e.target.value); setRenamingId(null) }}
+                          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                      />
+                  ) : (
+                      <span className={clsx("truncate ml-1 flex-1", item.isUnsaved && "italic text-yellow-200")}>{item.name}</span>
+                  )}
+              </div>
+              {item.type === 'folder' && item.isOpen && children.map(child => <FileTreeItem key={child.id} item={child} depth={depth + 1} />)}
           </div>
-          {item.type === 'folder' ? 
-            (item.isOpen ? <FolderOpen size={14} className="text-blue-300 shrink-0"/> : <Folder size={14} className="text-blue-300 shrink-0"/>) 
-            : <FileIcon name={item.name} type="file" isOpen={false} />
-          }
-          {renamingId === item.id ? (
-            <input 
-              ref={renameInputRef}
-              defaultValue={item.name}
-              className="bg-[#3c3c3c] text-white border border-blue-500 h-5 px-1 ml-1 w-full text-[13px] outline-none"
-              onClick={e => e.stopPropagation()}
-              onBlur={(e) => handleRename(item.id, e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleRename(item.id, e.currentTarget.value)}
-            />
-          ) : (
-            <span className={clsx("truncate ml-1 flex-1", item.isUnsaved && "italic text-yellow-200")}>{item.name}</span>
-          )}
-        </div>
-        {item.type === 'folder' && item.isOpen && children.map(child => <FileTreeItem key={child.id} item={child} depth={depth + 1} />)}
-      </div>
-    )
+      )
   }
 
   // --- Main Render ---
-  const filteredFiles = useMemo(() => {
-    if (!searchQuery) return []
-    const res: any[] = []
-    fileSystem.filter(f => f.type === 'file').forEach(f => {
-        (f.content || '').split('\n').forEach((line, i) => {
-            if (line.toLowerCase().includes(searchQuery.toLowerCase())) res.push({ ...f, line: i + 1, match: line.trim() })
-        })
-    })
-    return res
-  }, [fileSystem, searchQuery])
-
   return (
     <div ref={editorContainerRef} className="flex h-full w-full bg-[#1e1e1e] text-[#cccccc] font-sans text-sm select-none overflow-hidden border border-[#333] rounded-lg relative" onClick={() => { setCtxMenu({...ctxMenu, visible: false}); setShowTemplateMenu(false) }}>
       
-      {/* 1. Activity Bar */}
+      {/* Activity Bar */}
       <div className="w-12 flex flex-col items-center py-3 gap-3 border-r border-[#2b2b2b] bg-[#18181b] shrink-0 z-20">
         <div onClick={() => {setSidebarView('explorer'); setSidebarVisible(true)}} className={clsx("p-2 rounded cursor-pointer", sidebarView === 'explorer' ? "text-white border-l-2 border-white" : "text-[#858585]")}><Files size={24}/></div>
         <div onClick={() => {setSidebarView('search'); setSidebarVisible(true)}} className={clsx("p-2 rounded cursor-pointer", sidebarView === 'search' ? "text-white border-l-2 border-white" : "text-[#858585]")}><Search size={24}/></div>
-        <div onClick={() => {setSidebarView('settings'); setSidebarVisible(true)}} className={clsx("p-2 rounded cursor-pointer mt-auto mb-2", sidebarView === 'settings' ? "text-white border-l-2 border-white" : "text-[#858585]")}><Settings size={24}/></div>
+        <div className="mt-auto mb-2 p-2 rounded cursor-pointer text-[#858585] hover:text-white" onClick={() => setSidebarView('settings')}><Settings size={24}/></div>
       </div>
 
-      {/* 2. Sidebar */}
+      {/* Sidebar */}
       {sidebarVisible && (
       <div className="w-64 bg-[#252526] flex flex-col border-r border-[#2b2b2b] shrink-0 transition-all">
         {sidebarView === 'explorer' && (
             <>
-                <div className="h-10 px-3 flex items-center justify-between border-b border-[#333] shrink-0">
-                    <span className="text-[11px] font-bold uppercase tracking-wider">{isReadOnly ? 'PREVIEW MODE' : vt.explorer}</span>
-                    {!isReadOnly && <div className="flex gap-1 relative">
-                        <button onClick={(e)=>{e.stopPropagation(); setShowTemplateMenu(!showTemplateMenu)}} className="p-1 hover:bg-[#3c3c3c] rounded" title={vt.new_project}><Briefcase size={14}/></button>
-                        <button onClick={()=>createItem('file')} className="p-1 hover:bg-[#3c3c3c] rounded" title={vt.new_file}><FilePlus size={14}/></button>
-                        <button onClick={()=>createItem('folder')} className="p-1 hover:bg-[#3c3c3c] rounded" title={vt.new_folder}><FolderPlus size={14}/></button>
-                        <button onClick={exportZip} className="p-1 hover:bg-[#3c3c3c] rounded" title={vt.export_zip}><Archive size={14}/></button>
-                        <button onClick={()=>uploadFileRef.current?.click()} className="p-1 hover:bg-[#3c3c3c] rounded" title={vt.import_file}><Upload size={14}/></button>
-                        <button onClick={()=>uploadFolderRef.current?.click()} className="p-1 hover:bg-[#3c3c3c] rounded" title={vt.import_folder}><FolderInput size={14}/></button>
-                        
+                <div className="h-9 px-3 flex items-center justify-between bg-[#252526] text-[11px] font-bold uppercase tracking-wider text-[#bbbbbb] shrink-0">
+                    <span>{isReadOnly ? 'PREVIEW MODE' : 'EXPLORER'}</span>
+                    {!isReadOnly && <div className="flex gap-1">
+                        <button onClick={() => createFile('file')} className="p-1 hover:bg-[#3c3c3c] rounded" title="New File"><FilePlus size={14}/></button>
+                        <button onClick={() => createFile('folder')} className="p-1 hover:bg-[#3c3c3c] rounded" title="New Folder"><FolderPlus size={14}/></button>
+                        <button onClick={() => exportZip()} className="p-1 hover:bg-[#3c3c3c] rounded" title="Download Zip"><Archive size={14}/></button>
+                        <button onClick={() => uploadFileRef.current?.click()} className="p-1 hover:bg-[#3c3c3c] rounded" title="Upload File"><Upload size={14}/></button>
                         <input type="file" ref={uploadFileRef} hidden multiple onChange={handleFileUpload} />
-                        {/* @ts-ignore */}
-                        <input type="file" ref={uploadFolderRef} hidden webkitdirectory="" directory="" multiple onChange={handleFolderUpload} />
-
-                        {showTemplateMenu && (
-                            <div className="absolute top-7 right-0 w-40 bg-[#252526] border border-[#454545] shadow-xl rounded z-50 py-1">
-                                <div className="px-3 py-1 text-xs font-bold text-gray-500 border-b border-[#333] mb-1">{vt.projects}</div>
-                                <div onClick={()=>loadTemplate('vanilla')} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer text-xs">{vt.tpl_vanilla}</div>
-                                <div onClick={()=>loadTemplate('react')} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer text-xs">{vt.tpl_react}</div>
-                            </div>
-                        )}
                     </div>}
                 </div>
-                {/* File Tree + Marquee */}
+                
+                {/* File Tree Area */}
                 <div 
                     ref={fileListRef}
-                    className={clsx("flex-1 overflow-y-auto custom-scrollbar p-1 relative", dragOverId === 'root' && "bg-[#2a2d2e] outline outline-1 outline-blue-500")}
-                    onContextMenu={(e) => handleContextMenu(e, null)}
-                    onDragOver={(e) => handleDragOver(e, null)}
-                    onDrop={(e) => handleDrop(e, null)}
+                    className={clsx("flex-1 overflow-y-auto custom-scrollbar relative", dragOverId === 'root' && "bg-[#2a2d2e] outline outline-1 outline-blue-500")}
                     onMouseDown={handleMouseDown}
                     onMouseMove={handleMouseMove}
                     onMouseUp={handleMouseUp}
                     onMouseLeave={handleMouseUp}
+                    onDragOver={(e) => handleDragOver(e, null)}
+                    onDrop={(e) => handleDrop(e, 'root')}
+                    onContextMenu={(e) => handleContextMenu(e, null)}
                 >
                     {getFolderContents(null).map(item => <FileTreeItem key={item.id} item={item} depth={0} />)}
+                    
+                    {/* Marquee Box */}
                     {isSelecting && selectionBox && (
-                        <div className="absolute bg-blue-500/20 border border-blue-500 pointer-events-none z-50" style={{ left: selectionBox.x, top: selectionBox.y, width: selectionBox.w, height: selectionBox.h }} />
+                        <div 
+                            className="absolute bg-blue-500/20 border border-blue-500 pointer-events-none z-50" 
+                            style={{ 
+                                left: selectionBox.x, top: selectionBox.y, 
+                                width: selectionBox.w, height: selectionBox.h 
+                            }} 
+                        />
                     )}
                 </div>
             </>
         )}
-        
+
         {sidebarView === 'search' && (
             <div className="p-3">
-                <div className="text-[11px] font-bold uppercase mb-2">{vt.search}</div>
-                <input type="text" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder={vt.search_ph} className="w-full bg-[#3c3c3c] border border-[#3c3c3c] focus:border-blue-500 outline-none text-white text-xs px-2 py-1.5 rounded" autoFocus />
-                <div className="flex-1 overflow-y-auto mt-2">
-                    {filteredFiles.map((res, i) => (
-                        <div key={i} onClick={() => openFile(res.id)} className="px-3 py-2 hover:bg-[#37373d] cursor-pointer border-b border-[#333]">
-                            <div className="flex items-center gap-2 text-xs font-bold text-[#e0e0e0] mb-1"><FileIcon name={res.name} type="file"/> {res.name}</div>
-                            <div className="text-xs text-[#999] font-mono pl-4 line-clamp-2 bg-[#2a2d2e] p-1 rounded"><span className="text-[#666] mr-2">{res.line}:</span>{res.match}</div>
+                <div className="text-[11px] font-bold uppercase mb-2">SEARCH</div>
+                <input 
+                    type="text" 
+                    value={searchQuery} 
+                    onChange={e => setSearchQuery(e.target.value)} 
+                    placeholder="Search files..." 
+                    className="w-full bg-[#3c3c3c] border border-[#3c3c3c] focus:border-blue-500 outline-none text-white text-xs px-2 py-1 rounded" 
+                    autoFocus 
+                />
+                <div className="mt-2 text-xs text-[#ccc]">
+                    {filteredFiles.map(f => (
+                        <div key={f.id} onClick={() => activateTab(f.id)} className="p-1 hover:bg-[#37373d] cursor-pointer flex items-center gap-2">
+                            <FileCode size={12}/> {f.name} <span className="opacity-50 text-[10px]">Ln {f.line}</span>
                         </div>
                     ))}
                 </div>
             </div>
         )}
-
-        {sidebarView === 'settings' && (
-            <div className="p-4 space-y-6">
-                <div className="text-[11px] font-bold uppercase text-white mb-2 border-b border-[#333] pb-2">{vt.editor_config}</div>
-                <div className="space-y-2">
-                    <div className="text-xs text-gray-200 flex justify-between"><span>{vt.font_size}</span><span>{config.fontSize}px</span></div>
-                    <input type="range" min="10" max="24" value={config.fontSize} onChange={(e)=>setConfig({...config, fontSize: parseInt(e.target.value)})} className="w-full h-1 bg-[#444] rounded-lg appearance-none cursor-pointer accent-blue-500"/>
-                </div>
-                <div className="flex justify-between cursor-pointer items-center" onClick={()=>setConfig({...config, showLineNumbers: !config.showLineNumbers})}><span className="text-xs text-gray-200">{vt.line_numbers}</span>{config.showLineNumbers ? <ToggleRight size={24} className="text-blue-500"/> : <ToggleLeft size={24} className="text-[#666]"/>}</div>
-                <div className="flex justify-between cursor-pointer items-center" onClick={()=>setConfig({...config, wordWrap: !config.wordWrap})}><span className="text-xs text-gray-200">{vt.word_wrap}</span>{config.wordWrap ? <ToggleRight size={24} className="text-blue-500"/> : <ToggleLeft size={24} className="text-[#666]"/>}</div>
-            </div>
-        )}
       </div>
       )}
 
-      {/* 3. Editor Area */}
+      {/* Editor Area */}
       <div className="flex-1 flex flex-col min-w-0 bg-[#1e1e1e]">
         {activeFile ? (
             <>
+                {/* Tabs */}
                 <div className="h-9 flex bg-[#252526] border-b border-[#2b2b2b] overflow-x-auto scrollbar-none">
                     {openFiles.map(fid => {
-                        const f = fileSystem.find(x => x.id === fid); if (!f) return null
+                        const f = fs.find(x => x.id === fid); if (!f) return null
                         return (
-                            <div key={f.id} onClick={(e)=>{e.stopPropagation(); setActiveFileId(f.id)}} className={clsx("group px-3 flex items-center gap-2 min-w-[120px] max-w-[200px] text-xs border-r border-[#2b2b2b] cursor-pointer select-none", activeFileId===f.id ? "bg-[#1e1e1e] text-white border-t-2 border-t-blue-500" : "text-[#969696]")}>
+                            <div 
+                                key={f.id} 
+                                onClick={() => setActiveFileId(f.id)} 
+                                className={clsx(
+                                    "group px-3 flex items-center gap-2 min-w-[120px] max-w-[200px] text-xs border-r border-[#2b2b2b] cursor-pointer select-none", 
+                                    activeFileId===f.id ? "bg-[#1e1e1e] text-white border-t-2 border-t-blue-500" : "text-[#969696] bg-[#2d2d2d]"
+                                )}
+                            >
                                 <FileIcon name={f.name} type="file" />
-                                <span className="truncate flex-1">{f.name} {isReadOnly && '(Preview)'}</span>
-                                {!isReadOnly && <X size={14} className={clsx("opacity-0 hover:bg-[#444] rounded p-0.5", activeFileId===f.id ? "opacity-100" : "group-hover:opacity-100")} onClick={(e) => {
-                                    e.stopPropagation()
-                                    const nextOpen = openFiles.filter(id => id !== f.id)
-                                    setOpenFiles(nextOpen)
-                                    if(activeFileId === f.id) setActiveFileId(nextOpen[nextOpen.length-1] || '')
-                                }} />}
+                                <span className={clsx("truncate flex-1", f.isUnsaved && "italic")}>{f.name} {f.isUnsaved && '●'}</span>
+                                <X size={14} className="opacity-0 group-hover:opacity-100 hover:bg-[#444] rounded p-0.5" onClick={(e) => { e.stopPropagation(); closeTab(f.id) }} />
                             </div>
                         )
                     })}
                 </div>
                 
-                <div className="h-8 flex items-center px-4 justify-between bg-[#1e1e1e] border-b border-[#2b2b2b] shrink-0">
-                    <div className="flex items-center gap-2 text-xs text-[#858585]"><span>src</span> <ChevronRight size={12}/> <span>{activeFile.name}</span></div>
+                {/* Breadcrumbs & Actions */}
+                <div className="h-6 flex items-center px-4 justify-between bg-[#1e1e1e] border-b border-[#2b2b2b] shrink-0">
+                    <div className="flex items-center gap-1 text-xs text-[#858585]">
+                        <span>src</span> <ChevronRight size={12}/> <span>{activeFile.name}</span>
+                    </div>
                     <div className="flex items-center gap-2">
-                        <button onClick={runCode} className="flex items-center gap-1 px-2 py-0.5 bg-[#238636] hover:bg-[#2ea043] text-white rounded text-xs"><Play size={10} fill="currentColor"/> {vt.run}</button>
-                        <button onClick={()=>setShowPreview(!showPreview)} className={clsx("p-1 rounded hover:bg-[#333]", showPreview?"text-white":"text-[#858585]")}><LayoutTemplate size={14}/></button>
+                        <button onClick={handleRun} className="flex items-center gap-1 px-2 py-0.5 hover:bg-[#333] rounded text-white text-[10px]"><Play size={10} className="text-green-500"/> Run</button>
+                        <button onClick={() => setShowPreview(!showPreview)} className={clsx("p-1 rounded hover:bg-[#333]", showPreview && "text-white")}><LayoutTemplate size={12}/></button>
                     </div>
                 </div>
 
                 <div className="flex-1 flex overflow-hidden relative">
+                    {/* Code Editor */}
                     <div className={clsx("flex flex-col h-full transition-all duration-300", showPreview ? "w-1/2 border-r border-[#2b2b2b]" : "w-full")}>
                         <div className="flex-1 relative flex">
                             {config.showLineNumbers && (
-                                <div ref={lineNumRef} className="w-10 bg-[#1e1e1e] text-[#6e7681] text-right pr-2 pt-4 text-xs font-mono leading-[1.5rem] border-r border-[#2b2b2b] overflow-hidden" style={{ fontSize: config.fontSize }}>
+                                <div className="w-10 bg-[#1e1e1e] text-[#6e7681] text-right pr-2 pt-4 text-xs font-mono leading-[1.5rem] border-r border-[#2b2b2b] select-none">
                                     {Array.from({length: (activeFile.content||'').split('\n').length}).map((_,i)=><div key={i}>{i+1}</div>)}
                                 </div>
                             )}
                             <textarea 
-                                ref={textAreaRef}
+                                ref={editorRef}
                                 value={activeFile.content || ''}
                                 readOnly={isReadOnly}
-                                onChange={(e) => !isReadOnly && setFileSystem(p => p.map(f => f.id === activeFileId ? { ...f, content: e.target.value, isUnsaved: true } : f))}
+                                onChange={(e) => updateFileContent(activeFile.id, e.target.value)}
                                 onKeyDown={(e) => {
-                                    if(isReadOnly) return
-                                    if(e.key==='Tab'){e.preventDefault();const t=e.target as HTMLTextAreaElement;const s=t.selectionStart;t.value=t.value.substring(0,s)+'  '+t.value.substring(t.selectionEnd);t.selectionStart=t.selectionEnd=s+2;setFileSystem(p=>p.map(f=>f.id===activeFileId?{...f,content:t.value}:f))}
-                                    if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();setFileSystem(p=>p.map(f=>f.id===activeFileId?{...f,isUnsaved:false}:f))}
+                                    if (e.key === 'Tab') {
+                                        e.preventDefault();
+                                        const start = e.currentTarget.selectionStart;
+                                        const end = e.currentTarget.selectionEnd;
+                                        const value = e.currentTarget.value;
+                                        updateFileContent(activeFile.id, value.substring(0, start) + '  ' + value.substring(end));
+                                        requestAnimationFrame(() => {
+                                            if (editorRef.current) {
+                                                editorRef.current.selectionStart = editorRef.current.selectionEnd = start + 2;
+                                            }
+                                        });
+                                    }
+                                    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                                        e.preventDefault();
+                                        saveFile(activeFile.id);
+                                    }
                                 }}
-                                onScroll={(e) => { if(lineNumRef.current) lineNumRef.current.scrollTop = e.currentTarget.scrollTop }}
                                 spellCheck={false}
-                                className="flex-1 h-full bg-[#1e1e1e] text-[#d4d4d4] font-mono leading-[1.5rem] pt-4 px-2 resize-none outline-none border-none tab-4"
-                                style={{ fontSize: config.fontSize, whiteSpace: config.wordWrap ? 'pre-wrap' : 'pre', fontFamily: "Menlo, Monaco, monospace" }}
+                                className="flex-1 h-full bg-[#1e1e1e] text-[#d4d4d4] font-mono leading-[1.5rem] pt-4 px-2 resize-none outline-none border-none whitespace-pre"
+                                style={{ fontSize: config.fontSize, fontFamily: "Menlo, Monaco, 'Courier New', monospace" }}
                             />
                         </div>
-                        {!isReadOnly && <div className={clsx("border-t border-[#2b2b2b] bg-[#18181b] flex flex-col transition-all", showConsole?"h-32":"h-6")}>
-                            <div className="h-6 px-3 flex items-center justify-between text-xs bg-[#2b2b2b] cursor-pointer hover:bg-[#333]" onClick={()=>setShowConsole(!showConsole)}>
-                                <span className="font-bold text-[#cccccc] flex items-center gap-2"><TerminalIcon size={12}/> {vt.terminal}</span><ChevronDown size={14} className={clsx("transition-transform", !showConsole&&"-rotate-90")}/>
+                        
+                        {/* Terminal Panel */}
+                        <div className={clsx("border-t border-[#2b2b2b] bg-[#18181b] flex flex-col transition-all", showConsole ? "h-32" : "h-6")}>
+                            <div className="h-6 px-3 flex items-center justify-between text-xs bg-[#2b2b2b] cursor-pointer hover:bg-[#333] border-t border-[#2b2b2b]" onClick={() => setShowConsole(!showConsole)}>
+                                <div className="flex items-center gap-2 font-bold text-[#cccccc]"><TerminalIcon size={12}/> TERMINAL / CONSOLE</div>
+                                <ChevronDown size={14} className={clsx("transition-transform", !showConsole && "-rotate-90")}/>
                             </div>
                             {showConsole && (
-                                <div className="flex-1 overflow-y-auto p-2 font-mono text-xs space-y-1 text-[#cccccc]">
-                                    {consoleLogs.length===0?<div className="text-[#666]">{vt.console_ready}</div>:consoleLogs.map((l,i)=><div key={i} className="border-b border-[#333] pb-1">{l}</div>)}
+                                <div className="flex-1 overflow-y-auto p-2 font-mono text-xs text-[#cccccc] space-y-1">
+                                    {consoleLogs.length === 0 && <div className="text-[#666]">Console ready. Run code to see output.</div>}
+                                    {consoleLogs.map((log, i) => (
+                                        <div key={i} className="border-b border-[#333] pb-0.5">{log}</div>
+                                    ))}
                                     <div ref={terminalEndRef} />
                                 </div>
                             )}
-                        </div>}
+                        </div>
                     </div>
-                    {showPreview && <div className="flex-1 bg-white h-full relative flex flex-col"><div className="h-8 bg-[#f3f3f3] border-b border-[#ddd] flex items-center px-3 text-xs text-[#555] justify-between"><span>{vt.preview}</span><button onClick={()=>setShowPreview(false)} className="hover:bg-[#ddd] p-1 rounded"><X size={12}/></button></div><iframe srcDoc={outputSrc} className="flex-1 w-full border-none bg-white"/></div>}
+
+                    {/* Preview Panel */}
+                    {showPreview && (
+                        <div className="flex-1 bg-white h-full relative flex flex-col">
+                            <div className="h-8 bg-[#f3f3f3] border-b border-[#ddd] flex items-center px-3 text-xs text-[#555] justify-between">
+                                <span>Preview</span>
+                                <button onClick={() => setShowPreview(false)} className="hover:bg-[#ddd] p-1 rounded"><X size={12}/></button>
+                            </div>
+                            <iframe srcDoc={outputSrc} className="flex-1 w-full border-none bg-white" sandbox="allow-scripts" />
+                        </div>
+                    )}
                 </div>
             </>
         ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-[#555]"><Files size={64} className="mb-4 opacity-20"/><p>Select a file to edit</p></div>
+            <div className="flex-1 flex flex-col items-center justify-center text-[#555]">
+                <Files size={64} className="mb-4 opacity-20"/>
+                <p>Select a file to start editing</p>
+                <div className="text-xs mt-2 opacity-50">Cmd+S to save • Drag & Drop supported</div>
+            </div>
         )}
-        <div className="h-6 bg-[#007acc] text-white flex items-center px-3 text-[11px] justify-between shrink-0 select-none cursor-default"><div className="flex gap-3"><div className="flex items-center gap-1"><GitBranch size={10} /> main</div></div><div className="flex gap-3"><div>Ln {(activeFile?.content||'').split('\n').length}</div><div>UTF-8</div><div className="uppercase">{activeFile?.language||'TXT'}</div></div></div>
+        
+        {/* Footer */}
+        <div className="h-5 bg-[#007acc] text-white flex items-center px-3 text-[10px] justify-between shrink-0 select-none cursor-default">
+            <div className="flex gap-3"><div className="flex items-center gap-1"><GitBranch size={10} /> main</div></div>
+            <div className="flex gap-3">
+                {activeFile && <span>Ln {(activeFile.content||'').split('\n').length}</span>}
+                <span>UTF-8</span>
+                <span className="uppercase">{activeFile?.language || 'TXT'}</span>
+            </div>
+        </div>
       </div>
 
-      {/* 4. Context Menu */}
-      {ctxMenu.visible && !isReadOnly && (
-        <div className="absolute z-50 bg-[#252526] border border-[#454545] shadow-xl rounded py-1 min-w-[160px] text-xs text-[#cccccc]" style={{ top: ctxMenu.y, left: ctxMenu.x }}>
+      {/* Context Menu */}
+      {ctxMenu.visible && (
+        <div 
+            className="absolute z-50 bg-[#252526] border border-[#454545] shadow-xl rounded py-1 min-w-[160px] text-xs text-[#cccccc]" 
+            style={{ top: ctxMenu.y, left: ctxMenu.x }}
+            onClick={(e) => e.stopPropagation()} // Prevent closing immediately
+        >
             {ctxMenu.itemId ? (
                 <>
-                    <div onClick={(e)=>{e.stopPropagation(); setRenamingId(ctxMenu.itemId); setCtxMenu({...ctxMenu,visible:false}); setTimeout(()=>renameInputRef.current?.focus(),50) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Edit3 size={12}/> {vt.rename}</div>
-                    <div onClick={(e)=>{e.stopPropagation(); deleteSelected(); setCtxMenu({...ctxMenu,visible:false})}} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2 text-red-400"><Trash2 size={12}/> {vt.delete}</div>
+                    <div onClick={() => { setRenamingId(ctxMenu.itemId); setCtxMenu({...ctxMenu, visible:false}); setTimeout(() => renameInputRef.current?.focus(), 50) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Edit3 size={12}/> Rename</div>
+                    <div onClick={() => { deleteFiles(selectedIds.includes(ctxMenu.itemId!) ? selectedIds : [ctxMenu.itemId!]); setCtxMenu({...ctxMenu, visible:false}) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2 text-red-400"><Trash2 size={12}/> Delete</div>
                     <div className="h-[1px] bg-[#454545] my-1" />
-                    <div onClick={(e)=>{e.stopPropagation(); const f=fileSystem.find(x=>x.id===ctxMenu.itemId); if(f && f.type==='file'){const blob=new Blob([f.content||''],{type:'text/plain'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=f.name;a.click();} setCtxMenu({...ctxMenu,visible:false})}} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Download size={12}/> {vt.download}</div>
+                    <div className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Download size={12}/> Download</div>
                 </>
             ) : (
                 <>
-                    <div onClick={()=>{e.stopPropagation(); setShowTemplateMenu(true); setCtxMenu({...ctxMenu,visible:false})}} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Briefcase size={12}/> {vt.new_project}</div>
+                    <div onClick={() => { createFile('file'); setCtxMenu({...ctxMenu, visible:false}) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><FilePlus size={12}/> New File</div>
+                    <div onClick={() => { createFile('folder'); setCtxMenu({...ctxMenu, visible:false}) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><FolderPlus size={12}/> New Folder</div>
                     <div className="h-[1px] bg-[#454545] my-1" />
-                    <div onClick={()=>{createItem('file'); setCtxMenu({...ctxMenu,visible:false})}} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><FilePlus size={12}/> {vt.new_file}</div>
-                    <div onClick={()=>{createItem('folder'); setCtxMenu({...ctxMenu,visible:false})}} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><FolderPlus size={12}/> {vt.new_folder}</div>
-                    <div className="h-[1px] bg-[#454545] my-1" />
-                    <div onClick={()=>{uploadFileRef.current?.click(); setCtxMenu({...ctxMenu,visible:false})}} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Upload size={12}/> {vt.import_file}</div>
-                    <div onClick={()=>{uploadFolderRef.current?.click(); setCtxMenu({...ctxMenu,visible:false})}} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><FolderInput size={12}/> {vt.import_folder}</div>
-                    <div className="h-[1px] bg-[#454545] my-1" />
-                    <div onClick={()=>{exportZip(); setCtxMenu({...ctxMenu,visible:false})}} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Archive size={12}/> {vt.export_zip}</div>
+                    <div onClick={() => { uploadFileRef.current?.click(); setCtxMenu({...ctxMenu, visible:false}) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Upload size={12}/> Upload Files</div>
                 </>
             )}
         </div>
