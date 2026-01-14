@@ -30,7 +30,7 @@ export const INITIAL_APPS: AppConfig[] = [
   { id: 'vscode', title: 'VS Code', icon: <PngIcon src="/icons/vscode.png" alt="VS Code" />, width: 1100, height: 700, component: <VSCode /> },
   { id: 'terminal', title: 'Terminal', icon: <PngIcon src="/icons/terminal.png" alt="Terminal" />, width: 600, height: 400, component: <Terminal /> },
   
-  // Siri (新增)
+  // Siri
   { 
       id: 'siri', 
       title: 'Siri', 
@@ -56,17 +56,19 @@ export const INITIAL_APPS: AppConfig[] = [
     component: <StorageManager /> 
   },
   
-  // 鸣潮 (新增)
+  // 鸣潮 (更新：适应云游戏尺寸)
   {
     id: 'wuthering_waves',
     title: 'Wuthering Waves',
     icon: <div className="w-full h-full bg-black rounded-xl flex items-center justify-center text-yellow-400 border border-yellow-500/50 shadow-lg"><Gamepad2 /></div>,
-    width: 960,
-    height: 540,
+    width: 1280,
+    height: 760, // 稍微高一点，留出顶部工具栏空间
+    minWidth: 1024,
+    minHeight: 576,
     component: <WutheringWavesLauncher />
   },
 
-  // Preview (隐藏应用，用于文件预览)
+  // Preview
   { 
       id: 'preview', 
       title: 'Preview', 
