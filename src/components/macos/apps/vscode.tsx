@@ -3,12 +3,10 @@
 import React, { useState, useRef, useEffect, useMemo, createContext, useContext } from 'react'
 import { 
   Search, Files, Play, X, ChevronRight, ChevronDown, 
-  LayoutTemplate, Plus, Upload, Download, Trash2, 
-  FileCode, // 核心修复：确保导入了 FileCode
   Settings, ToggleLeft, ToggleRight, GitBranch,
   Folder, FolderOpen, Archive, FilePlus, FolderPlus, 
   Briefcase, Edit3, FolderInput, Terminal as TerminalIcon,
-  Command, Search as SearchIcon, MoreHorizontal
+  Command, Search as SearchIcon, MoreHorizontal, Download, Upload, FileCode // Correct Import
 } from 'lucide-react'
 import { clsx } from '../utils'
 import { useI18n } from '../i18n-context'
@@ -168,7 +166,7 @@ const FileTreeItem = ({ item, depth }: { item: FileSystemItem, depth: number }) 
 
 export const VSCode = ({ previewFile }: VSCodeProps) => {
   const { t: translate } = useI18n()
-  const t = (key: string) => translate(key) 
+  const t = (key: string) => translate(key) || key
 
   const isReadOnly = !!previewFile
 
@@ -528,17 +526,17 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
                 {sidebarView === 'explorer' && (
                     <>
                         <div className="h-9 px-3 flex items-center justify-between bg-[#252526] text-[11px] font-bold uppercase tracking-wider text-[#bbbbbb] shrink-0 group">
-                            <span>{isReadOnly ? 'PREVIEW MODE' : 'EXPLORER'}</span>
+                            <span>{isReadOnly ? t('preview') : t('explorer')}</span>
                             {!isReadOnly && <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => createFile('file')} className="p-1 hover:bg-[#3c3c3c] rounded" title="New File"><FilePlus size={14}/></button>
-                                <button onClick={() => createFile('folder')} className="p-1 hover:bg-[#3c3c3c] rounded" title="New Folder"><FolderPlus size={14}/></button>
+                                <button onClick={() => createFile('file')} className="p-1 hover:bg-[#3c3c3c] rounded" title={t('new_file')}><FilePlus size={14}/></button>
+                                <button onClick={() => createFile('folder')} className="p-1 hover:bg-[#3c3c3c] rounded" title={t('new_folder')}><FolderPlus size={14}/></button>
                                 <button onClick={() => {e.stopPropagation(); setShowTemplateMenu(!showTemplateMenu)}} className="p-1 hover:bg-[#3c3c3c] rounded"><MoreHorizontal size={14}/></button>
                             </div>}
                         </div>
                         {showTemplateMenu && (
                             <div className="absolute top-9 right-2 w-40 bg-[#252526] border border-[#454545] shadow-xl rounded z-50 py-1">
-                                <div onClick={handleZipExport} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer text-xs flex gap-2 items-center"><Archive size={12}/> Export .zip</div>
-                                <div onClick={()=>uploadFileRef.current?.click()} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer text-xs flex gap-2 items-center"><Upload size={12}/> Import File</div>
+                                <div onClick={handleZipExport} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer text-xs flex gap-2 items-center"><Archive size={12}/> {t('export_zip')}</div>
+                                <div onClick={()=>uploadFileRef.current?.click()} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer text-xs flex gap-2 items-center"><Upload size={12}/> {t('import_file')}</div>
                                 <input type="file" ref={uploadFileRef} hidden multiple onChange={handleFileUpload} />
                             </div>
                         )}
@@ -564,13 +562,13 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
                 {sidebarView === 'search' && (
                     <div className="flex flex-col h-full">
                         <div className="p-3">
-                            <div className="text-[11px] font-bold uppercase mb-2">SEARCH</div>
+                            <div className="text-[11px] font-bold uppercase mb-2">{t('search')}</div>
                             <div className="relative">
                                 <input 
                                     type="text" 
                                     value={searchQuery} 
                                     onChange={e => setSearchQuery(e.target.value)} 
-                                    placeholder="Search" 
+                                    placeholder={t('search_placeholder')} 
                                     className="w-full bg-[#3c3c3c] border border-[#3c3c3c] focus:border-blue-500 outline-none text-white text-xs px-2 py-1 rounded pl-7" 
                                     autoFocus 
                                 />
@@ -591,25 +589,25 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
 
                 {sidebarView === 'settings' && (
                     <div className="p-4 space-y-6">
-                        <div className="text-[11px] font-bold uppercase text-white mb-2 border-b border-[#333] pb-2">User Settings</div>
+                        <div className="text-[11px] font-bold uppercase text-white mb-2 border-b border-[#333] pb-2">{t('user_settings')}</div>
                         
                         <div className="space-y-2">
-                            <div className="text-xs text-gray-200 flex justify-between"><span>Font Size</span><span>{config.fontSize}px</span></div>
+                            <div className="text-xs text-gray-200 flex justify-between"><span>{t('font_size')}</span><span>{config.fontSize}px</span></div>
                             <input type="range" min="10" max="24" value={config.fontSize} onChange={(e)=>setConfig({...config, fontSize: parseInt(e.target.value)})} className="w-full h-1 bg-[#444] rounded-lg appearance-none cursor-pointer accent-blue-500"/>
                         </div>
 
                         <div className="flex justify-between cursor-pointer items-center" onClick={()=>setConfig({...config, showLineNumbers: !config.showLineNumbers})}>
-                            <span className="text-xs text-gray-200">Line Numbers</span>
+                            <span className="text-xs text-gray-200">{t('line_numbers')}</span>
                             {config.showLineNumbers ? <ToggleRight size={24} className="text-blue-500"/> : <ToggleLeft size={24} className="text-[#666]"/>}
                         </div>
 
                         <div className="flex justify-between cursor-pointer items-center" onClick={()=>setConfig({...config, wordWrap: !config.wordWrap})}>
-                            <span className="text-xs text-gray-200">Word Wrap</span>
+                            <span className="text-xs text-gray-200">{t('word_wrap')}</span>
                             {config.wordWrap ? <ToggleRight size={24} className="text-blue-500"/> : <ToggleLeft size={24} className="text-[#666]"/>}
                         </div>
                         
                         <div className="flex justify-between cursor-pointer items-center" onClick={()=>setConfig({...config, minimap: !config.minimap})}>
-                            <span className="text-xs text-gray-200">Minimap</span>
+                            <span className="text-xs text-gray-200">{t('minimap')}</span>
                             {config.minimap ? <ToggleRight size={24} className="text-blue-500"/> : <ToggleLeft size={24} className="text-[#666]"/>}
                         </div>
                     </div>
@@ -648,7 +646,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
                                 <span>src</span> <ChevronRight size={12}/> <span>{activeFile.name}</span>
                             </div>
                             <div className="flex items-center gap-2">
-                                <button onClick={handleRun} className="flex items-center gap-1 px-2 py-0.5 hover:bg-[#333] rounded text-white text-[10px]"><Play size={10} className="text-green-500"/> Run</button>
+                                <button onClick={handleRun} className="flex items-center gap-1 px-2 py-0.5 hover:bg-[#333] rounded text-white text-[10px]"><Play size={10} className="text-green-500"/> {t('run')}</button>
                                 <button onClick={() => setShowPreview(!showPreview)} className={clsx("p-1 rounded hover:bg-[#333]", showPreview && "text-white")}><LayoutTemplate size={12}/></button>
                             </div>
                         </div>
@@ -702,20 +700,20 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
                             </div>
                             {showPreview && (
                                 <div className="flex-1 bg-white h-full relative flex flex-col">
-                                    <div className="h-8 bg-[#f3f3f3] border-b border-[#ddd] flex items-center px-3 text-xs text-[#555] justify-between"><span>Preview</span><button onClick={()=>setShowPreview(false)}><X size={12}/></button></div>
+                                    <div className="h-8 bg-[#f3f3f3] border-b border-[#ddd] flex items-center px-3 text-xs text-[#555] justify-between"><span>{t('preview')}</span><button onClick={()=>setShowPreview(false)}><X size={12}/></button></div>
                                     <iframe srcDoc={outputSrc} className="flex-1 w-full border-none bg-white" sandbox="allow-scripts"/>
                                 </div>
                             )}
                         </div>
                     </>
                 ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-[#555]"><Files size={64} className="mb-4 opacity-20"/><p>Select a file to start</p></div>
+                    <div className="flex-1 flex flex-col items-center justify-center text-[#555]"><Files size={64} className="mb-4 opacity-20"/><p>{t('select_to_start')}</p></div>
                 )}
                 
                 <div className="h-5 bg-[#007acc] text-white flex items-center px-3 text-[10px] justify-between shrink-0 select-none cursor-default">
                     <div className="flex gap-3"><div className="flex items-center gap-1"><GitBranch size={10} /> main</div></div>
                     <div className="flex gap-3">
-                        {activeFile && <span>Ln {(activeFile.content||'').split('\n').length}, Col 1</span>}
+                        {activeFile && <span>{t('ln')} {(activeFile.content||'').split('\n').length}, {t('col')} 1</span>}
                         <span>UTF-8</span>
                         <span className="uppercase">{activeFile?.language||'TXT'}</span>
                     </div>
@@ -727,17 +725,17 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
                 <div className="absolute z-50 bg-[#252526] border border-[#454545] shadow-xl rounded py-1 min-w-[160px] text-xs text-[#cccccc]" style={{ top: ctxMenu.y, left: ctxMenu.x }} onClick={e => e.stopPropagation()}>
                     {ctxMenu.itemId ? (
                         <>
-                            <div onClick={() => { setRenamingId(ctxMenu.itemId); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Edit3 size={12}/> Rename</div>
-                            <div onClick={() => { deleteFiles(selectedIds.includes(ctxMenu.itemId!) ? selectedIds : [ctxMenu.itemId!]); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2 text-red-400"><Trash2 size={12}/> Delete</div>
+                            <div onClick={() => { setRenamingId(ctxMenu.itemId); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Edit3 size={12}/> {t('rename')}</div>
+                            <div onClick={() => { deleteFiles(selectedIds.includes(ctxMenu.itemId!) ? selectedIds : [ctxMenu.itemId!]); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2 text-red-400"><Trash2 size={12}/> {t('delete')}</div>
                             <div className="h-[1px] bg-[#454545] my-1" />
-                            <div className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Download size={12}/> Download</div>
+                            <div className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Download size={12}/> {t('download')}</div>
                         </>
                     ) : (
                         <>
-                            <div onClick={() => { createFile('file'); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><FilePlus size={12}/> New File</div>
-                            <div onClick={() => { createFile('folder'); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><FolderPlus size={12}/> New Folder</div>
+                            <div onClick={() => { createFile('file'); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><FilePlus size={12}/> {t('new_file')}</div>
+                            <div onClick={() => { createFile('folder'); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><FolderPlus size={12}/> {t('new_folder')}</div>
                             <div className="h-[1px] bg-[#454545] my-1" />
-                            <div onClick={() => { uploadFileRef.current?.click(); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Upload size={12}/> Upload</div>
+                            <div onClick={() => { uploadFileRef.current?.click(); setCtxMenu(p=>({...p,visible:false})) }} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer flex gap-2"><Upload size={12}/> {t('upload')}</div>
                         </>
                     )}
                 </div>

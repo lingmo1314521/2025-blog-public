@@ -22,7 +22,7 @@ export const TRANSLATIONS = {
     'settings': 'Settings',
     'about': 'About Lynx',
     'text-editor': 'TextEdit',
-    'storage_manager': 'File Manager', // 改名更高级
+    'storage_manager': 'File Manager',
 
     // --- System Menu ---
     'about_mac': 'About This Portfolio',
@@ -33,63 +33,55 @@ export const TRANSLATIONS = {
     'lock_screen': 'Lock Screen',
     'log_out': 'Log Out LynxMuse...',
 
-    // --- Top Bar ---
+    // --- Top Bar & General Actions ---
     'file': 'File', 'edit': 'Edit', 'view': 'View', 'window': 'Window', 'help': 'Help',
-    'new_window': 'New Window', 'new_folder': 'New Folder', 'open': 'Open...', 
-    'close_window': 'Close Window',
+    'new_window': 'New Window', 'new_folder': 'New Folder', 'new_file': 'New File',
+    'open': 'Open...', 'close_window': 'Close Window', 'save': 'Save',
     'undo': 'Undo', 'redo': 'Redo', 'cut': 'Cut', 'copy': 'Copy', 'paste': 'Paste', 'select_all': 'Select All',
     'enter_fullscreen': 'Enter Full Screen', 'exit_fullscreen': 'Exit Full Screen', 
-    'actual_size': 'Actual Size', 'zoom_in': 'Zoom In', 'zoom_out': 'Zoom Out',
-    'minimize': 'Minimize', 'zoom': 'Zoom', 'bring_all_front': 'Bring All to Front',
-    'search_help': 'Search', 'get_help': 'Get Help',
-    'about_app': 'About', 'hide_app': 'Hide', 'hide_others': 'Hide Others', 'show_all': 'Show All', 'quit_app': 'Quit',
+    'minimize': 'Minimize', 'zoom': 'Zoom',
+    'search': 'Search', 'search_placeholder': 'Search files...',
+    'upload': 'Upload', 'download': 'Download', 'rename': 'Rename', 'delete': 'Delete',
+    'export_zip': 'Export to ZIP', 'import_file': 'Import File',
 
-    // --- Finder ---
-    'favorites': 'Favorites', 'all_posts': 'All Posts', 'recent': 'Recent', 
-    'drafts': 'Drafts', 'locations': 'Locations', 'icloud': 'iCloud Drive', 
-    'downloads': 'Downloads', 'folder_empty': 'Folder is empty', 'items': 'items', 
-    'loading': 'Loading...',
-    
-    // --- Context Menu ---
-    'ctx_open': 'Open', 'ctx_edit': 'Edit Post...', 'ctx_delete': 'Delete',
-    'ctx_refresh': 'Refresh', 'ctx_wallpaper': 'Change Wallpaper',
+    // --- VS Code Specific ---
+    'explorer': 'EXPLORER',
+    'user_settings': 'USER SETTINGS',
+    'editor_config': 'Editor Configuration',
+    'font_size': 'Font Size',
+    'word_wrap': 'Word Wrap',
+    'line_numbers': 'Line Numbers',
+    'minimap': 'Minimap',
+    'run': 'Run',
+    'preview': 'Preview',
+    'console_ready': 'Console ready. Run code to see output.',
+    'cmd_palette': 'Command Palette',
+    'show_all_commands': 'Show All Commands',
+    'no_file_open': 'No file open',
+    'select_to_start': 'Select a file to start editing',
+    'ln': 'Ln', 'col': 'Col',
+    'close_tab': 'Close Tab',
+    'toggle_wrap': 'Toggle Word Wrap',
+    'toggle_lines': 'Toggle Line Numbers',
+    'zoom_in': 'Zoom In', 'zoom_out': 'Zoom Out',
+    'format_doc': 'Format Document',
 
-    // --- DocViewer ---
-    'read_mode': 'Read Mode', 'edit_mode': 'Edit Mode', 'invalid_link': 'Invalid Link',
-    'loading_doc': 'Loading Document...',
-
-    // --- General ---
-    'search': 'Search', 'wifi': 'Wi-Fi', 'bluetooth': 'Bluetooth', 'dnd': 'Do Not Disturb',
-    'display': 'Display', 'sound': 'Sound', 'battery': 'Battery',
-    'control_center': 'Control Center', 'spotlight_placeholder': 'Spotlight Search',
-    'click_apply': 'Click to apply instantly', 'new_tab': 'New Tab',
-    'language': 'Language', 'wallpaper': 'Wallpaper',
-    'not_playing': 'Not Playing', 'music_playing': 'Music Player',
-
-    // --- File Manager (Advanced) ---
-    'fm_applications': 'Applications',
-    'fm_system': 'System Data',
-    'fm_delete_all': 'Format Disk (Delete All)',
-    'fm_delete_confirm': 'This will wipe ALL virtual data (Terminal, Notes, etc) and reload. Continue?',
+    // --- File Manager (Storage) ---
+    'fm_applications': 'APPLICATIONS',
+    'fm_system': 'SYSTEM DATA',
+    'fm_delete_all': 'Format Disk (Reset All)',
+    'fm_delete_confirm': 'WARNING: This will wipe ALL virtual data (Terminal files, Notes, VS Code projects) and reload. Continue?',
     'fm_preview_vscode': 'Preview in VS Code',
-    'fm_file_info': 'File Info',
-    'fm_size': 'Size',
-    'fm_modified': 'Modified',
-    'fm_path': 'Path',
-    'fm_no_files': 'No files in this app container',
+    'fm_no_files': 'No files found in this container.',
+    'fm_items': 'items',
 
     // --- Terminal ---
     'term_welcome': 'Welcome to LynxMuse Terminal. Type "help" to see commands.',
     'term_login': 'Last login: Today on console',
     'term_cmd_not_found': 'command not found',
     'term_permission_denied': 'Permission denied',
-    'term_dir_exists': 'Directory already exists',
-    'term_file_exists': 'File already exists',
-    'term_no_such': 'No such file or directory',
-    'term_is_dir': 'is a directory',
     'term_help_header': 'Available commands:',
     'term_sudo_joke': 'LynxMuse is not in the sudoers file. This incident will be reported.',
-    'term_rm_joke': "I'm sorry, Lynx. I'm afraid I can't do that.",
     'term_prompt_user': 'lynx',
 
     // --- Mail ---
@@ -113,6 +105,14 @@ export const TRANSLATIONS = {
     'memory': 'Memory', 'memory_desc': 'Limited & Volatile',
     'graphics': 'Graphics', 'graphics_desc': 'Real Vision Pro',
     'rights': '© 2026 LynxMuse (Ling). All rights reserved.',
+    
+    // --- General ---
+    'wifi': 'Wi-Fi', 'bluetooth': 'Bluetooth', 'dnd': 'Do Not Disturb',
+    'display': 'Display', 'sound': 'Sound', 'battery': 'Battery',
+    'control_center': 'Control Center', 'spotlight_placeholder': 'Spotlight Search',
+    'click_apply': 'Click to apply', 'new_tab': 'New Tab',
+    'language': 'Language', 'wallpaper': 'Wallpaper',
+    'not_playing': 'Not Playing', 'music_playing': 'Music Player',
   },
   zh: {
     // --- Identity ---
@@ -125,7 +125,7 @@ export const TRANSLATIONS = {
     'mail': '邮件', 'calendar': '日历', 'calculator': '计算器', 'music': '音乐',
     'notes': '备忘录', 'vscode': 'VS Code', 'settings': '系统设置', 'about': '关于翎',
     'text-editor': '文本编辑',
-    'storage_manager': '文件管理', // 改名
+    'storage_manager': '文件管理',
 
     // --- System Menu ---
     'about_mac': '关于本站',
@@ -136,60 +136,55 @@ export const TRANSLATIONS = {
     'lock_screen': '锁定屏幕',
     'log_out': '退出 LynxMuse...',
 
-    // --- Top Bar ---
+    // --- Top Bar & General Actions ---
     'file': '文件', 'edit': '编辑', 'view': '显示', 'window': '窗口', 'help': '帮助',
-    'new_window': '新建窗口', 'new_folder': '新建文件夹', 'open': '打开...', 'close_window': '关闭窗口',
+    'new_window': '新建窗口', 'new_folder': '新建文件夹', 'new_file': '新建文件',
+    'open': '打开...', 'close_window': '关闭窗口', 'save': '保存',
     'undo': '撤销', 'redo': '重做', 'cut': '剪切', 'copy': '拷贝', 'paste': '粘贴', 'select_all': '全选',
-    'enter_fullscreen': '进入全屏', 'exit_fullscreen': '退出全屏', 'actual_size': '实际大小', 'zoom_in': '放大', 'zoom_out': '缩小',
-    'minimize': '最小化', 'zoom': '缩放', 'bring_all_front': '前置全部窗口',
-    'search_help': '搜索', 'get_help': '获取帮助',
-    'about_app': '关于', 'hide_app': '隐藏', 'hide_others': '隐藏其他', 'show_all': '显示全部', 'quit_app': '退出',
-    
-    // --- Finder ---
-    'favorites': '个人收藏', 'all_posts': '所有文章', 'recent': '最近使用', 'drafts': '草稿',
-    'locations': '位置', 'icloud': 'iCloud 云盘', 'downloads': '下载',
-    'folder_empty': '文件夹为空', 'items': '项', 'loading': '加载中...',
-    
-    // --- Context Menu ---
-    'ctx_open': '打开', 'ctx_edit': '编辑文章...', 'ctx_delete': '删除',
-    'ctx_refresh': '刷新', 'ctx_wallpaper': '更换壁纸',
+    'enter_fullscreen': '进入全屏', 'exit_fullscreen': '退出全屏', 
+    'minimize': '最小化', 'zoom': '缩放',
+    'search': '搜索', 'search_placeholder': '搜索文件...',
+    'upload': '上传', 'download': '下载', 'rename': '重命名', 'delete': '删除',
+    'export_zip': '导出 ZIP', 'import_file': '导入文件',
 
-    // --- DocViewer ---
-    'read_mode': '阅读模式', 'edit_mode': '编辑模式', 'invalid_link': '无效链接',
-    'loading_doc': '正在加载文档...',
+    // --- VS Code Specific ---
+    'explorer': '资源管理器',
+    'user_settings': '用户设置',
+    'editor_config': '编辑器配置',
+    'font_size': '字体大小',
+    'word_wrap': '自动换行',
+    'line_numbers': '行号显示',
+    'minimap': '代码缩略图',
+    'run': '运行',
+    'preview': '预览',
+    'console_ready': '控制台就绪。运行代码以查看输出。',
+    'cmd_palette': '命令面板',
+    'show_all_commands': '显示所有命令',
+    'no_file_open': '未打开文件',
+    'select_to_start': '选择一个文件以开始编辑',
+    'ln': '行', 'col': '列',
+    'close_tab': '关闭标签页',
+    'toggle_wrap': '切换自动换行',
+    'toggle_lines': '切换行号',
+    'zoom_in': '放大', 'zoom_out': '缩小',
+    'format_doc': '格式化文档',
 
-    // --- General ---
-    'search': '搜索', 'wifi': '无线局域网', 'bluetooth': '蓝牙', 'dnd': '勿扰模式',
-    'display': '显示器', 'sound': '声音', 'battery': '电池',
-    'control_center': '控制中心', 'spotlight_placeholder': '聚焦搜索',
-    'click_apply': '点击即可立即应用', 'new_tab': '新标签页',
-    'language': '语言', 'wallpaper': '壁纸',
-    'not_playing': '未在播放', 'music_playing': '音乐播放器',
-
-    // --- File Manager (Advanced) ---
-    'fm_applications': '应用程序数据',
+    // --- File Manager (Storage) ---
+    'fm_applications': '应用程序',
     'fm_system': '系统数据',
-    'fm_delete_all': '格式化磁盘 (全部删除)',
-    'fm_delete_confirm': '这将擦除所有虚拟数据（终端文件、备忘录等）并重新加载系统。是否继续？',
+    'fm_delete_all': '格式化磁盘 (全部重置)',
+    'fm_delete_confirm': '警告：这将清除所有虚拟数据（终端文件、备忘录、代码项目等）并重新加载页面。是否继续？',
     'fm_preview_vscode': '在 VS Code 中预览',
-    'fm_file_info': '文件信息',
-    'fm_size': '大小',
-    'fm_modified': '修改时间',
-    'fm_path': '虚拟路径',
-    'fm_no_files': '此应用容器内无文件',
+    'fm_no_files': '此容器内暂无文件。',
+    'fm_items': '项',
 
     // --- Terminal ---
     'term_welcome': '欢迎使用 LynxMuse 终端。输入 "help" 查看可用命令。',
     'term_login': '上次登录时间: 今天 ttys000',
     'term_cmd_not_found': '找不到命令',
     'term_permission_denied': '权限被拒绝',
-    'term_dir_exists': '目录已存在',
-    'term_file_exists': '文件已存在',
-    'term_no_such': '没有此文件或目录',
-    'term_is_dir': '是一个目录',
     'term_help_header': '可用命令:',
     'term_sudo_joke': 'LynxMuse 不在 sudoers 文件中。此事将被报告。',
-    'term_rm_joke': '抱歉，翎。我恐怕不能这样做。',
     'term_prompt_user': 'lynx',
 
     // --- Mail ---
@@ -213,9 +208,17 @@ export const TRANSLATIONS = {
     'memory': '内存', 'memory_desc': '有限且易失',
     'graphics': '显卡', 'graphics_desc': '真实视觉 Pro',
     'rights': '© 2026 LynxMuse (翎). 保留所有权利.',
+
+    // --- General ---
+    'wifi': '无线局域网', 'bluetooth': '蓝牙', 'dnd': '勿扰模式',
+    'display': '显示器', 'sound': '声音', 'battery': '电池',
+    'control_center': '控制中心', 'spotlight_placeholder': '聚焦搜索',
+    'click_apply': '点击即可立即应用', 'new_tab': '新标签页',
+    'language': '语言', 'wallpaper': '壁纸',
+    'not_playing': '未在播放', 'music_playing': '音乐播放器',
   },
   mix: {
-    // 混合模式
+    // 混合模式: 关键UI双语，其他回退英文
     'finder': 'Finder 访达', 'launchpad': 'Launchpad 启动台', 'safari': 'Safari 浏览器', 'terminal': 'Terminal 终端',
     'mail': 'Mail 邮件', 'calendar': 'Calendar 日历', 'calculator': 'Calculator 计算器', 'music': 'Music 音乐',
     'notes': 'Notes 备忘录', 'vscode': 'VS Code', 'settings': 'Settings 设置', 'about': 'About 翎',
@@ -229,5 +232,7 @@ export const TRANSLATIONS = {
     'term_welcome': 'Welcome. 输入 "help" for commands.',
     'term_cmd_not_found': 'command not found 找不到命令',
     'rights': '© 2026 LynxMuse (翎). All rights reserved.',
+    'cmd_palette': 'Command Palette 命令面板',
+    'user_settings': 'User Settings 用户设置',
   }
 }
