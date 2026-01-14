@@ -2,14 +2,11 @@
 
 import React, { useState, useRef, useEffect, useMemo, createContext, useContext } from 'react'
 import { 
-  // 基础图标
   Search, Files, Play, X, ChevronRight, ChevronDown, 
   Settings, ToggleLeft, ToggleRight, GitBranch,
-  // 文件操作图标
   Folder, FolderOpen, Archive, FilePlus, FolderPlus, 
   Briefcase, Edit3, FolderInput, Terminal as TerminalIcon,
-  // 核心功能图标 (确保 LayoutTemplate 在这里)
-  Command, Search as SearchIcon, MoreHorizontal, Download, Upload, FileCode, LayoutTemplate, Trash2
+  Command, Search as SearchIcon, MoreHorizontal, Download, Upload, FileCode, LayoutTemplate
 } from 'lucide-react'
 import { clsx } from '../utils'
 import { useI18n } from '../i18n-context'
@@ -74,11 +71,11 @@ const VSCodeContext = createContext<VSCodeContextType | null>(null)
 // 3. 初始数据
 // ==========================================
 const INITIAL_FS: FileSystemItem[] = [
-  { id: 'root-readme', parentId: null, name: 'README.md', type: 'file', language: 'markdown', content: '# VS Code Web\n\nWelcome to LynxMuse Code Editor.\n\n### New Features:\n- 🔍 **Search**: Find text in all files.\n- ⚙️ **Settings**: Change font size & word wrap.\n- ⌨️ **Command Palette**: Press `Cmd+Shift+P` to access commands!' },
+  { id: 'root-readme', parentId: null, name: 'README.md', type: 'file', language: 'markdown', content: '# VS Code Web\n\nWelcome to LynxMuse Code Editor.\n\n### Features:\n- 📂 **Folder Upload**: Click "..." to upload local folders.\n- 🔍 **Search**: Find text in all files.\n- ⌨️ **Command Palette**: `Cmd+Shift+P`' },
   { id: 'src', parentId: null, name: 'src', type: 'folder', isOpen: true },
   { id: 'index', parentId: 'src', name: 'index.html', type: 'file', language: 'html', content: '<h1>Hello World</h1>\n<script src="./app.js"></script>' },
   { id: 'css', parentId: 'src', name: 'style.css', type: 'file', language: 'css', content: 'body {\n  background: #1e1e1e;\n  color: #fff;\n  font-family: sans-serif;\n}' },
-  { id: 'js', parentId: 'src', name: 'app.js', type: 'file', language: 'javascript', content: 'console.log("System Ready");\n// Try searching for "System" in the search bar!' },
+  { id: 'js', parentId: 'src', name: 'app.js', type: 'file', language: 'javascript', content: 'console.log("System Ready");' },
 ]
 
 const TEMPLATES = {
@@ -444,6 +441,62 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
       }
   }
 
+  const handleFolderUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files) {
+          const newItems: FileSystemItem[] = []
+          const folderMap = new Map<string, string>() // path -> id
+
+          Array.from(e.target.files).forEach(file => {
+              const path = file.webkitRelativePath
+              if (!path) return // fallback if not supported
+
+              const parts = path.split('/')
+              const fileName = parts.pop()!
+              const folderPath = parts.join('/')
+              
+              // 1. Ensure folders exist
+              let currentPid: string | null = null
+              let currentPath = ''
+              
+              parts.forEach(part => {
+                  currentPath = currentPath ? `${currentPath}/${part}` : part
+                  if (!folderMap.has(currentPath)) {
+                      const newFolderId = Date.now().toString() + Math.random().toString(36).substr(2, 5)
+                      newItems.push({
+                          id: newFolderId,
+                          parentId: currentPid,
+                          name: part,
+                          type: 'folder',
+                          isOpen: false
+                      })
+                      folderMap.set(currentPath, newFolderId)
+                      currentPid = newFolderId
+                  } else {
+                      currentPid = folderMap.get(currentPath)!
+                  }
+              })
+
+              // 2. Add File
+              const reader = new FileReader()
+              reader.onload = (ev) => {
+                  setFs(prev => [...prev, {
+                      id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                      parentId: currentPid,
+                      name: fileName,
+                      type: 'file',
+                      language: 'plaintext',
+                      content: ev.target?.result as string || '',
+                      isUnsaved: false
+                  }])
+              }
+              reader.readAsText(file)
+          })
+          
+          setFs(prev => [...prev, ...newItems])
+          e.target.value = ''
+      }
+  }
+
   // --- Commands for Palette ---
   const commands = [
       { id: 'new_file', label: 'File: New File', action: () => createFile('file') },
@@ -459,7 +512,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
 
   const filteredCommands = commands.filter(c => c.label.toLowerCase().includes(paletteQuery.toLowerCase()))
 
-  // --- Handlers: Marquee Selection (RESTORED) ---
+  // --- Handlers: Marquee Selection ---
   const handleMouseDown = (e: React.MouseEvent) => {
       if (isReadOnly || e.button !== 0) return
       if (!e.ctrlKey && !e.metaKey) setSelectedIds([])
@@ -537,10 +590,13 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
                             </div>}
                         </div>
                         {showTemplateMenu && (
-                            <div className="absolute top-9 right-2 w-40 bg-[#252526] border border-[#454545] shadow-xl rounded z-50 py-1">
+                            <div className="absolute top-9 right-2 w-48 bg-[#252526] border border-[#454545] shadow-xl rounded z-50 py-1">
                                 <div onClick={handleZipExport} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer text-xs flex gap-2 items-center"><Archive size={12}/> {t('export_zip')}</div>
                                 <div onClick={()=>uploadFileRef.current?.click()} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer text-xs flex gap-2 items-center"><Upload size={12}/> {t('import_file')}</div>
+                                <div onClick={()=>uploadFolderRef.current?.click()} className="px-3 py-1.5 hover:bg-[#094771] cursor-pointer text-xs flex gap-2 items-center"><FolderInput size={12}/> Import Folder</div>
                                 <input type="file" ref={uploadFileRef} hidden multiple onChange={handleFileUpload} />
+                                {/* @ts-ignore */}
+                                <input type="file" ref={uploadFolderRef} hidden webkitdirectory="" directory="" multiple onChange={handleFolderUpload} />
                             </div>
                         )}
                         <div 
