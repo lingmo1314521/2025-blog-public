@@ -4,14 +4,11 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { 
   Search, Files, Play, X, ChevronRight, ChevronDown, 
-  LayoutTemplate, Plus, Upload, Download, Trash2, 
-  FileCode, Settings, ToggleLeft, ToggleRight, GitBranch,
-  Folder, FolderOpen, Archive, FilePlus, FolderPlus, 
-  Briefcase, Edit3, FolderInput
+  Settings, ToggleLeft, ToggleRight, GitBranch,
+  FileCode
 } from 'lucide-react'
 import { clsx } from '../utils'
 import { useI18n } from '../i18n-context'
-import JSZip from 'jszip'
 
 // === 类型定义 ===
 type FileType = 'file' | 'folder'
@@ -72,7 +69,6 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
   const { t } = useI18n()
   
   // === State ===
-  // 如果有 previewFile，使用临时文件系统，否则加载本地存储
   const [fileSystem, setFileSystem] = useState<FileSystemItem[]>(INITIAL_FS)
   const [openFiles, setOpenFiles] = useState<string[]>([])
   const [activeFileId, setActiveFileId] = useState<string>('')
@@ -119,12 +115,7 @@ export const VSCode = ({ previewFile }: VSCodeProps) => {
   }, [fileSystem, previewFile])
 
   const activeFile = useMemo(() => fileSystem.find(f => f.id === activeFileId), [fileSystem, activeFileId])
-
-  // ... (保留之前的辅助函数，如 getFolderContents, toggleFolder 等，这里为了简洁省略重复逻辑，只展示关键渲染部分)
-  // 为简化代码，预览模式下禁用大部分文件操作
   const isReadOnly = !!previewFile
-
-  const getFolderContents = (parentId: string | null) => fileSystem.filter(f => f.parentId === parentId)
 
   return (
     <div className="flex h-full w-full bg-[#1e1e1e] text-[#cccccc] font-sans text-sm select-none overflow-hidden border border-[#333] rounded-lg relative">
