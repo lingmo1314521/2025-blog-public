@@ -10,11 +10,9 @@ interface CommentSystemProps {
   title?: string
   compact?: boolean
   reloadKey?: number
-  onCountChange?: (count: number) => void
-  onReplyChange?: (replyingTo: string | null) => void 
 }
 
-export default function CommentSystem({ slug, title, compact = false, reloadKey = 0, onCountChange, onReplyChange }: CommentSystemProps) {
+export default function CommentSystem({ slug, title, compact = false, reloadKey = 0 }: CommentSystemProps) {
   const [currentSystem, setCurrentSystem] = useState<CommentSystemType>('twikoo')
   const [giscusLoaded, setGiscusLoaded] = useState(false)
   const [twikooLoaded, setTwikooLoaded] = useState(false)
@@ -91,41 +89,6 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     }
     document.body.appendChild(script)
   }
-
-  // --- 深度监听 Twikoo DOM 变化 ---
-  useEffect(() => {
-    if (!compact || !twikooLoaded || !twikooContainerRef.current) return;
-
-    const observer = new MutationObserver(() => {
-        // 1. 抓取评论数量
-        const countEl = twikooContainerRef.current?.querySelector('.tk-comments-count span:first-child')
-        if (countEl && countEl.textContent && onCountChange) {
-            const count = parseInt(countEl.textContent.trim(), 10)
-            if (!isNaN(count)) onCountChange(count)
-        }
-
-        // 2. 抓取回复状态
-        const textarea = document.querySelector('.imessage-mode .el-textarea__inner')
-        if (textarea && onReplyChange) {
-            const placeholder = textarea.getAttribute('placeholder')
-            if (placeholder && placeholder.includes('@')) {
-                // 提取名字 "回复 @Nick"
-                const match = placeholder.match(/@(.+)/)
-                if (match) {
-                    onReplyChange(match[1])
-                } else {
-                    onReplyChange(placeholder)
-                }
-            } else {
-                onReplyChange(null)
-            }
-        }
-    })
-
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['placeholder', 'class'] })
-
-    return () => observer.disconnect()
-  }, [twikooLoaded, compact, onCountChange, onReplyChange])
 
   const handleSystemSwitch = (system: CommentSystemType) => {
     if (system === currentSystem) return
