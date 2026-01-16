@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Search, Edit, User } from 'lucide-react'
+import { Search, Edit } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 
@@ -42,7 +42,7 @@ export const Messages = () => {
   return (
     <div className="flex h-full w-full bg-white dark:bg-[#1e1e1e] text-black dark:text-white font-sans overflow-hidden">
       
-      {/* 左侧边栏 (联系人) */}
+      {/* 左侧边栏 */}
       <div className="w-[280px] flex flex-col border-r border-gray-200 dark:border-white/10 bg-[#f5f5f5]/90 dark:bg-[#252525]/90 backdrop-blur-xl">
         <div className="h-12 flex items-center justify-between px-3 shrink-0 pt-2 mb-2">
            <div className="relative flex-1 mr-2">
@@ -107,30 +107,14 @@ export const Messages = () => {
             </div>
         </div>
 
-        {/* 聊天区域容器 */}
-        <div className="flex-1 overflow-hidden relative flex flex-col">
-            {/* 预设的欢迎气泡 (模拟历史消息) */}
-            <div className="px-4 pt-4 pb-0 flex flex-col gap-2 opacity-80 hover:opacity-100 transition-opacity">
-                <div className="self-center text-[10px] text-gray-300 font-medium my-2 uppercase tracking-wide">iMessage • {activeContact.time}</div>
-                
-                <div className="self-start max-w-[75%] bg-[#e9e9eb] dark:bg-[#262628] text-black dark:text-gray-200 px-4 py-2 rounded-2xl rounded-bl-sm text-sm relative">
-                    <p>👋 Welcome to <b>{activeContact.name}</b>.</p>
-                </div>
-                
-                <div className="self-start max-w-[75%] bg-[#e9e9eb] dark:bg-[#262628] text-black dark:text-gray-200 px-4 py-2 rounded-2xl rounded-tl-sm text-sm">
-                    <p>{activeContact.desc}</p>
-                </div>
-            </div>
-
-            {/* 真实评论系统 (flex-1 自动撑开剩余空间，内部滚动) */}
-            <div className="flex-1 min-h-0 w-full">
-                <CommentSystem 
-                    key={activeContact.slug} 
-                    slug={activeContact.slug} 
-                    title={activeContact.name}
-                    compact={true} 
-                />
-            </div>
+        {/* 聊天区域容器：高度自适应 */}
+        <div className="flex-1 overflow-hidden relative">
+            <CommentSystem 
+                key={activeContact.slug} 
+                slug={activeContact.slug} 
+                title={activeContact.name}
+                compact={true} 
+            />
         </div>
       </div>
     </div>
