@@ -9,10 +9,9 @@ interface CommentSystemProps {
   slug: string
   title?: string
   compact?: boolean
-  reloadKey?: number 
 }
 
-export default function CommentSystem({ slug, title, compact = false, reloadKey = 0 }: CommentSystemProps) {
+export default function CommentSystem({ slug, title, compact = false }: CommentSystemProps) {
   const [currentSystem, setCurrentSystem] = useState<CommentSystemType>('twikoo')
   const [giscusLoaded, setGiscusLoaded] = useState(false)
   const [twikooLoaded, setTwikooLoaded] = useState(false)
@@ -59,35 +58,6 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     }
   }
 
-  // --- 关键修复：手动注入用户信息到 Twikoo ---
-  const applyTwikooSettings = () => {
-    if (!twikooContainerRef.current) return
-
-    // 从 localStorage 读取我们在 Settings 里保存的值
-    const nick = localStorage.getItem('twikoo-nick')
-    const mail = localStorage.getItem('twikoo-mail')
-    const link = localStorage.getItem('twikoo-link')
-
-    // 找到 Twikoo 的隐藏输入框 (即使 display: none 也可以被 JS 操作)
-    const nickInput = twikooContainerRef.current.querySelector('input[name="nick"]') as HTMLInputElement
-    const mailInput = twikooContainerRef.current.querySelector('input[name="mail"]') as HTMLInputElement
-    const linkInput = twikooContainerRef.current.querySelector('input[name="link"]') as HTMLInputElement
-
-    // 辅助函数：触发 React/Vue 的 change 事件
-    const triggerChange = (el: HTMLInputElement, value: string) => {
-        if (!el) return
-        // 设置值
-        el.value = value
-        // 触发 input 事件，让 Twikoo 内部监听到变化
-        el.dispatchEvent(new Event('input', { bubbles: true }))
-        el.dispatchEvent(new Event('change', { bubbles: true }))
-    }
-
-    if (nick) triggerChange(nickInput, nick)
-    if (mail) triggerChange(mailInput, mail)
-    if (link) triggerChange(linkInput, link)
-  }
-
   const initTwikoo = () => {
     const envId = process.env.NEXT_PUBLIC_TWIKOO_ENV_ID
     if (!envId) return 
@@ -112,9 +82,6 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
           lang: 'zh-CN',
           onCommentLoaded: () => {
               setTwikooLoaded(true)
-              // 加载完成后，立即注入用户设置
-              // 稍微延迟一点点，确保 DOM 完全就绪
-              setTimeout(applyTwikooSettings, 500)
           }
         })
       }
@@ -143,14 +110,14 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     
     if (currentSystem === 'giscus') setTimeout(() => initGiscus(), 100)
     else setTimeout(() => initTwikoo(), 100)
-  }, [currentSystem, slug, reloadKey])
+  }, [currentSystem, slug])
 
   declare global {
     interface Window { twikoo?: any }
   }
 
   const containerClass = compact 
-    ? "w-full h-full flex flex-col imessage-mode bg-white dark:bg-[#1e1e1e]"
+    ? "w-full h-full flex flex-col bg-white dark:bg-[#1e1e1e]" // 移除 imessage-mode 类，不再进行魔改
     : "mx-auto w-full max-w-[1140px] px-6 pb-12 max-sm:px-0"
 
   const cardClass = compact

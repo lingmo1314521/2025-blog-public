@@ -177,8 +177,9 @@
 }
 
 /* =========================================
-   macOS 嵌入模式样式修正
+   macOS 嵌入模式样式修正 (保持原有逻辑)
    ========================================= */
+
 #app-embedded header, 
 #app-embedded footer,
 #app-embedded nav {
@@ -207,12 +208,4 @@
 
 .embedded-write .pt-24 {
     padding-top: 1rem !important;
-}
-
-/* iMessage 风格清理：
-   移除了强制改变 Flex 顺序和定位的代码，
-   恢复 Twikoo 的默认显示方式（输入框在顶，评论在底），保证稳定性。
-*/
-.imessage-mode .tk-meta-input {
-    display: none !important; /* 仍然隐藏输入框内的昵称/邮件栏，因为我们有单独的设置界面 */
 }
