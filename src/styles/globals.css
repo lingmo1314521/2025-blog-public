@@ -33,10 +33,10 @@
 }
 
 /* =========================================
-   Twikoo iMessage 终极形态 (含元素搬运)
+   Twikoo iMessage 终极形态 (含独立后台窗口)
    ========================================= */
 
-/* 1. 全局容器与隐藏元素 */
+/* 1. 全局容器重置 */
 .imessage-mode .tk-main {
     display: flex !important;
     flex-direction: column !important;
@@ -45,14 +45,12 @@
     min-width: 0 !important;
 }
 
-/* 隐藏 Twikoo 原生的干扰元素
-   注意：不再隐藏 .tk-comments-title，而是将其设为不可见但保留在DOM中，
-   因为我们要从中抓取元素。抓取走之后，剩下的空壳我们隐藏。
-*/
+/* 隐藏干扰元素 (保留在DOM中但不可见，以便JS操作) */
 .imessage-mode .tk-submit,
 .imessage-mode .tk-footer,
 .imessage-mode .tk-extras,
 .imessage-mode .tk-row.actions,
+.imessage-mode .tk-comments-title,
 .imessage-mode .tk-expand {
     position: absolute !important;
     opacity: 0 !important;
@@ -63,9 +61,113 @@
     z-index: -1 !important;
 }
 
-/* 隐藏原标题栏背景，防止占位 */
-.imessage-mode .tk-comments-title {
+/* -------------------------------------------
+   [NEW] 管理面板 (Admin Panel) 独立窗口化
+   ------------------------------------------- */
+
+/* 劫持后台容器，使其脱离文档流，变为居中弹窗 */
+.imessage-mode .tk-admin-container {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    z-index: 100 !important; /* 确保在最上层 */
+    width: 300px !important;
+    max-width: 90vw !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: blur(20px) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0,0,0,0.05) !important;
+    padding: 24px !important;
+    overflow: hidden !important;
+    animation: zoomIn 0.2s ease-out !important;
+}
+.dark .imessage-mode .tk-admin-container {
+    background: rgba(40, 40, 40, 0.95) !important;
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.1) !important;
+}
+
+@keyframes zoomIn {
+    from { opacity: 0; transform: translate(-50%, -48%) scale(0.96); }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* 隐藏原本的遮罩（如果有），我们自己处理 */
+.imessage-mode .tk-admin-mask {
     display: none !important; 
+}
+
+/* 调整关闭按钮 */
+.imessage-mode .tk-admin-close {
+    position: absolute !important;
+    top: 12px !important;
+    right: 12px !important;
+    color: #999 !important;
+    cursor: pointer !important;
+}
+.imessage-mode .tk-admin-close:hover {
+    color: #ff3b30 !important;
+}
+
+/* 标题美化 */
+.imessage-mode .tk-login-title {
+    text-align: center !important;
+    font-weight: 700 !important;
+    font-size: 16px !important;
+    margin-bottom: 20px !important;
+    color: #333 !important;
+}
+.dark .imessage-mode .tk-login-title {
+    color: #fff !important;
+}
+
+/* 输入框美化 */
+.imessage-mode .tk-admin-container input {
+    background: #f2f2f7 !important;
+    border: 1px solid transparent !important;
+    border-radius: 8px !important;
+    padding: 8px 12px !important;
+    color: #000 !important;
+    font-size: 13px !important;
+    width: 100% !important;
+    margin-bottom: 12px !important;
+    outline: none !important;
+    transition: all 0.2s !important;
+}
+.imessage-mode .tk-admin-container input:focus {
+    background: #fff !important;
+    border-color: #007aff !important;
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1) !important;
+}
+.dark .imessage-mode .tk-admin-container input {
+    background: #333 !important;
+    color: #fff !important;
+}
+
+/* 按钮美化 */
+.imessage-mode .tk-admin-container button {
+    background: #007aff !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 8px 16px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    width: 100% !important;
+    margin-top: 8px !important;
+    cursor: pointer !important;
+}
+.imessage-mode .tk-admin-container button:hover {
+    background: #006ce6 !important;
+}
+
+/* 隐藏某些不必要的标签文本，保持简洁 */
+.imessage-mode .el-input-group__prepend {
+    display: none !important;
+}
+.imessage-mode .el-input__inner {
+    border-radius: 8px !important;
+    padding-left: 12px !important;
 }
 
 /* -------------------------------------------
@@ -222,28 +324,14 @@
 .imessage-mode .tk-action-link:hover { color: #007aff !important; }
 .imessage-mode .tk-action-icon svg { width: 14px !important; height: 14px !important; fill: currentColor !important; }
 
-/* -------------------------------------------
-   [NEW] 搬运后的元素样式 (Header Elements)
-   ------------------------------------------- */
-
-/* 评论数样式 */
+/* 搬运后的元素样式 */
 #twikoo-moved-count .tk-comments-count {
     font-size: 10px !important;
     font-weight: 600 !important;
-    color: #8e8e93 !important; /* iOS 灰色 */
+    color: #8e8e93 !important; 
 }
-.dark #twikoo-moved-count .tk-comments-count {
-    color: #999 !important;
-}
-
-/* 图标容器样式 */
-#twikoo-moved-icons span {
-    display: flex !important;
-    align-items: center !important;
-    gap: 8px !important;
-}
-
-/* 具体图标样式 */
+.dark #twikoo-moved-count .tk-comments-count { color: #999 !important; }
+#twikoo-moved-icons span { display: flex !important; align-items: center !important; gap: 8px !important; }
 #twikoo-moved-icons svg {
     width: 14px !important;
     height: 14px !important;
@@ -251,6 +339,4 @@
     cursor: pointer !important;
     transition: fill 0.2s !important;
 }
-#twikoo-moved-icons svg:hover {
-    fill: #007aff !important;
-}
+#twikoo-moved-icons svg:hover { fill: #007aff !important; }

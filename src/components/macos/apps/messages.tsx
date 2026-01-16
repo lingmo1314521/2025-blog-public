@@ -1,13 +1,13 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { Search, Edit, Settings, X, Save, ArrowUp, RefreshCw, MessageCircle } from 'lucide-react'
+import { Search, Edit, Settings, X, Save, ArrowUp, RefreshCw, MessageCircle, Shield } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
 import { toast } from 'sonner' 
 
-// --- SettingsModal 组件 ---
+// --- SettingsModal (用户资料设置) ---
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const { t } = useI18n()
     const [nick, setNick] = useState('')
@@ -161,6 +161,32 @@ export const Messages = () => {
       }
   }, [])
 
+  // --- 触发 Twikoo 原生管理后台 ---
+  const triggerTwikooAdmin = () => {
+      // Twikoo 的设置按钮是一个 SVG，通常在 .tk-icon.__setting 或类似的类名中
+      // 我们需要找到它并模拟点击
+      // 注意：由于我们搬运了 icon，现在 icon 应该在 headerIconsRef 里
+      
+      let settingIcon = document.querySelector('.imessage-mode .tk-icon.__setting') as HTMLElement;
+      
+      // 如果没找到 specific class，尝试找 svg path 匹配的 (fallback)
+      if (!settingIcon) {
+          // 尝试在搬运容器里找
+          const icons = headerIconsRef.current?.querySelectorAll('svg');
+          // 假设设置图标是第一个或第二个，这里简单尝试触发 click
+          // 或者直接找 Twikoo 原始 DOM 中可能残留的
+          const allIcons = document.querySelectorAll('.imessage-mode .tk-icon');
+          // 通常设置图标在最后
+          if(allIcons.length > 0) settingIcon = allIcons[allIcons.length - 1] as HTMLElement;
+      }
+
+      if (settingIcon) {
+          settingIcon.click();
+      } else {
+          toast.error("Twikoo admin button not found yet.");
+      }
+  }
+
   // --- 核心：DOM 操作 (搬运头元素 + 平铺排序) ---
   const processDomChanges = useCallback(() => {
       if (isProcessingRef.current) return;
@@ -168,27 +194,20 @@ export const Messages = () => {
 
       try {
         // --- 1. 搬运头部元素 (评论数 & 图标) ---
-        // 我们要从 .tk-comments-title 中抓取元素
-        // 由于 CSS 隐藏了 .tk-comments-title，我们依然可以通过 JS 访问它
         const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
         
         if (originalHeader) {
-            // A. 搬运评论数 (tk-comments-count) 到 footer 左上角
+            // A. 搬运评论数
             const countEl = originalHeader.querySelector('.tk-comments-count');
             if (countEl && headerCountRef.current && !headerCountRef.current.contains(countEl)) {
-                headerCountRef.current.innerHTML = ''; // 清空旧的
+                headerCountRef.current.innerHTML = '';
                 headerCountRef.current.appendChild(countEl);
             }
 
-            // B. 搬运图标 (通常是 tk-icon 的父级 span) 到 footer 右上角
-            // 结构通常是: <span><span class="tk-icon">...</span></span>
-            // 我们找包含 .tk-icon 的 span
+            // B. 搬运图标
             const iconWrappers = originalHeader.querySelectorAll('.tk-icon');
             if (iconWrappers.length > 0 && headerIconsRef.current) {
-                // 找到包含图标的容器（通常是 count 的兄弟元素）
-                // 简单起见，我们把除了 count 之外的所有子元素都搬过去
                 const siblings = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
-                
                 siblings.forEach(sibling => {
                     if (!headerIconsRef.current?.contains(sibling)) {
                         headerIconsRef.current?.appendChild(sibling);
@@ -200,12 +219,11 @@ export const Messages = () => {
         const container = document.querySelector('.imessage-mode .tk-comments-container');
         if (!container) return;
 
-        // --- 2. 处理嵌套回复：注入引用 + 搬运到最外层 ---
+        // --- 2. 处理嵌套回复 ---
         const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment'));
         
         if (nestedReplies.length > 0) {
             nestedReplies.forEach(reply => {
-                // A. 注入引用
                 const contentBox = reply.querySelector('.tk-content');
                 if (contentBox && !contentBox.querySelector('.imessage-quote')) {
                     const replyList = reply.closest('.tk-replies');
@@ -232,7 +250,6 @@ export const Messages = () => {
                         contentBox.insertBefore(quoteDiv, contentBox.firstChild);
                     }
                 }
-                // B. 搬运到主容器
                 container.appendChild(reply);
             });
         }
@@ -281,7 +298,7 @@ export const Messages = () => {
                 setReplyTargetText('')
             }
 
-            processDomChanges(); // 执行搬运和排序
+            processDomChanges(); 
 
         } finally {
             if (observerRef.current) {
@@ -377,6 +394,8 @@ export const Messages = () => {
                 </div>
             </div>
             <div className="flex gap-2">
+                {/* 管理后台触发按钮 */}
+                <button onClick={triggerTwikooAdmin} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all cursor-pointer" title="Admin Panel"><Shield size={14} /></button>
                 <button onClick={() => setReloadKey(k => k + 1)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all cursor-pointer"><RefreshCw size={14} /></button>
                 <button onClick={() => setShowSettings(true)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all cursor-pointer" title={t('msg_settings_title')}><Settings size={16} /></button>
             </div>
@@ -396,11 +415,8 @@ export const Messages = () => {
         {/* 底部输入框区域 */}
         <div className="shrink-0 p-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30 relative group">
             
-            {/* [NEW] 搬运元素的占位符 */}
-            {/* 左上角：评论数 */}
+            {/* 搬运元素的占位符 */}
             <div id="twikoo-moved-count" ref={headerCountRef} className="absolute top-2 left-6 z-40 select-none pointer-events-none"></div>
-            
-            {/* 右上角：图标 */}
             <div id="twikoo-moved-icons" ref={headerIconsRef} className="absolute top-2 right-6 z-40 flex items-center gap-2"></div>
 
             <div className="relative max-w-4xl mx-auto w-full pt-3">
