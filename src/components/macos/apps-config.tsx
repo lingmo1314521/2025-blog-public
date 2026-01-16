@@ -16,8 +16,10 @@ import { VSCode } from './apps/vscode'
 import { StorageManager } from './apps/storage-manager'
 import { Preview } from './apps/preview'
 import { WutheringWavesLauncher } from './apps/wuthering-waves'
-import { PhotoBooth } from './apps/photo-booth' // 引入新组件
-import { Gamepad2, Image as ImageIcon, Camera } from 'lucide-react' // 引入Camera图标
+import { PhotoBooth } from './apps/photo-booth'
+// 引入 Messages
+import { Messages } from './apps/messages' 
+import { Gamepad2, Image as ImageIcon, MessageSquare } from 'lucide-react'
 
 const PngIcon = ({ src, alt }: { src: string; alt: string }) => (
   <img src={src} alt={alt} draggable={false} className="w-full h-full object-contain" />
@@ -26,19 +28,20 @@ const PngIcon = ({ src, alt }: { src: string; alt: string }) => (
 export const INITIAL_APPS: AppConfig[] = [
   { id: 'launchpad', title: 'Launchpad', icon: <PngIcon src="/icons/launchpad.png" alt="Launchpad" />, width: 0, height: 0, component: null },
   { id: 'finder', title: 'Finder', icon: <PngIcon src="/icons/finder.png" alt="Finder" />, width: 860, height: 500, component: <Finder /> },
-  { id: 'safari', title: 'Safari', icon: <PngIcon src="/icons/safari.png" alt="Safari" />, width: 1024, height: 768, component: <WebBrowser initialUrl="https://github.com/LynxMuse" /> },
   
-  // Photo Booth (新增)
+  // Messages (新增)
   { 
-    id: 'photobooth', 
-    title: 'Photo Booth', 
-    // 使用一个模拟的图标容器
-    icon: <div className="w-full h-full bg-gradient-to-br from-red-400 to-orange-500 rounded-xl flex items-center justify-center text-white shadow-lg border-[3px] border-white/80"><Camera size={36} className="drop-shadow-md"/></div>, 
-    width: 800, 
-    height: 650, // 适合视频比例的高度
-    component: <PhotoBooth /> 
+    id: 'messages', 
+    title: 'Messages', 
+    icon: <PngIcon src="/icons/messages.png" alt="Messages" />, // 确保你有这个图标，如果没有可以用下面的 lucide 临时替代
+    // icon: <div className="w-full h-full bg-green-500 rounded-xl flex items-center justify-center text-white shadow-lg"><MessageSquare fill="white" size={32} /></div>,
+    width: 850, 
+    height: 600, 
+    component: <Messages /> 
   },
 
+  { id: 'safari', title: 'Safari', icon: <PngIcon src="/icons/safari.png" alt="Safari" />, width: 1024, height: 768, component: <WebBrowser initialUrl="https://github.com/LynxMuse" /> },
+  { id: 'photobooth', title: 'Photo Booth', icon: <div className="w-full h-full bg-gradient-to-br from-red-400 to-orange-500 rounded-xl flex items-center justify-center text-white shadow-lg border-[3px] border-white/80"><ImageIcon size={36} className="drop-shadow-md"/></div>, width: 800, height: 650, component: <PhotoBooth /> },
   { id: 'vscode', title: 'VS Code', icon: <PngIcon src="/icons/vscode.png" alt="VS Code" />, width: 1100, height: 700, component: <VSCode /> },
   { id: 'terminal', title: 'Terminal', icon: <PngIcon src="/icons/terminal.png" alt="Terminal" />, width: 600, height: 400, component: <Terminal /> },
   
@@ -48,34 +51,10 @@ export const INITIAL_APPS: AppConfig[] = [
   { id: 'calculator', title: 'Calculator', icon: <PngIcon src="/icons/calculator.png" alt="Calculator" />, width: 320, height: 520, resizable: false, maximizable: false, component: <Calculator /> },
   { id: 'music', title: 'Music', icon: <PngIcon src="/icons/music.png" alt="Music" />, width: 800, height: 500, component: <MusicPlayer /> },
   
-  { 
-    id: 'storage_manager', 
-    title: 'Storage', 
-    icon: <div className="w-full h-full bg-gradient-to-br from-gray-500 to-gray-700 rounded-xl flex items-center justify-center text-white text-[10px] font-bold shadow-lg border-2 border-white/20 flex-col"><div className="text-xl mb-1">💾</div><div>DISK</div></div>, 
-    width: 700, 
-    height: 500, 
-    component: <StorageManager /> 
-  },
+  { id: 'storage_manager', title: 'Storage', icon: <div className="w-full h-full bg-gradient-to-br from-gray-500 to-gray-700 rounded-xl flex items-center justify-center text-white text-[10px] font-bold shadow-lg border-2 border-white/20 flex-col"><div className="text-xl mb-1">💾</div><div>DISK</div></div>, width: 700, height: 500, component: <StorageManager /> },
   
-  {
-    id: 'wuthering_waves',
-    title: 'Wuthering Waves',
-    icon: <div className="w-full h-full bg-black rounded-xl flex items-center justify-center text-yellow-400 border border-yellow-500/50 shadow-lg"><Gamepad2 /></div>,
-    width: 1280,
-    height: 760,
-    minWidth: 1024,
-    minHeight: 576,
-    component: <WutheringWavesLauncher />
-  },
-
-  { 
-      id: 'preview', 
-      title: 'Preview', 
-      icon: <div className="w-full h-full bg-blue-500 rounded-xl flex items-center justify-center text-white"><ImageIcon /></div>, 
-      width: 800, 
-      height: 600, 
-      component: <Preview /> 
-  },
+  { id: 'wuthering_waves', title: 'Wuthering Waves', icon: <div className="w-full h-full bg-black rounded-xl flex items-center justify-center text-yellow-400 border border-yellow-500/50 shadow-lg"><Gamepad2 /></div>, width: 1280, height: 760, minWidth: 1024, minHeight: 576, component: <WutheringWavesLauncher /> },
+  { id: 'preview', title: 'Preview', icon: <div className="w-full h-full bg-blue-500 rounded-xl flex items-center justify-center text-white"><ImageIcon /></div>, width: 800, height: 600, component: <Preview /> },
   
   { id: 'about', title: 'About Lynx', icon: <PngIcon src="/icons/me.png" alt="About" />, width: 400, height: 500, component: <About /> },
   { id: 'settings', title: 'Settings', icon: <PngIcon src="/icons/settings.png" alt="Settings" />, width: 600, height: 400, component: <Settings /> },

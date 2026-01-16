@@ -13,6 +13,7 @@ export const TRANSLATIONS = {
     'launchpad': 'Launchpad',
     'safari': 'Safari',
     'photobooth': 'Photo Booth',
+    'messages': 'Messages',
     'terminal': 'Terminal',
     'mail': 'Mail',
     'calendar': 'Calendar',
@@ -156,6 +157,7 @@ export const TRANSLATIONS = {
     'launchpad': '启动台',
     'safari': 'Safari浏览器',
     'photobooth': '大头贴',
+    'messages': '信息',
     'terminal': '终端',
     'mail': '邮件',
     'calendar': '日历',
@@ -292,6 +294,7 @@ export const TRANSLATIONS = {
     // 混合模式
     'finder': 'Finder 访达', 'launchpad': 'Launchpad 启动台', 'safari': 'Safari 浏览器', 
     'photobooth': 'Photo Booth 大头贴',
+    'messages': 'Messages 信息',
     'terminal': 'Terminal 终端',
     'mail': 'Mail 邮件', 'calendar': 'Calendar 日历', 'calculator': 'Calculator 计算器', 'music': 'Music 音乐',
     'notes': 'Notes 备忘录', 'vscode': 'VS Code', 'settings': 'Settings 设置', 'about': 'About 翎',
