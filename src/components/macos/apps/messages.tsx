@@ -32,32 +32,29 @@ const CONTACTS = [
   }
 ]
 
-// --- 用户信息设置弹窗 (修复版) ---
+// 用户信息设置弹窗
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const [nick, setNick] = useState('')
     const [mail, setMail] = useState('')
     const [link, setLink] = useState('')
 
     useEffect(() => {
-        // 修复：从 'twikoo' JSON 对象中读取
+        // 读取 Twikoo 配置 (twikoo 存储的是 JSON 字符串)
         try {
-            const storedData = localStorage.getItem('twikoo')
-            if (storedData) {
-                const data = JSON.parse(storedData)
+            const stored = localStorage.getItem('twikoo')
+            if (stored) {
+                const data = JSON.parse(stored)
                 setNick(data.nick || '')
                 setMail(data.mail || '')
                 setLink(data.link || '')
             }
-        } catch (e) {
-            console.error('Failed to parse Twikoo data', e)
-        }
+        } catch (e) {}
     }, [])
 
     const handleSave = () => {
-        // 修复：写入到 'twikoo' JSON 对象
         try {
-            const storedData = localStorage.getItem('twikoo')
-            let data = storedData ? JSON.parse(storedData) : {}
+            const stored = localStorage.getItem('twikoo')
+            let data = stored ? JSON.parse(stored) : {}
             
             // 更新字段
             data.nick = nick
@@ -65,12 +62,10 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
             data.link = link
             
             localStorage.setItem('twikoo', JSON.stringify(data))
-            
-            // 触发回调刷新
-            onSave()
+            onSave() // 触发刷新
             onClose()
         } catch (e) {
-            console.error('Failed to save Twikoo data', e)
+            console.error(e)
         }
     }
 
@@ -85,30 +80,15 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
                 <div className="space-y-3">
                     <div>
                         <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Nickname</label>
-                        <input 
-                            value={nick} 
-                            onChange={e=>setNick(e.target.value)} 
-                            className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" 
-                            placeholder="Your Name"
-                        />
+                        <input value={nick} onChange={e=>setNick(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500" placeholder="Your Name"/>
                     </div>
                     <div>
-                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Email (Optional)</label>
-                        <input 
-                            value={mail} 
-                            onChange={e=>setMail(e.target.value)} 
-                            className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" 
-                            placeholder="For Gravatar"
-                        />
+                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Email</label>
+                        <input value={mail} onChange={e=>setMail(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500" placeholder="For Gravatar"/>
                     </div>
                     <div>
-                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Website (Optional)</label>
-                        <input 
-                            value={link} 
-                            onChange={e=>setLink(e.target.value)} 
-                            className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" 
-                            placeholder="https://..."
-                        />
+                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Website</label>
+                        <input value={link} onChange={e=>setLink(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500" placeholder="https://..."/>
                     </div>
                 </div>
 
@@ -126,7 +106,7 @@ export const Messages = () => {
   const [activeContactId, setActiveContactId] = useState(CONTACTS[0].id)
   const [search, setSearch] = useState('')
   const [showSettings, setShowSettings] = useState(false)
-  const [reloadKey, setReloadKey] = useState(0) 
+  const [reloadKey, setReloadKey] = useState(0) // 用于强制重载 CommentSystem
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
@@ -134,12 +114,8 @@ export const Messages = () => {
   return (
     <div className="flex h-full w-full bg-white dark:bg-[#1e1e1e] text-black dark:text-white font-sans overflow-hidden relative">
       
-      {showSettings && (
-          <SettingsModal 
-            onClose={() => setShowSettings(false)} 
-            onSave={() => setReloadKey(k => k + 1)} 
-          />
-      )}
+      {/* 设置弹窗 */}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onSave={() => setReloadKey(k => k + 1)} />}
 
       {/* 左侧边栏 */}
       <div className="w-[280px] flex flex-col border-r border-gray-200 dark:border-white/10 bg-[#f5f5f5]/90 dark:bg-[#252525]/90 backdrop-blur-xl">
@@ -206,11 +182,12 @@ export const Messages = () => {
                     <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{activeContact.name}</span>
                 </div>
             </div>
+            
             {/* 设置按钮 */}
             <button 
                 onClick={() => setShowSettings(true)}
                 className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all"
-                title="Profile Settings"
+                title="Settings"
             >
                 <Settings size={16} />
             </button>

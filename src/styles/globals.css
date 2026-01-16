@@ -210,19 +210,56 @@
 }
 
 /* =========================================
-   Messages (Twikoo) 特定样式
+   Messages 应用特定样式 (魔改布局)
    ========================================= */
 
-/* 1. 隐藏 Twikoo 原本的【昵称、邮箱、网址】输入框区域 */
-/* 这是你要“弄到一个设置界面去”的关键样式。
-   .tk-meta-input 是 Twikoo 默认包裹那三个输入框的 class。
-*/
+/* 1. 强制容器使用 Flex 列布局，撑满高度 */
+/* .imessage-mode 是我们在 CommentSystem 中添加的类名 */
+.imessage-mode #twikoo {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+}
+
+.imessage-mode .tk-main {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 !important;
+    height: 100% !important;
+}
+
+/* 2. 将评论列表放在上方 (Order 1) 并允许滚动 */
+.imessage-mode .tk-comments-container {
+    order: 1 !important;
+    flex: 1 !important; /* 撑开剩余空间 */
+    overflow-y: auto !important; /* 开启滚动 */
+    margin-top: 0 !important;
+    padding-bottom: 20px !important;
+}
+
+/* 3. 将输入框放在下方 (Order 2) */
+.imessage-mode .tk-submit {
+    order: 2 !important;
+    flex-shrink: 0 !important; /* 防止被压缩 */
+    margin-bottom: 0 !important;
+    background: transparent !important;
+    z-index: 10 !important;
+    padding-top: 10px !important;
+    border-top: 1px solid rgba(0,0,0,0.05) !important;
+}
+.dark .imessage-mode .tk-submit {
+    border-top: 1px solid rgba(255,255,255,0.05) !important;
+}
+
+/* 4. 【关键】隐藏原本的昵称/邮箱/网址输入框区域 */
+/* 我们已经在 Messages 的设置弹窗里处理了这些信息，所以这里隐藏掉，避免界面杂乱 */
 .imessage-mode .tk-meta-input {
     display: none !important;
 }
 
-/* 2. 隐藏页脚和多余信息，让界面更像聊天 */
-.imessage-mode .tk-footer, 
-.imessage-mode .tk-row-actions-start {
+/* 5. 隐藏其他不必要的元素，保持界面干净 */
+.imessage-mode .tk-footer,          /* 页脚 */
+.imessage-mode .tk-row-actions-start /* 表情包和预览按钮等 (可选，如果不想要可以删掉这一行) */
+{
     display: none !important;
 }

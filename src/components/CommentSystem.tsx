@@ -9,8 +9,7 @@ interface CommentSystemProps {
   slug: string
   title?: string
   compact?: boolean
-  // 新增：用于强制重载的 key
-  reloadKey?: number 
+  reloadKey?: number // 用于强制刷新
 }
 
 export default function CommentSystem({ slug, title, compact = false, reloadKey = 0 }: CommentSystemProps) {
@@ -64,7 +63,7 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     const envId = process.env.NEXT_PUBLIC_TWIKOO_ENV_ID
     if (!envId) return 
 
-    // 移除旧脚本，确保可以重载
+    // 移除旧脚本，强制重新加载
     const oldScripts = document.querySelectorAll('script[src*="twikoo"]')
     oldScripts.forEach(script => script.remove())
     
@@ -108,7 +107,7 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     } catch (e) {}
   }, [])
   
-  // 监听 reloadKey，变化时重新初始化
+  // 监听 reloadKey
   useEffect(() => {
     setTwikooLoaded(false)
     setGiscusLoaded(false)
@@ -121,9 +120,9 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     interface Window { twikoo?: any }
   }
 
-  // 修改：如果 compact 为 true，添加 imessage-mode 类名，这会触发 globals.css 中的隐藏样式
+  // 关键修改：如果 compact=true，添加 imessage-mode 类，触发 globals.css 中的隐藏和布局逻辑
   const containerClass = compact 
-    ? "w-full h-full flex flex-col bg-white dark:bg-[#1e1e1e] imessage-mode" 
+    ? "w-full h-full flex flex-col imessage-mode bg-white dark:bg-[#1e1e1e]" 
     : "mx-auto w-full max-w-[1140px] px-6 pb-12 max-sm:px-0"
 
   const cardClass = compact
@@ -165,9 +164,9 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
           </div>
         )}
         
-        <div className={`flex-1 min-h-0 relative overflow-y-auto ${compact ? 'px-4 py-2' : ''}`}>
+        <div className={`flex-1 min-h-0 relative ${compact ? '' : ''}`}>
             {currentSystem === 'giscus' && (
-            <div>
+            <div className="h-full overflow-y-auto px-4">
                 {!giscusLoaded && (
                 <div className="flex flex-col items-center justify-center p-8 opacity-60">
                     <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500"></div>
@@ -180,14 +179,15 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
             )}
             
             {currentSystem === 'twikoo' && (
-            <div>
+            <div className="h-full flex flex-col">
                 {!twikooLoaded && (
-                <div className="flex flex-col items-center justify-center p-8 opacity-60">
+                <div className="flex flex-col items-center justify-center p-8 opacity-60 absolute inset-0">
                     <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500"></div>
                     <p className="text-xs text-gray-500">Loading Messages...</p>
                 </div>
                 )}
-                <div ref={twikooContainerRef} className="w-full min-h-[200px]" style={{ display: twikooLoaded ? 'block' : 'none' }} />
+                {/* 这里的 div 将承载 Twikoo 渲染，配合 globals.css 实现置底和隐藏 meta-input */}
+                <div ref={twikooContainerRef} className="w-full h-full" style={{ display: twikooLoaded ? 'block' : 'none' }} />
             </div>
             )}
         </div>
