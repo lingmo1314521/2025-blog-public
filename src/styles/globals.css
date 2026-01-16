@@ -210,33 +210,24 @@
 }
 
 /* =========================================
-   Messages 应用特定样式 (iMessage 风格 - 终极修复版)
+   Messages 应用特定样式 (iMessage 风格 - 完美修复版)
    ========================================= */
 
-/* 1. 【核心修复】"隐身"原生输入框 */
-/* 必须保留在文档流中 (不能 fixed/absolute)，否则回复移动时会导致父容器高度塌陷或白屏 */
-/* 我们将其高度设为 0，透明度设为 0 */
+/* 1. 【核心修复】"离屏隐藏"原生输入框 */
+/* 使用 fixed 定位将其移出可视区域，保留 DOM 交互能力，防止白屏和点击无效 */
 .imessage-mode .tk-submit {
-    height: 0 !important;
-    min-height: 0 !important;
+    position: fixed !important;
+    top: -9999px !important;
+    left: -9999px !important;
+    width: 10px !important; /* 保留一点尺寸以防浏览器优化 */
+    height: 10px !important;
     opacity: 0 !important;
+    z-index: -1 !important;
     overflow: hidden !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
-    transform: scale(0) !important; /* 确保不占据视觉空间 */
 }
 
-/* 隐藏输入框内的具体元素 */
-.imessage-mode .tk-submit .tk-row,
-.imessage-mode .tk-submit .tk-input,
+/* 2. 隐藏 Twikoo 内部的元信息输入框 */
 .imessage-mode .tk-meta-input {
-    display: none !important;
-}
-
-/* 2. 隐藏全屏遮罩 (防止点击回复时出现白屏) */
-.imessage-mode .tk-admin-container, 
-.imessage-mode .el-loading-mask {
     display: none !important;
 }
 
@@ -245,7 +236,13 @@
     display: none !important;
 }
 
-/* 4. 布局调整 */
+/* 4. 隐藏管理员/加载遮罩 (防止操作时闪烁) */
+.imessage-mode .tk-admin-container,
+.imessage-mode .el-loading-mask {
+    display: none !important;
+}
+
+/* 5. 布局调整 */
 .imessage-mode .tk-main {
     display: flex !important;
     flex-direction: column !important;
@@ -262,18 +259,18 @@
     position: relative !important;
 }
 
-/* 5. 隐藏页脚 */
+/* 6. 隐藏页脚 */
 .imessage-mode .tk-footer, 
 .imessage-mode .tk-extras {
     display: none !important;
 }
 
-/* 6. 气泡化改造 */
+/* 7. 气泡化改造 */
 .imessage-mode .tk-comment {
     margin-bottom: 16px !important;
     display: flex !important;
     flex-direction: row !important;
-    align-items: flex-end !important; /* 头像沉底 */
+    align-items: flex-end !important;
     border: none !important;
     background: transparent !important;
     padding: 0 !important;
@@ -307,8 +304,7 @@
     position: relative !important;
 }
 
-/* --- 信息栏 (昵称/时间/操作) --- */
-/* 这里我们使用 flex 布局把昵称放左边，时间放右边，操作按钮隐藏或放最右 */
+/* --- 信息栏 (昵称/时间) --- */
 .imessage-mode .tk-row {
     display: flex !important;
     align-items: baseline !important;
@@ -323,10 +319,9 @@
     display: flex !important;
     align-items: baseline !important;
     gap: 6px !important;
-    flex: 1 !important; /* 占据剩余空间 */
+    flex: 1 !important;
 }
 
-/* 昵称更明显 */
 .imessage-mode .tk-nick {
     font-size: 13px !important;
     color: #555 !important;
@@ -344,18 +339,19 @@
 
 /* --- 操作栏 (点赞/回复) --- */
 .imessage-mode .tk-action {
-    opacity: 0 !important; /* 默认隐藏 */
+    opacity: 0 !important;
     transition: opacity 0.2s ease !important;
     display: flex !important;
     gap: 12px !important;
     margin-left: 10px !important;
+    position: relative !important; 
+    z-index: 50 !important; /* 提高层级，确保可点击 */
 }
-/* 鼠标悬停显示 */
 .imessage-mode .tk-comment:hover .tk-action {
     opacity: 1 !important;
 }
 .imessage-mode .tk-action-link {
-    color: #007aff !important; /* 蓝色按钮 */
+    color: #007aff !important;
     font-size: 11px !important;
     text-decoration: none !important;
     display: flex !important;
@@ -364,6 +360,7 @@
 }
 .imessage-mode .tk-action-icon svg {
     fill: #007aff !important;
+    pointer-events: none !important; /* 防止图标挡住链接点击 */
 }
 
 /* --- 气泡本体 --- */
@@ -424,8 +421,7 @@
     border-left: none !important;
     width: 100% !important;
 }
-/* 解决回复时输入框占位导致的布局跳动 */
-.imessage-mode .tk-comment .tk-submit {
-    position: absolute !important; /* 让它脱离文档流 */
-    bottom: 0 !important;
+.imessage-mode .tk-replies .tk-comment {
+    margin-top: 10px !important;
+    width: 100% !important;
 }

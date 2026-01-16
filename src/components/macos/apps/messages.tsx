@@ -107,7 +107,6 @@ export const Messages = () => {
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
 
-  // 同步输入
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value
       setInputValue(val)
@@ -118,24 +117,25 @@ export const Messages = () => {
       }
   }
 
-  // 触发发送
   const handleSend = () => {
       if (!inputValue.trim()) return
       const twikooSendBtn = document.querySelector('.imessage-mode .tk-send') as HTMLButtonElement
       if (twikooSendBtn) {
           twikooSendBtn.click()
           setInputValue('')
-          // 提交后重置回复状态 (可能需要延时，等待 Twikoo 刷新)
           setTimeout(() => setReplyingTo(null), 500)
       }
   }
 
-  // 取消回复
   const cancelReply = () => {
+      // 模拟点击 Twikoo 内部的取消按钮
       const cancelBtn = document.querySelector('.imessage-mode .tk-cancel') as HTMLElement
       if (cancelBtn) {
-          cancelBtn.click() // 触发 Twikoo 内部取消
+          cancelBtn.click()
+      } else {
+          // 如果找不到按钮，强制刷新组件以重置状态
           setReplyingTo(null)
+          setReloadKey(k => k + 1)
       }
   }
 
@@ -144,6 +144,7 @@ export const Messages = () => {
       
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onSave={() => setReloadKey(k => k + 1)} />}
 
+      {/* 左侧边栏 */}
       <div className="w-[280px] flex flex-col border-r border-gray-200 dark:border-white/10 bg-[#f5f5f5]/90 dark:bg-[#252525]/90 backdrop-blur-xl">
         <div className="h-12 flex items-center justify-between px-3 shrink-0 pt-2 mb-2">
            <div className="relative flex-1 mr-2">
@@ -168,6 +169,7 @@ export const Messages = () => {
         </div>
       </div>
 
+      {/* 右侧主内容 */}
       <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#1e1e1e] relative">
         <div className="h-12 border-b border-gray-200/50 dark:border-white/10 flex items-center justify-between px-4 bg-white/80 dark:bg-[#1e1e1e]/80 backdrop-blur-md shrink-0 z-20 sticky top-0">
             <div className="flex items-center gap-3">

@@ -92,7 +92,7 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     document.body.appendChild(script)
   }
 
-  // --- 深度监听 Twikoo DOM 变化 (修复回复检测) ---
+  // --- 深度监听 Twikoo DOM 变化 ---
   useEffect(() => {
     if (!compact || !twikooLoaded || !twikooContainerRef.current) return;
 
@@ -105,12 +105,11 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
         }
 
         // 2. 抓取回复状态
-        // 核心修复：检测 .el-textarea__inner 的 placeholder 是否变化
         const textarea = document.querySelector('.imessage-mode .el-textarea__inner')
         if (textarea && onReplyChange) {
             const placeholder = textarea.getAttribute('placeholder')
             if (placeholder && placeholder.includes('@')) {
-                // 提取名字，通常格式为 "回复 @Nick"
+                // 提取名字 "回复 @Nick"
                 const match = placeholder.match(/@(.+)/)
                 if (match) {
                     onReplyChange(match[1])
@@ -123,8 +122,7 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
         }
     })
 
-    // 监听属性变化 (placeholder) 和子节点变化
-    observer.observe(twikooContainerRef.current, { childList: true, subtree: true, attributes: true, attributeFilter: ['placeholder'] })
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['placeholder', 'class'] })
 
     return () => observer.disconnect()
   }, [twikooLoaded, compact, onCountChange, onReplyChange])
