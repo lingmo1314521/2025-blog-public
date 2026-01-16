@@ -9,23 +9,66 @@ interface CommentSystemProps {
   slug: string
   title?: string
   compact?: boolean
-  updateKey?: number // 用于强制刷新组件的 Key
+  // 新增：用于强制刷新的 key，当用户在设置里修改信息后，改变这个 key 可以重载 Twikoo
+  reloadKey?: number 
 }
 
-export default function CommentSystem({ slug, title, compact = false, updateKey }: CommentSystemProps) {
-  const [currentSystem, setCurrentSystem] = useState<CommentSystemType>('twikoo') // 默认 Twikoo
+export default function CommentSystem({ slug, title, compact = false, reloadKey = 0 }: CommentSystemProps) {
+  const [currentSystem, setCurrentSystem] = useState<CommentSystemType>('twikoo')
+  const [giscusLoaded, setGiscusLoaded] = useState(false)
   const [twikooLoaded, setTwikooLoaded] = useState(false)
+  
+  const giscusContainerRef = useRef<HTMLDivElement>(null)
   const twikooContainerRef = useRef<HTMLDivElement>(null)
+
+  const initGiscus = () => {
+    if (!giscusContainerRef.current) return
+    try {
+      giscusContainerRef.current.innerHTML = ''
+      const script = document.createElement('script')
+      script.src = 'https://giscus.app/client.js'
+      script.async = true
+      script.crossOrigin = 'anonymous'
+      
+      script.setAttribute('data-repo', 'lingmo1314521/my-blog-comments')
+      script.setAttribute('data-repo-id', 'R_kgDOQmpfyg')
+      script.setAttribute('data-category', 'General')
+      script.setAttribute('data-category-id', 'DIC_kwDOQmpfys4Czpli')
+      script.setAttribute('data-mapping', 'pathname') 
+      script.setAttribute('data-term', slug)
+      script.setAttribute('data-strict', '0')
+      script.setAttribute('data-reactions-enabled', '1')
+      script.setAttribute('data-emit-metadata', '0')
+      script.setAttribute('data-input-position', 'top') 
+      script.setAttribute('data-theme', compact ? 'noborder_light' : 'light') 
+      script.setAttribute('data-lang', 'zh-CN')
+      
+      script.onload = () => {
+        const checkIframe = () => {
+          const iframe = giscusContainerRef.current?.querySelector('iframe.giscus-frame')
+          if (iframe) setGiscusLoaded(true)
+          else setTimeout(checkIframe, 500)
+        }
+        setTimeout(checkIframe, 1000)
+      }
+      
+      script.onerror = () => setGiscusLoaded(false)
+      giscusContainerRef.current.appendChild(script)
+    } catch (error) {
+      console.error('Giscus init failed:', error)
+      setGiscusLoaded(false)
+    }
+  }
 
   const initTwikoo = () => {
     const envId = process.env.NEXT_PUBLIC_TWIKOO_ENV_ID
     if (!envId) return 
 
-    // 清理旧脚本
+    // 移除旧脚本，强制重新加载
     const oldScripts = document.querySelectorAll('script[src*="twikoo"]')
     oldScripts.forEach(script => script.remove())
     
-    // 如果容器里有东西，先清空 (防止重复渲染)
+    // 清空容器，防止重复渲染
     if (twikooContainerRef.current) {
         twikooContainerRef.current.innerHTML = ''
     }
@@ -39,27 +82,50 @@ export default function CommentSystem({ slug, title, compact = false, updateKey 
         window.twikoo.init({
           envId: envId,
           el: twikooContainerRef.current,
-          // iMessage 模式使用特殊路径前缀，避免污染正常文章评论
           path: compact ? `/messages/${slug}` : `/blog/${slug}`,
           lang: 'zh-CN',
-          onCommentLoaded: () => setTwikooLoaded(true)
+          onCommentLoaded: () => {
+              setTwikooLoaded(true)
+              // 尝试将滚动条拉到底部
+              const container = document.querySelector('.tk-comments-container')
+              if (container) {
+                  container.scrollTop = container.scrollHeight
+              }
+          }
         })
       }
     }
     document.body.appendChild(script)
   }
 
-  // 监听 updateKey 的变化来重新初始化
+  const handleSystemSwitch = (system: CommentSystemType) => {
+    if (system === currentSystem) return
+    setCurrentSystem(system)
+    if (system === 'giscus') setGiscusLoaded(false)
+    else setTwikooLoaded(false)
+    try { localStorage.setItem('preferred-comment-system', system) } catch (e) {}
+  }
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('preferred-comment-system') as CommentSystemType
+      if (saved) setCurrentSystem(saved)
+    } catch (e) {}
+  }, [])
+  
+  // 依赖 reloadKey，当它变化时重新初始化
   useEffect(() => {
     setTwikooLoaded(false)
-    setTimeout(() => initTwikoo(), 100)
-  }, [slug, updateKey])
+    setGiscusLoaded(false)
+    
+    if (currentSystem === 'giscus') setTimeout(() => initGiscus(), 100)
+    else setTimeout(() => initTwikoo(), 100)
+  }, [currentSystem, slug, reloadKey])
 
   declare global {
     interface Window { twikoo?: any }
   }
 
-  // iMessage 模式：占满父容器，Flex 列布局
   const containerClass = compact 
     ? "w-full h-full flex flex-col imessage-mode overflow-hidden" 
     : "mx-auto w-full max-w-[1140px] px-6 pb-12 max-sm:px-0"
@@ -72,33 +138,83 @@ export default function CommentSystem({ slug, title, compact = false, updateKey 
     <div className={containerClass}>
       <div className={cardClass}>
         
-        {/* 标题栏 (非 compact 模式) */}
+        {/* 顶部标题栏：仅在博客普通模式下显示 */}
         {!compact && (
           <div className="mb-6 pb-4 border-b border-gray-200/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h3 className="text-xl font-semibold text-gray-800">💬 文章评论</h3>
+              <p className="mt-1 text-sm text-gray-500">欢迎留下你的看法和见解</p>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">评论系统：</span>
+              <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+                <button
+                  onClick={() => handleSystemSwitch('giscus')}
+                  className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    currentSystem === 'giscus' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Giscus {currentSystem === 'giscus' && !giscusLoaded && <span className="ml-1 h-1.5 w-1.5 animate-ping rounded-full bg-blue-500"></span>}
+                </button>
+                <button
+                  onClick={() => handleSystemSwitch('twikoo')}
+                  className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    currentSystem === 'twikoo' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Twikoo {currentSystem === 'twikoo' && !twikooLoaded && <span className="ml-1 h-1.5 w-1.5 animate-ping rounded-full bg-blue-500"></span>}
+                </button>
+              </div>
             </div>
           </div>
         )}
         
-        {/* 内容区 */}
-        <div className={`flex-1 relative ${compact ? 'min-h-0' : ''}`}>
-            {!twikooLoaded && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center opacity-60 pointer-events-none">
+        <div className={`flex-1 min-h-0 relative ${compact ? '' : ''}`}>
+            {currentSystem === 'giscus' && (
+            <div className="h-full overflow-y-auto px-4">
+                {!giscusLoaded && (
+                <div className="flex flex-col items-center justify-center p-8 opacity-60">
+                    <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500"></div>
+                    <p className="text-xs text-gray-500">Connecting to GitHub...</p>
+                    <button onClick={initGiscus} className="mt-2 text-xs text-blue-500 hover:underline">Retry</button>
+                </div>
+                )}
+                <div ref={giscusContainerRef} className="w-full min-h-[200px]" style={{ display: giscusLoaded ? 'block' : 'none' }} />
+            </div>
+            )}
+            
+            {currentSystem === 'twikoo' && (
+            <div className="h-full flex flex-col">
+                {!twikooLoaded && (
+                <div className="flex flex-col items-center justify-center p-8 opacity-60 absolute inset-0">
                     <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500"></div>
                     <p className="text-xs text-gray-500">Loading Messages...</p>
                 </div>
+                )}
+                {/* 这里的 imessage-twikoo 类名对应 globals.css 中的样式 */}
+                <div ref={twikooContainerRef} className={`w-full h-full ${compact ? 'imessage-twikoo' : ''}`} style={{ display: twikooLoaded ? 'block' : 'none' }} />
+            </div>
             )}
-            
-            {/* Twikoo 挂载点 
-                重点：imessage-twikoo 类名对应 globals.css 中的 flex 布局规则
-                h-full 确保它能撑开高度，把输入框挤到底部
-            */}
-            <div 
-                ref={twikooContainerRef} 
-                className={`w-full h-full ${compact ? 'imessage-twikoo' : ''}`} 
-            />
         </div>
+
+        {compact && (
+            <div className="shrink-0 h-6 flex items-center justify-center gap-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/5 z-20">
+                <button 
+                    onClick={() => handleSystemSwitch('twikoo')}
+                    className={`flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider transition-colors ${currentSystem === 'twikoo' ? 'text-blue-500' : 'text-gray-300 hover:text-gray-500'}`}
+                >
+                    <MessageSquare size={9} /> Twikoo
+                </button>
+                <div className="w-[1px] h-2 bg-gray-200 dark:bg-white/10"></div>
+                <button 
+                    onClick={() => handleSystemSwitch('giscus')}
+                    className={`flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider transition-colors ${currentSystem === 'giscus' ? 'text-blue-500' : 'text-gray-300 hover:text-gray-500'}`}
+                >
+                    <Server size={9} /> GitHub
+                </button>
+            </div>
+        )}
       </div>
     </div>
   )
