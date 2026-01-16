@@ -33,7 +33,7 @@
 }
 
 /* =========================================
-   Twikoo iMessage 终极形态 (排序修复版)
+   Twikoo iMessage 终极形态 (物理平铺排序版)
    ========================================= */
 
 /* 1. 全局容器重置 */
@@ -50,7 +50,8 @@
 .imessage-mode .tk-footer,
 .imessage-mode .tk-extras,
 .imessage-mode .tk-row.actions,
-.imessage-mode .tk-comments-title { 
+.imessage-mode .tk-comments-title,
+.imessage-mode .tk-expand { /* 隐藏"查看更多"按钮，保持流式整洁 */
     position: absolute !important;
     opacity: 0 !important;
     pointer-events: none !important;
@@ -61,17 +62,15 @@
 }
 
 /* -------------------------------------------
-   [核心修复] 消息流排序控制
+   [核心] 消息流容器布局
    ------------------------------------------- */
 .imessage-mode .tk-comments-container {
     padding: 20px 16px !important;
     display: flex !important;
-    /* 关键：反转 flex 方向 */
-    /* Twikoo 默认 DOM 是 [新 -> 旧]，反转后变成 [旧 -> 新] (上 -> 下) */
-    flex-direction: column-reverse !important; 
-    /* 确保第一条消息贴在最上方 (因为 reverse 后主轴起点变到底部) */
-    /* justify-content: flex-end; -- 在 column-reverse 下，这会让消息少的时候贴顶 */
-    /* 但 iMessage 消息少的时候是贴底的，column-reverse 默认就是贴底，所以无需额外 justify */
+    /* 标准列布局 */
+    flex-direction: column !important; 
+    /* 关键：让内容不足时自动吸附到底部 */
+    justify-content: flex-end !important;
     min-height: 100% !important;
 }
 
@@ -80,21 +79,21 @@
    ------------------------------------------- */
 
 .imessage-mode .tk-comment {
-    margin-top: 0 !important;
-    margin-bottom: 20px !important;
+    margin-top: 10px !important;
+    margin-bottom: 10px !important;
     display: flex !important;
     flex-direction: row !important;
     align-items: flex-start !important; 
     width: 100% !important;
     border: none !important;
     position: relative !important;
-    /* 既然反转了容器，margin-bottom 其实变成了视觉上的 "margin-top" */
+    flex-shrink: 0 !important; /* 防止被挤压 */
 }
 
 /* 头像 */
 .imessage-mode .tk-avatar {
-    width: 32px !important;
-    height: 32px !important;
+    width: 34px !important;
+    height: 34px !important;
     border-radius: 50% !important;
     margin-right: 10px !important;
     overflow: hidden !important;
@@ -201,61 +200,20 @@
 }
 
 /* -------------------------------------------
-   回复列表处理 (不需要反转，保持原样)
+   回复容器清理
+   由于 JS 会把内容搬空，我们只需要确保空的容器不占位
    ------------------------------------------- */
 .imessage-mode .tk-replies {
-    width: calc(100% + 42px) !important; 
-    margin-left: -42px !important; 
-    margin-top: 12px !important;
-    display: flex !important;
-    flex-direction: column !important; /* 回复通常已经是旧->新顺序，保持 column */
-    border: none !important;
-    padding: 0 !important;
-    position: relative !important;
-    max-height: none !important;
-}
-
-.imessage-mode .tk-master .tk-replies {
-    align-items: flex-start !important; 
-    margin-right: -42px !important; 
-}
-.imessage-mode .tk-master .tk-replies .tk-comment {
-    flex-direction: row !important;
-    align-items: flex-start !important;
-}
-.imessage-mode .tk-master .tk-replies .tk-content {
-    background-color: #e9e9eb !important;
-    color: #000 !important;
-    border-top-left-radius: 4px !important;
-    border-top-right-radius: 18px !important;
-}
-.dark .imessage-mode .tk-master .tk-replies .tk-content {
-    background-color: #262628 !important;
-    color: #fff !important;
-}
-.imessage-mode .tk-master .tk-replies .tk-avatar {
-    display: block !important; 
-    margin-left: 0 !important;
-    margin-right: 10px !important;
-}
-
-.imessage-mode .tk-replies .tk-comment {
-    margin-bottom: 12px !important;
-    margin-top: 0 !important;
-    width: 100% !important;
-    border-left: none !important;
+    display: none !important; /* JS 搬空后直接隐藏，防止残留 margin */
 }
 
 /* -------------------------------------------
-   引用内容 & 修复内容消失
+   引用内容 & 操作按钮
    ------------------------------------------- */
-
-/* 只隐藏包含 .tk-ruser (被回复用户名) 的 span */
 .imessage-mode .tk-content > span:has(.tk-ruser) {
     display: none !important;
 }
 
-/* 引用容器样式 */
 .imessage-quote {
     display: block;
     margin-bottom: 6px;
@@ -271,24 +229,19 @@
     cursor: pointer;
     user-select: none;
 }
-
 .dark .imessage-mode .imessage-quote {
     border-left-color: rgba(255, 255, 255, 0.3);
 }
-
 .imessage-mode .tk-master .tk-content .imessage-quote {
     border-left-color: rgba(255, 255, 255, 0.5);
     opacity: 0.8;
 }
-
 .imessage-quote-name {
     font-weight: 700;
     margin-right: 4px;
 }
 
-/* -------------------------------------------
-   操作按钮
-   ------------------------------------------- */
+/* 按钮 */
 .imessage-mode .tk-actions {
     position: absolute !important;
     right: -45px !important;

@@ -7,7 +7,6 @@ import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
 import { toast } from 'sonner' 
 
-// --- SettingsModal 组件 (保持不变) ---
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const { t } = useI18n()
     const [nick, setNick] = useState('')
@@ -121,7 +120,7 @@ export const Messages = () => {
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
 
-  // --- 获取 Twikoo 输入框逻辑 ---
+  // --- Twikoo 元素获取 ---
   const getTwikooElements = () => {
       const cancelBtn = document.querySelector('.imessage-mode .tk-cancel') as HTMLButtonElement
       if (cancelBtn) {
@@ -153,49 +152,66 @@ export const Messages = () => {
       }
   }
 
-  // --- 关键逻辑：注入引用内容 ---
-  // 这个函数会找到所有的“回复”，并将原评论的内容复制一份插进去
-  const injectQuotes = () => {
-      // 1. 找到所有在 .tk-replies 列表中的评论 (这些都是回复)
-      const replyComments = document.querySelectorAll('.imessage-mode .tk-replies .tk-comment')
+  // --- 核心：DOM 平铺与排序逻辑 ---
+  const flattenAndSortComments = () => {
+      const container = document.querySelector('.imessage-mode .tk-comments-container');
+      if (!container) return;
+
+      // 1. 处理嵌套回复：注入引用 + 搬运到最外层
+      // 查找所有嵌套在 replies 里的评论
+      const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment'));
       
-      replyComments.forEach(reply => {
-          // 2. 找到该回复的气泡内容容器
-          const contentBox = reply.querySelector('.tk-content')
-          if (!contentBox) return;
+      if (nestedReplies.length > 0) {
+          nestedReplies.forEach(reply => {
+             // A. 注入引用 (必须在搬走之前做，否则找不到爹)
+             const contentBox = reply.querySelector('.tk-content');
+             if (contentBox && !contentBox.querySelector('.imessage-quote')) {
+                 const replyList = reply.closest('.tk-replies');
+                 const parentComment = replyList?.closest('.tk-comment') as HTMLElement;
+                 if (parentComment) {
+                     const parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'User';
+                     const parentContentElem = parentComment.querySelector('.tk-main > .tk-content');
+                     let parentText = parentContentElem?.textContent?.replace(/\s+/g, ' ').trim() || '';
+                     // 去除引用文本本身，防止递归引用显示
+                     if (parentContentElem?.querySelector('.imessage-quote')) {
+                         const quoteText = parentContentElem.querySelector('.imessage-quote')?.textContent || '';
+                         parentText = parentText.replace(quoteText, '').trim();
+                     }
+                     if (parentText.length > 30) parentText = parentText.slice(0, 30) + '...';
 
-          // 3. 防止重复注入
-          if (contentBox.querySelector('.imessage-quote')) return;
+                     const quoteDiv = document.createElement('div');
+                     quoteDiv.className = 'imessage-quote';
+                     quoteDiv.innerHTML = `<span class="imessage-quote-name">${parentNick}:</span> ${parentText}`;
+                     contentBox.insertBefore(quoteDiv, contentBox.firstChild);
+                 }
+             }
 
-          // 4. 寻找“父级”评论
-          // 在 Twikoo 的 DOM 结构中，.tk-replies 的父元素就是 .tk-comment (父评论)
-          const replyList = reply.closest('.tk-replies');
-          if (!replyList) return;
-          
-          const parentComment = replyList.closest('.tk-comment') as HTMLElement;
-          if (!parentComment) return;
+             // B. 搬运到主容器
+             container.appendChild(reply);
+          });
+      }
 
-          // 5. 提取父级评论的信息 (昵称和内容)
-          // 注意：使用 :scope > ... 确保只查找直接子元素，不查找嵌套的
-          const parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'Someone';
-          const parentContentElement = parentComment.querySelector('.tk-main > .tk-content');
-          
-          if (parentContentElement) {
-              // 简单的文本提取，去除多余空格，截取前 40 个字符
-              let parentText = parentContentElement.textContent?.replace(/\s+/g, ' ').trim() || '';
-              if (parentText.length > 40) parentText = parentText.slice(0, 40) + '...';
-              
-              // 6. 创建引用 DOM
-              const quoteDiv = document.createElement('div');
-              quoteDiv.className = 'imessage-quote';
-              
-              // 也可以加入父级头像，这里仅使用文字保持简洁
-              quoteDiv.innerHTML = `<span class="imessage-quote-name">${parentNick}:</span> ${parentText}`;
-              
-              // 7. 插入到回复气泡的最前面
-              contentBox.insertBefore(quoteDiv, contentBox.firstChild);
-          }
+      // 2. 全局排序 (按时间戳)
+      // 获取所有直接子元素中的评论
+      const comments = Array.from(container.children).filter(child => child.classList.contains('tk-comment'));
+      
+      // 如果没有评论或只有一条，无需排序
+      if (comments.length <= 1) return;
+
+      // 检查是否已经是排序好的 (简单检查最后一个是否是新的)，避免重复 DOM 操作导致的抖动
+      // 这里为了保险，进行一次全量排序
+      const sorted = comments.sort((a, b) => {
+          const tA = a.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
+          const tB = b.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
+          return new Date(tA).getTime() - new Date(tB).getTime(); // 旧 -> 新
       });
+
+      // 重新插入 DOM (appendChild 会自动移动元素，不会克隆)
+      // 我们需要保持 input 框或者 load-more 按钮的位置吗？
+      // Twikoo 的 LoadMore 按钮 (.tk-expand) 通常在最下面或最上面。
+      // 为了安全，我们只重排 .tk-comment，把它们按顺序 append 到容器末尾
+      // 这会自动把它们排在非 .tk-comment 元素 (如 hidden inputs) 的后面
+      sorted.forEach(c => container.appendChild(c));
   }
 
   // 监听 DOM 变化
@@ -203,16 +219,22 @@ export const Messages = () => {
     const observer = new MutationObserver(() => {
         const { isReplyMode, cancelBtn } = getTwikooElements()
         
-        // 检测回复模式 (用于输入框 UI)
+        // 1. 输入框状态检测
         if (isReplyMode !== isReplying) {
             setIsReplying(isReplyMode)
             if (isReplyMode && cancelBtn) {
-                // 尝试获取被回复人名字用于 Banner
+                // 回复模式下，Banner 提示
+                // 由于我们打平了 DOM，向上找 .tk-comment 依然有效（因为 input 还是会被 Twikoo 插在被回复的评论下面）
                 const form = cancelBtn.closest('.tk-submit')
                 if(form) {
-                    const parentComment = form.closest('.tk-comment')
-                    if (parentComment) {
-                        const nick = parentComment.querySelector('.tk-nick')?.textContent
+                    // 此时 input 可能在任何位置，找它的 previousSibling 通常是评论本身
+                    // 或者找 DOM 树最近的 .tk-comment (如果是嵌套插入的话)
+                    // Twikoo 原生行为是将 form 插入到 .tk-replies 中。
+                    // 即使我们把之前的 replies 搬走了，新插入的 form 还是会在原来的结构里。
+                    // 所以这里的逻辑通常还能工作。
+                    const parentContainer = form.parentElement?.closest('.tk-comment')
+                    if (parentContainer) {
+                        const nick = parentContainer.querySelector('.tk-nick')?.textContent
                         setReplyTargetText(nick ? `Replying to ${nick}` : 'Replying...')
                     }
                 }
@@ -221,8 +243,8 @@ export const Messages = () => {
             }
         }
 
-        // --- 执行引用注入 ---
-        injectQuotes();
+        // 2. 执行平铺和排序
+        flattenAndSortComments();
     })
 
     observer.observe(document.body, { childList: true, subtree: true })
@@ -252,6 +274,7 @@ export const Messages = () => {
         if (btn) {
             btn.click()
             setInputValue('')
+            // 乐观滚动：发送后滚动到底部
             setTimeout(() => {
                 const container = document.querySelector('.imessage-mode .tk-comments-container')
                 if (container) container.scrollTop = container.scrollHeight
