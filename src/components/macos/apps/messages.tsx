@@ -1,13 +1,12 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
-import { Search, Edit, Settings, X, Save, ArrowUp } from 'lucide-react'
+import { Search, Edit, Settings, X, Save, ArrowUp, MessageCircle } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
 
-// --- 用户信息设置弹窗 ---
-// 这里的输入将替代 Twikoo 原本的 .tk-meta-input 区域
+// 设置弹窗
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const { t } = useI18n()
     const [nick, setNick] = useState('')
@@ -15,7 +14,6 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
     const [link, setLink] = useState('')
 
     useEffect(() => {
-        // 读取 Twikoo 存储在 localStorage 中的用户信息
         try {
             const stored = localStorage.getItem('twikoo')
             if (stored) {
@@ -29,13 +27,10 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
 
     const handleSave = () => {
         try {
-            // 将更新后的信息存回 localStorage，供 Twikoo 读取
             const stored = localStorage.getItem('twikoo')
             let data = stored ? JSON.parse(stored) : {}
             data.nick = nick; data.mail = mail; data.link = link
             localStorage.setItem('twikoo', JSON.stringify(data))
-            
-            // 触发回调，让父组件刷新评论系统以应用新昵称
             onSave()
             onClose()
         } catch (e) { console.error(e) }
@@ -107,11 +102,12 @@ export const Messages = () => {
   const [showSettings, setShowSettings] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [inputValue, setInputValue] = useState('')
+  // 新增：评论数量状态
+  const [msgCount, setMsgCount] = useState(0)
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
 
-  // 将输入内容同步到隐藏的 Twikoo 输入框
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value
       setInputValue(val)
@@ -122,7 +118,6 @@ export const Messages = () => {
       }
   }
 
-  // 触发发送
   const handleSend = () => {
       if (!inputValue.trim()) return
       const twikooSendBtn = document.querySelector('.imessage-mode .tk-send') as HTMLButtonElement
@@ -164,8 +159,6 @@ export const Messages = () => {
 
       {/* 右侧主内容 */}
       <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#1e1e1e] relative">
-        
-        {/* 顶部栏 */}
         <div className="h-12 border-b border-gray-200/50 dark:border-white/10 flex items-center justify-between px-4 bg-white/80 dark:bg-[#1e1e1e]/80 backdrop-blur-md shrink-0 z-20 sticky top-0">
             <div className="flex items-center gap-3">
                 <span className="text-xs text-gray-400">{t('msg_to')}</span>
@@ -173,11 +166,9 @@ export const Messages = () => {
                     <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{activeContact.name}</span>
                 </div>
             </div>
-            {/* 设置按钮：用于修改昵称/邮箱 */}
             <button onClick={() => setShowSettings(true)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all" title={t('msg_settings_title')}><Settings size={16} /></button>
         </div>
 
-        {/* 评论显示区 (Twikoo 渲染在此，输入框被 CSS 隐藏) */}
         <div className="flex-1 overflow-hidden relative flex flex-col">
             <CommentSystem 
                 key={`${activeContact.slug}-${reloadKey}`} 
@@ -185,11 +176,17 @@ export const Messages = () => {
                 title={activeContact.name}
                 compact={true} 
                 reloadKey={reloadKey}
+                onCountChange={setMsgCount} // 传递回调
             />
         </div>
 
-        {/* 自定义底部输入栏 (代理发送) */}
-        <div className="shrink-0 p-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30">
+        <div className="shrink-0 px-4 pb-4 pt-2 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30">
+            {/* 评论数量显示 (左上角) */}
+            <div className="flex items-center gap-1 mb-2 ml-2 text-[10px] text-gray-400 font-medium select-none">
+                <MessageCircle size={10} />
+                <span>{msgCount} Messages</span>
+            </div>
+
             <div className="relative">
                 <input
                     type="text"

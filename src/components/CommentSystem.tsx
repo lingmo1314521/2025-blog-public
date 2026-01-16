@@ -9,11 +9,13 @@ interface CommentSystemProps {
   slug: string
   title?: string
   compact?: boolean
-  reloadKey?: number 
+  reloadKey?: number
+  // 新增：回调函数，用于将评论数量传给父组件
+  onCountChange?: (count: number) => void
 }
 
-export default function CommentSystem({ slug, title, compact = false, reloadKey = 0 }: CommentSystemProps) {
-  const [currentSystem, setCurrentSystem] = useState<CommentSystemType>('twikoo') // 默认使用 Twikoo
+export default function CommentSystem({ slug, title, compact = false, reloadKey = 0, onCountChange }: CommentSystemProps) {
+  const [currentSystem, setCurrentSystem] = useState<CommentSystemType>('twikoo')
   const [giscusLoaded, setGiscusLoaded] = useState(false)
   const [twikooLoaded, setTwikooLoaded] = useState(false)
   
@@ -90,6 +92,27 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     document.body.appendChild(script)
   }
 
+  // --- 监听评论数量逻辑 ---
+  useEffect(() => {
+    if (!compact || !twikooLoaded || !twikooContainerRef.current) return;
+
+    const observer = new MutationObserver(() => {
+        // 尝试从 Twikoo DOM 中抓取数量
+        // Twikoo 的结构通常是 .tk-comments-count > span:first-child
+        const countEl = twikooContainerRef.current?.querySelector('.tk-comments-count span:first-child')
+        if (countEl && countEl.textContent) {
+            const count = parseInt(countEl.textContent.trim(), 10)
+            if (!isNaN(count) && onCountChange) {
+                onCountChange(count)
+            }
+        }
+    })
+
+    observer.observe(twikooContainerRef.current, { childList: true, subtree: true })
+
+    return () => observer.disconnect()
+  }, [twikooLoaded, compact, onCountChange])
+
   const handleSystemSwitch = (system: CommentSystemType) => {
     if (system === currentSystem) return
     setCurrentSystem(system)
@@ -117,7 +140,6 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     interface Window { twikoo?: any }
   }
 
-  // compact=true 时添加 imessage-mode，触发 globals.css 中的隐藏/定制样式
   const containerClass = compact 
     ? "w-full h-full flex flex-col imessage-mode bg-white dark:bg-[#1e1e1e]" 
     : "mx-auto w-full max-w-[1140px] px-6 pb-12 max-sm:px-0"
