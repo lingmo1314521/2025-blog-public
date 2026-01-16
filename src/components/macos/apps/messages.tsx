@@ -7,7 +7,7 @@ import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
 import { toast } from 'sonner' 
 
-// --- SettingsModal 组件 (保持不变) ---
+// --- SettingsModal 组件 ---
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const { t } = useI18n()
     const [nick, setNick] = useState('')
@@ -118,9 +118,13 @@ export const Messages = () => {
 
   const containerRef = useRef<HTMLDivElement>(null)
   
-  // 关键：用于存储 Observer 实例和防重入锁
+  // 占位符 Refs
+  const headerCountRef = useRef<HTMLDivElement>(null)
+  const headerIconsRef = useRef<HTMLDivElement>(null)
+
+  // 观察者与锁
   const observerRef = useRef<MutationObserver | null>(null);
-  const isSortingRef = useRef(false);
+  const isProcessingRef = useRef(false);
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
@@ -157,22 +161,49 @@ export const Messages = () => {
       }
   }, [])
 
-  // --- 核心：DOM 平铺与排序逻辑 (无副作用版) ---
-  const flattenAndSortComments = useCallback(() => {
-      if (isSortingRef.current) return; // 如果正在排序，直接退出
-
-      const container = document.querySelector('.imessage-mode .tk-comments-container');
-      if (!container) return;
-
-      isSortingRef.current = true; // 加锁
+  // --- 核心：DOM 操作 (搬运头元素 + 平铺排序) ---
+  const processDomChanges = useCallback(() => {
+      if (isProcessingRef.current) return;
+      isProcessingRef.current = true;
 
       try {
-        // 1. 处理嵌套回复：注入引用 + 搬运到最外层
+        // --- 1. 搬运头部元素 (评论数 & 图标) ---
+        // 我们要从 .tk-comments-title 中抓取元素
+        // 由于 CSS 隐藏了 .tk-comments-title，我们依然可以通过 JS 访问它
+        const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
+        
+        if (originalHeader) {
+            // A. 搬运评论数 (tk-comments-count) 到 footer 左上角
+            const countEl = originalHeader.querySelector('.tk-comments-count');
+            if (countEl && headerCountRef.current && !headerCountRef.current.contains(countEl)) {
+                headerCountRef.current.innerHTML = ''; // 清空旧的
+                headerCountRef.current.appendChild(countEl);
+            }
+
+            // B. 搬运图标 (通常是 tk-icon 的父级 span) 到 footer 右上角
+            // 结构通常是: <span><span class="tk-icon">...</span></span>
+            // 我们找包含 .tk-icon 的 span
+            const iconWrappers = originalHeader.querySelectorAll('.tk-icon');
+            if (iconWrappers.length > 0 && headerIconsRef.current) {
+                // 找到包含图标的容器（通常是 count 的兄弟元素）
+                // 简单起见，我们把除了 count 之外的所有子元素都搬过去
+                const siblings = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
+                
+                siblings.forEach(sibling => {
+                    if (!headerIconsRef.current?.contains(sibling)) {
+                        headerIconsRef.current?.appendChild(sibling);
+                    }
+                });
+            }
+        }
+
+        const container = document.querySelector('.imessage-mode .tk-comments-container');
+        if (!container) return;
+
+        // --- 2. 处理嵌套回复：注入引用 + 搬运到最外层 ---
         const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment'));
-        let needsSort = false;
         
         if (nestedReplies.length > 0) {
-            needsSort = true;
             nestedReplies.forEach(reply => {
                 // A. 注入引用
                 const contentBox = reply.querySelector('.tk-content');
@@ -184,12 +215,10 @@ export const Messages = () => {
                         const parentContentElem = parentComment.querySelector('.tk-main > .tk-content');
                         let parentText = parentContentElem?.textContent?.replace(/\s+/g, ' ').trim() || '';
                         
-                        // 清理已有的引用文本
                         const existingQuote = parentContentElem?.querySelector('.imessage-quote');
                         if (existingQuote && existingQuote.textContent) {
                             parentText = parentText.replace(existingQuote.textContent, '').trim();
                         }
-                        // 移除 "回复 @xxx"
                         const replyPrefix = parentContentElem?.querySelector('span:first-child');
                         if (replyPrefix && replyPrefix.textContent?.includes('回复')) {
                              parentText = parentText.replace(replyPrefix.textContent, '').trim();
@@ -203,88 +232,71 @@ export const Messages = () => {
                         contentBox.insertBefore(quoteDiv, contentBox.firstChild);
                     }
                 }
-                // B. 搬运到主容器 (这步操作会触发 Observer)
+                // B. 搬运到主容器
                 container.appendChild(reply);
             });
         }
 
-        // 2. 全局排序 (只在必要时排序，或者定期排序)
+        // --- 3. 全局排序 ---
         const comments = Array.from(container.children).filter(child => child.classList.contains('tk-comment'));
-        
-        // 简单的检查：如果最后一个元素的时间早于第一个，说明乱序了，需要排
-        // 这里为了确保一致性，我们总是检查
         if (comments.length > 1) {
              const sorted = comments.sort((a, b) => {
                 const tA = a.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
                 const tB = b.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
-                return new Date(tA).getTime() - new Date(tB).getTime(); // 旧 -> 新
+                return new Date(tA).getTime() - new Date(tB).getTime(); 
             });
-
-            // 重新插入 DOM
             sorted.forEach(c => container.appendChild(c));
         }
 
       } catch (e) {
-          console.error("Sorting error:", e);
+          console.error("DOM processing error:", e);
       } finally {
-          isSortingRef.current = false; // 解锁
+          isProcessingRef.current = false;
       }
   }, [])
 
-  // 监听 DOM 变化 (防死循环版)
+  // 监听 DOM 变化
   useEffect(() => {
-    // 定义 Observer 回调
     const handleMutation = () => {
-        // 1. 暂时断开观察，防止我们自己的 DOM 操作再次触发回调 (导致死循环)
         if (observerRef.current) observerRef.current.disconnect();
 
         try {
             const { isReplyMode, cancelBtn } = getTwikooElements()
             
-            // 更新 React 状态
-            // 注意：不要在这里无条件 set state，否则会无限重渲染
             if (isReplyMode !== isReplying) {
                 setIsReplying(isReplyMode)
             }
             
-            // 单独更新 banner 文本
             if (isReplyMode && cancelBtn) {
                 const form = cancelBtn.closest('.tk-submit')
                 if(form) {
-                    // 尝试在 form 的兄弟节点中找
-                    // 当我们打平了 DOM 后，结构可能变了。但 Twikoo 在生成回复框时，是把它插在被回复的评论下面的。
-                    // 即使我们把子评论搬走了，回复框 (tk-submit) 依然会生成在被回复的评论里。
-                    // 所以这里的 .closest('.tk-comment') 依然有效。
-                    const parentContainer = form.closest('.tk-comment')
+                    const parentContainer = form.parentElement?.closest('.tk-comment')
                     if (parentContainer) {
                         const nick = parentContainer.querySelector('.tk-nick')?.textContent
                         const newText = nick ? `Replying to ${nick}` : 'Replying...';
                         if (newText !== replyTargetText) setReplyTargetText(newText);
                     }
                 }
+            } else {
+                setReplyTargetText('')
             }
 
-            // 执行核心 DOM 操作
-            flattenAndSortComments();
+            processDomChanges(); // 执行搬运和排序
 
         } finally {
-            // 2. 操作完成后，重新接上观察器
             if (observerRef.current) {
                 observerRef.current.observe(document.body, { childList: true, subtree: true });
             }
         }
     };
 
-    // 创建 Observer
     observerRef.current = new MutationObserver(handleMutation);
-    
-    // 开始观察
     observerRef.current.observe(document.body, { childList: true, subtree: true });
 
     return () => {
         if (observerRef.current) observerRef.current.disconnect();
     }
-  }, [isReplying, replyTargetText, getTwikooElements, flattenAndSortComments])
+  }, [isReplying, replyTargetText, getTwikooElements, processDomChanges])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value
@@ -298,18 +310,15 @@ export const Messages = () => {
 
   const handleSend = () => {
       if (!inputValue.trim()) return
-      
       const { input, btn } = getTwikooElements()
       if(input) {
         input.value = inputValue
         input.dispatchEvent(new Event('input', { bubbles: true }))
       }
-
       setTimeout(() => {
         if (btn) {
             btn.click()
             setInputValue('')
-            // 乐观滚动
             setTimeout(() => {
                 const container = document.querySelector('.imessage-mode .tk-comments-container')
                 if (container) container.scrollTop = container.scrollHeight
@@ -332,7 +341,7 @@ export const Messages = () => {
       
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onSave={() => setReloadKey(k => k + 1)} />}
 
-      {/* 左侧边栏 */}
+      {/* 左侧边栏 (保持不变) */}
       <div className="w-[280px] flex flex-col border-r border-gray-200 dark:border-white/10 bg-[#f5f5f5]/90 dark:bg-[#252525]/90 backdrop-blur-xl z-20">
         <div className="h-12 flex items-center justify-between px-3 shrink-0 pt-2 mb-2">
            <div className="relative flex-1 mr-2">
@@ -359,6 +368,7 @@ export const Messages = () => {
 
       {/* 右侧主内容 */}
       <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#1e1e1e] relative z-0">
+        {/* 顶部 Header */}
         <div className="h-12 border-b border-gray-200/50 dark:border-white/10 flex items-center justify-between px-4 bg-white/80 dark:bg-[#1e1e1e]/80 backdrop-blur-md shrink-0 z-20 sticky top-0">
             <div className="flex items-center gap-3">
                 <span className="text-xs text-gray-400">{t('msg_to')}</span>
@@ -372,6 +382,7 @@ export const Messages = () => {
             </div>
         </div>
 
+        {/* 消息区域 */}
         <div className="flex-1 overflow-hidden relative flex flex-col w-full">
             <CommentSystem 
                 key={`${activeContact.slug}-${reloadKey}`} 
@@ -382,11 +393,19 @@ export const Messages = () => {
             />
         </div>
 
-        <div className="shrink-0 p-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30">
-            <div className="relative max-w-4xl mx-auto w-full">
-                
+        {/* 底部输入框区域 */}
+        <div className="shrink-0 p-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30 relative group">
+            
+            {/* [NEW] 搬运元素的占位符 */}
+            {/* 左上角：评论数 */}
+            <div id="twikoo-moved-count" ref={headerCountRef} className="absolute top-2 left-6 z-40 select-none pointer-events-none"></div>
+            
+            {/* 右上角：图标 */}
+            <div id="twikoo-moved-icons" ref={headerIconsRef} className="absolute top-2 right-6 z-40 flex items-center gap-2"></div>
+
+            <div className="relative max-w-4xl mx-auto w-full pt-3">
                 {isReplying && (
-                    <div className="absolute -top-10 left-0 right-0 flex items-center justify-between bg-gray-200/90 dark:bg-[#333]/90 backdrop-blur-sm px-4 py-2 rounded-lg text-xs border border-gray-300 dark:border-white/10 shadow-sm animate-in slide-in-from-bottom-2 z-10">
+                    <div className="absolute -top-7 left-0 right-0 flex items-center justify-between bg-gray-200/90 dark:bg-[#333]/90 backdrop-blur-sm px-4 py-2 rounded-lg text-xs border border-gray-300 dark:border-white/10 shadow-sm animate-in slide-in-from-bottom-2 z-10">
                         <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300 truncate">
                             <MessageCircle size={12} className="text-blue-500"/>
                             <span className="font-medium truncate max-w-[200px]">{replyTargetText || 'Replying...'}</span>
@@ -411,7 +430,7 @@ export const Messages = () => {
                 <button 
                     onClick={handleSend} 
                     disabled={!inputValue.trim()} 
-                    className={`absolute right-1 top-1 w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer ${inputValue.trim() ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-300 dark:bg-gray-600 text-gray-500 cursor-not-allowed'}`}
+                    className={`absolute right-1 top-4 w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer ${inputValue.trim() ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-300 dark:bg-gray-600 text-gray-500 cursor-not-allowed'}`}
                 >
                     <ArrowUp size={16} strokeWidth={3} />
                 </button>

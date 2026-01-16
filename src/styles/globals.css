@@ -33,10 +33,10 @@
 }
 
 /* =========================================
-   Twikoo iMessage 终极形态 (物理平铺排序版)
+   Twikoo iMessage 终极形态 (含元素搬运)
    ========================================= */
 
-/* 1. 全局容器重置 */
+/* 1. 全局容器与隐藏元素 */
 .imessage-mode .tk-main {
     display: flex !important;
     flex-direction: column !important;
@@ -45,13 +45,15 @@
     min-width: 0 !important;
 }
 
-/* 隐藏干扰元素 */
+/* 隐藏 Twikoo 原生的干扰元素
+   注意：不再隐藏 .tk-comments-title，而是将其设为不可见但保留在DOM中，
+   因为我们要从中抓取元素。抓取走之后，剩下的空壳我们隐藏。
+*/
 .imessage-mode .tk-submit,
 .imessage-mode .tk-footer,
 .imessage-mode .tk-extras,
 .imessage-mode .tk-row.actions,
-.imessage-mode .tk-comments-title,
-.imessage-mode .tk-expand { /* 隐藏"查看更多"按钮，保持流式整洁 */
+.imessage-mode .tk-expand {
     position: absolute !important;
     opacity: 0 !important;
     pointer-events: none !important;
@@ -61,15 +63,18 @@
     z-index: -1 !important;
 }
 
+/* 隐藏原标题栏背景，防止占位 */
+.imessage-mode .tk-comments-title {
+    display: none !important; 
+}
+
 /* -------------------------------------------
-   [核心] 消息流容器布局
+   消息流布局
    ------------------------------------------- */
 .imessage-mode .tk-comments-container {
     padding: 20px 16px !important;
     display: flex !important;
-    /* 标准列布局 */
     flex-direction: column !important; 
-    /* 关键：让内容不足时自动吸附到底部 */
     justify-content: flex-end !important;
     min-height: 100% !important;
 }
@@ -77,7 +82,6 @@
 /* -------------------------------------------
    单条评论行
    ------------------------------------------- */
-
 .imessage-mode .tk-comment {
     margin-top: 10px !important;
     margin-bottom: 10px !important;
@@ -87,7 +91,7 @@
     width: 100% !important;
     border: none !important;
     position: relative !important;
-    flex-shrink: 0 !important; /* 防止被挤压 */
+    flex-shrink: 0 !important;
 }
 
 /* 头像 */
@@ -108,7 +112,7 @@
     object-fit: cover !important;
 }
 
-/* 内容包裹层 */
+/* 内容包裹 */
 .imessage-mode .tk-main {
     display: flex !important;
     flex-direction: column !important;
@@ -116,7 +120,7 @@
     max-width: 100% !important;
 }
 
-/* 昵称和时间 */
+/* 昵称时间 */
 .imessage-mode .tk-row {
     display: flex !important;
     align-items: baseline !important;
@@ -125,14 +129,12 @@
     width: auto !important;
     pointer-events: none !important;
 }
-
 .imessage-mode .tk-nick {
     font-size: 11px !important;
     color: #8e8e93 !important;
     margin-right: 6px !important;
     font-weight: 500 !important;
 }
-
 .imessage-mode .tk-time {
     font-size: 10px !important;
     color: #c7c7cc !important;
@@ -151,8 +153,6 @@
     box-shadow: 0 1px 1px rgba(0,0,0,0.03) !important;
     z-index: 1 !important;
 }
-
-/* 他人样式 (灰) */
 .imessage-mode .tk-content {
     background-color: #e9e9eb !important;
     color: #000 !important;
@@ -162,31 +162,14 @@
     background-color: #262628 !important;
     color: #fff !important;
 }
-
 .imessage-mode p { margin: 0 !important; }
 
-/* -------------------------------------------
-   Master (我) 的反转样式
-   ------------------------------------------- */
-.imessage-mode .tk-master {
-    flex-direction: row-reverse !important; 
-}
-.imessage-mode .tk-master .tk-avatar {
-    margin-right: 0 !important;
-    margin-left: 10px !important;
-    display: none !important; 
-}
-.imessage-mode .tk-master .tk-main {
-    align-items: flex-end !important;
-}
-.imessage-mode .tk-master .tk-row {
-    flex-direction: row-reverse !important;
-    margin-left: 0 !important;
-    margin-right: 4px !important;
-}
-.imessage-mode .tk-master .tk-nick {
-    display: none !important;
-}
+/* Master 样式 */
+.imessage-mode .tk-master { flex-direction: row-reverse !important; }
+.imessage-mode .tk-master .tk-avatar { margin-right: 0 !important; margin-left: 10px !important; display: none !important; }
+.imessage-mode .tk-master .tk-main { align-items: flex-end !important; }
+.imessage-mode .tk-master .tk-row { flex-direction: row-reverse !important; margin-left: 0 !important; margin-right: 4px !important; }
+.imessage-mode .tk-master .tk-nick { display: none !important; }
 .imessage-mode .tk-master .tk-content {
     background-color: #007aff !important;
     color: #fff !important;
@@ -194,26 +177,13 @@
     border-top-right-radius: 4px !important; 
     border-bottom-left-radius: 18px !important; 
 }
-.imessage-mode .tk-master .tk-content a {
-    color: white !important;
-    text-decoration: underline !important;
-}
+.imessage-mode .tk-master .tk-content a { color: white !important; text-decoration: underline !important; }
 
-/* -------------------------------------------
-   回复容器清理
-   由于 JS 会把内容搬空，我们只需要确保空的容器不占位
-   ------------------------------------------- */
-.imessage-mode .tk-replies {
-    display: none !important; /* JS 搬空后直接隐藏，防止残留 margin */
-}
+/* 隐藏空回复容器 */
+.imessage-mode .tk-replies { display: none !important; }
 
-/* -------------------------------------------
-   引用内容 & 操作按钮
-   ------------------------------------------- */
-.imessage-mode .tk-content > span:has(.tk-ruser) {
-    display: none !important;
-}
-
+/* 引用样式 */
+.imessage-mode .tk-content > span:has(.tk-ruser) { display: none !important; }
 .imessage-quote {
     display: block;
     margin-bottom: 6px;
@@ -229,19 +199,11 @@
     cursor: pointer;
     user-select: none;
 }
-.dark .imessage-mode .imessage-quote {
-    border-left-color: rgba(255, 255, 255, 0.3);
-}
-.imessage-mode .tk-master .tk-content .imessage-quote {
-    border-left-color: rgba(255, 255, 255, 0.5);
-    opacity: 0.8;
-}
-.imessage-quote-name {
-    font-weight: 700;
-    margin-right: 4px;
-}
+.dark .imessage-mode .imessage-quote { border-left-color: rgba(255, 255, 255, 0.3); }
+.imessage-mode .tk-master .tk-content .imessage-quote { border-left-color: rgba(255, 255, 255, 0.5); opacity: 0.8; }
+.imessage-quote-name { font-weight: 700; margin-right: 4px; }
 
-/* 按钮 */
+/* 操作按钮 */
 .imessage-mode .tk-actions {
     position: absolute !important;
     right: -45px !important;
@@ -252,24 +214,43 @@
     gap: 8px !important;
     z-index: 10 !important;
 }
-.imessage-mode .tk-master .tk-actions {
-    right: auto !important;
-    left: -45px !important;
-}
+.imessage-mode .tk-master .tk-actions { right: auto !important; left: -45px !important; }
 .imessage-mode .tk-comment:hover > .tk-main > .tk-content > .tk-actions,
 .imessage-mode .tk-comment:hover > .tk-main > .tk-actions,
-.imessage-mode .tk-comment:hover .tk-action { 
-    opacity: 1 !important;
-    pointer-events: auto !important;
+.imessage-mode .tk-comment:hover .tk-action { opacity: 1 !important; pointer-events: auto !important; }
+.imessage-mode .tk-action-link { color: #999 !important; }
+.imessage-mode .tk-action-link:hover { color: #007aff !important; }
+.imessage-mode .tk-action-icon svg { width: 14px !important; height: 14px !important; fill: currentColor !important; }
+
+/* -------------------------------------------
+   [NEW] 搬运后的元素样式 (Header Elements)
+   ------------------------------------------- */
+
+/* 评论数样式 */
+#twikoo-moved-count .tk-comments-count {
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    color: #8e8e93 !important; /* iOS 灰色 */
 }
-.imessage-mode .tk-action-link {
+.dark #twikoo-moved-count .tk-comments-count {
     color: #999 !important;
 }
-.imessage-mode .tk-action-link:hover {
-    color: #007aff !important;
+
+/* 图标容器样式 */
+#twikoo-moved-icons span {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
 }
-.imessage-mode .tk-action-icon svg {
+
+/* 具体图标样式 */
+#twikoo-moved-icons svg {
     width: 14px !important;
     height: 14px !important;
-    fill: currentColor !important;
+    fill: #8e8e93 !important;
+    cursor: pointer !important;
+    transition: fill 0.2s !important;
+}
+#twikoo-moved-icons svg:hover {
+    fill: #007aff !important;
 }
