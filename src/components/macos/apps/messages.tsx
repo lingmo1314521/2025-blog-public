@@ -1,13 +1,13 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { Search, Edit, Settings, X, Save, ArrowUp, RefreshCw, MessageCircle, Shield } from 'lucide-react'
+import { Search, Edit, Settings, X, Save, ArrowUp, RefreshCw, MessageCircle } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
 import { toast } from 'sonner' 
 
-// --- SettingsModal (用户资料设置) ---
+// --- SettingsModal (你的自定义设置) ---
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const { t } = useI18n()
     const [nick, setNick] = useState('')
@@ -118,18 +118,16 @@ export const Messages = () => {
 
   const containerRef = useRef<HTMLDivElement>(null)
   
-  // 占位符 Refs
   const headerCountRef = useRef<HTMLDivElement>(null)
   const headerIconsRef = useRef<HTMLDivElement>(null)
 
-  // 观察者与锁
   const observerRef = useRef<MutationObserver | null>(null);
   const isProcessingRef = useRef(false);
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
 
-  // --- Twikoo 元素获取 ---
+  // --- 获取 Twikoo 输入框 ---
   const getTwikooElements = useCallback(() => {
       const cancelBtn = document.querySelector('.imessage-mode .tk-cancel') as HTMLButtonElement
       if (cancelBtn) {
@@ -161,50 +159,24 @@ export const Messages = () => {
       }
   }, [])
 
-  // --- 触发 Twikoo 原生管理后台 ---
-  const triggerTwikooAdmin = () => {
-      // Twikoo 的设置按钮是一个 SVG，通常在 .tk-icon.__setting 或类似的类名中
-      // 我们需要找到它并模拟点击
-      // 注意：由于我们搬运了 icon，现在 icon 应该在 headerIconsRef 里
-      
-      let settingIcon = document.querySelector('.imessage-mode .tk-icon.__setting') as HTMLElement;
-      
-      // 如果没找到 specific class，尝试找 svg path 匹配的 (fallback)
-      if (!settingIcon) {
-          // 尝试在搬运容器里找
-          const icons = headerIconsRef.current?.querySelectorAll('svg');
-          // 假设设置图标是第一个或第二个，这里简单尝试触发 click
-          // 或者直接找 Twikoo 原始 DOM 中可能残留的
-          const allIcons = document.querySelectorAll('.imessage-mode .tk-icon');
-          // 通常设置图标在最后
-          if(allIcons.length > 0) settingIcon = allIcons[allIcons.length - 1] as HTMLElement;
-      }
-
-      if (settingIcon) {
-          settingIcon.click();
-      } else {
-          toast.error("Twikoo admin button not found yet.");
-      }
-  }
-
   // --- 核心：DOM 操作 (搬运头元素 + 平铺排序) ---
   const processDomChanges = useCallback(() => {
       if (isProcessingRef.current) return;
       isProcessingRef.current = true;
 
       try {
-        // --- 1. 搬运头部元素 (评论数 & 图标) ---
+        // --- 1. 搬运头部元素 ---
         const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
         
         if (originalHeader) {
-            // A. 搬运评论数
+            // A. 评论数 -> 左上角
             const countEl = originalHeader.querySelector('.tk-comments-count');
             if (countEl && headerCountRef.current && !headerCountRef.current.contains(countEl)) {
-                headerCountRef.current.innerHTML = '';
+                headerCountRef.current.innerHTML = ''; 
                 headerCountRef.current.appendChild(countEl);
             }
 
-            // B. 搬运图标
+            // B. 图标 -> 右上角
             const iconWrappers = originalHeader.querySelectorAll('.tk-icon');
             if (iconWrappers.length > 0 && headerIconsRef.current) {
                 const siblings = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
@@ -219,7 +191,7 @@ export const Messages = () => {
         const container = document.querySelector('.imessage-mode .tk-comments-container');
         if (!container) return;
 
-        // --- 2. 处理嵌套回复 ---
+        // --- 2. 嵌套回复处理 ---
         const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment'));
         
         if (nestedReplies.length > 0) {
@@ -254,7 +226,7 @@ export const Messages = () => {
             });
         }
 
-        // --- 3. 全局排序 ---
+        // --- 3. 排序 ---
         const comments = Array.from(container.children).filter(child => child.classList.contains('tk-comment'));
         if (comments.length > 1) {
              const sorted = comments.sort((a, b) => {
@@ -272,7 +244,7 @@ export const Messages = () => {
       }
   }, [])
 
-  // 监听 DOM 变化
+  // 监听 DOM
   useEffect(() => {
     const handleMutation = () => {
         if (observerRef.current) observerRef.current.disconnect();
@@ -298,7 +270,7 @@ export const Messages = () => {
                 setReplyTargetText('')
             }
 
-            processDomChanges(); 
+            processDomChanges();
 
         } finally {
             if (observerRef.current) {
@@ -385,7 +357,6 @@ export const Messages = () => {
 
       {/* 右侧主内容 */}
       <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#1e1e1e] relative z-0">
-        {/* 顶部 Header */}
         <div className="h-12 border-b border-gray-200/50 dark:border-white/10 flex items-center justify-between px-4 bg-white/80 dark:bg-[#1e1e1e]/80 backdrop-blur-md shrink-0 z-20 sticky top-0">
             <div className="flex items-center gap-3">
                 <span className="text-xs text-gray-400">{t('msg_to')}</span>
@@ -394,14 +365,11 @@ export const Messages = () => {
                 </div>
             </div>
             <div className="flex gap-2">
-                {/* 管理后台触发按钮 */}
-                <button onClick={triggerTwikooAdmin} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all cursor-pointer" title="Admin Panel"><Shield size={14} /></button>
                 <button onClick={() => setReloadKey(k => k + 1)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all cursor-pointer"><RefreshCw size={14} /></button>
                 <button onClick={() => setShowSettings(true)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all cursor-pointer" title={t('msg_settings_title')}><Settings size={16} /></button>
             </div>
         </div>
 
-        {/* 消息区域 */}
         <div className="flex-1 overflow-hidden relative flex flex-col w-full">
             <CommentSystem 
                 key={`${activeContact.slug}-${reloadKey}`} 
@@ -412,11 +380,12 @@ export const Messages = () => {
             />
         </div>
 
-        {/* 底部输入框区域 */}
         <div className="shrink-0 p-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30 relative group">
             
-            {/* 搬运元素的占位符 */}
+            {/* 左上角：评论数搬运点 */}
             <div id="twikoo-moved-count" ref={headerCountRef} className="absolute top-2 left-6 z-40 select-none pointer-events-none"></div>
+            
+            {/* 右上角：管理图标搬运点 */}
             <div id="twikoo-moved-icons" ref={headerIconsRef} className="absolute top-2 right-6 z-40 flex items-center gap-2"></div>
 
             <div className="relative max-w-4xl mx-auto w-full pt-3">
