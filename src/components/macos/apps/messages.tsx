@@ -1,12 +1,13 @@
 'use client'
 
-import React, { useState, useEffect, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { Search, Edit, Settings, X, Save, ArrowUp, RefreshCw, MessageCircle } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
 import { toast } from 'sonner' 
 
+// --- SettingsModal 组件 (保持不变) ---
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const { t } = useI18n()
     const [nick, setNick] = useState('')
@@ -116,12 +117,16 @@ export const Messages = () => {
   const [replyTargetText, setReplyTargetText] = useState('') 
 
   const containerRef = useRef<HTMLDivElement>(null)
+  
+  // 关键：用于存储 Observer 实例和防重入锁
+  const observerRef = useRef<MutationObserver | null>(null);
+  const isSortingRef = useRef(false);
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
 
   // --- Twikoo 元素获取 ---
-  const getTwikooElements = () => {
+  const getTwikooElements = useCallback(() => {
       const cancelBtn = document.querySelector('.imessage-mode .tk-cancel') as HTMLButtonElement
       if (cancelBtn) {
           const formContainer = cancelBtn.closest('.tk-submit')
@@ -150,106 +155,136 @@ export const Messages = () => {
           cancelBtn: null,
           isReplyMode: false
       }
-  }
+  }, [])
 
-  // --- 核心：DOM 平铺与排序逻辑 ---
-  const flattenAndSortComments = () => {
+  // --- 核心：DOM 平铺与排序逻辑 (无副作用版) ---
+  const flattenAndSortComments = useCallback(() => {
+      if (isSortingRef.current) return; // 如果正在排序，直接退出
+
       const container = document.querySelector('.imessage-mode .tk-comments-container');
       if (!container) return;
 
-      // 1. 处理嵌套回复：注入引用 + 搬运到最外层
-      // 查找所有嵌套在 replies 里的评论
-      const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment'));
-      
-      if (nestedReplies.length > 0) {
-          nestedReplies.forEach(reply => {
-             // A. 注入引用 (必须在搬走之前做，否则找不到爹)
-             const contentBox = reply.querySelector('.tk-content');
-             if (contentBox && !contentBox.querySelector('.imessage-quote')) {
-                 const replyList = reply.closest('.tk-replies');
-                 const parentComment = replyList?.closest('.tk-comment') as HTMLElement;
-                 if (parentComment) {
-                     const parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'User';
-                     const parentContentElem = parentComment.querySelector('.tk-main > .tk-content');
-                     let parentText = parentContentElem?.textContent?.replace(/\s+/g, ' ').trim() || '';
-                     // 去除引用文本本身，防止递归引用显示
-                     if (parentContentElem?.querySelector('.imessage-quote')) {
-                         const quoteText = parentContentElem.querySelector('.imessage-quote')?.textContent || '';
-                         parentText = parentText.replace(quoteText, '').trim();
-                     }
-                     if (parentText.length > 30) parentText = parentText.slice(0, 30) + '...';
+      isSortingRef.current = true; // 加锁
 
-                     const quoteDiv = document.createElement('div');
-                     quoteDiv.className = 'imessage-quote';
-                     quoteDiv.innerHTML = `<span class="imessage-quote-name">${parentNick}:</span> ${parentText}`;
-                     contentBox.insertBefore(quoteDiv, contentBox.firstChild);
-                 }
-             }
-
-             // B. 搬运到主容器
-             container.appendChild(reply);
-          });
-      }
-
-      // 2. 全局排序 (按时间戳)
-      // 获取所有直接子元素中的评论
-      const comments = Array.from(container.children).filter(child => child.classList.contains('tk-comment'));
-      
-      // 如果没有评论或只有一条，无需排序
-      if (comments.length <= 1) return;
-
-      // 检查是否已经是排序好的 (简单检查最后一个是否是新的)，避免重复 DOM 操作导致的抖动
-      // 这里为了保险，进行一次全量排序
-      const sorted = comments.sort((a, b) => {
-          const tA = a.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
-          const tB = b.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
-          return new Date(tA).getTime() - new Date(tB).getTime(); // 旧 -> 新
-      });
-
-      // 重新插入 DOM (appendChild 会自动移动元素，不会克隆)
-      // 我们需要保持 input 框或者 load-more 按钮的位置吗？
-      // Twikoo 的 LoadMore 按钮 (.tk-expand) 通常在最下面或最上面。
-      // 为了安全，我们只重排 .tk-comment，把它们按顺序 append 到容器末尾
-      // 这会自动把它们排在非 .tk-comment 元素 (如 hidden inputs) 的后面
-      sorted.forEach(c => container.appendChild(c));
-  }
-
-  // 监听 DOM 变化
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-        const { isReplyMode, cancelBtn } = getTwikooElements()
+      try {
+        // 1. 处理嵌套回复：注入引用 + 搬运到最外层
+        const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment'));
+        let needsSort = false;
         
-        // 1. 输入框状态检测
-        if (isReplyMode !== isReplying) {
-            setIsReplying(isReplyMode)
-            if (isReplyMode && cancelBtn) {
-                // 回复模式下，Banner 提示
-                // 由于我们打平了 DOM，向上找 .tk-comment 依然有效（因为 input 还是会被 Twikoo 插在被回复的评论下面）
-                const form = cancelBtn.closest('.tk-submit')
-                if(form) {
-                    // 此时 input 可能在任何位置，找它的 previousSibling 通常是评论本身
-                    // 或者找 DOM 树最近的 .tk-comment (如果是嵌套插入的话)
-                    // Twikoo 原生行为是将 form 插入到 .tk-replies 中。
-                    // 即使我们把之前的 replies 搬走了，新插入的 form 还是会在原来的结构里。
-                    // 所以这里的逻辑通常还能工作。
-                    const parentContainer = form.parentElement?.closest('.tk-comment')
-                    if (parentContainer) {
-                        const nick = parentContainer.querySelector('.tk-nick')?.textContent
-                        setReplyTargetText(nick ? `Replying to ${nick}` : 'Replying...')
+        if (nestedReplies.length > 0) {
+            needsSort = true;
+            nestedReplies.forEach(reply => {
+                // A. 注入引用
+                const contentBox = reply.querySelector('.tk-content');
+                if (contentBox && !contentBox.querySelector('.imessage-quote')) {
+                    const replyList = reply.closest('.tk-replies');
+                    const parentComment = replyList?.closest('.tk-comment') as HTMLElement;
+                    if (parentComment) {
+                        const parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'User';
+                        const parentContentElem = parentComment.querySelector('.tk-main > .tk-content');
+                        let parentText = parentContentElem?.textContent?.replace(/\s+/g, ' ').trim() || '';
+                        
+                        // 清理已有的引用文本
+                        const existingQuote = parentContentElem?.querySelector('.imessage-quote');
+                        if (existingQuote && existingQuote.textContent) {
+                            parentText = parentText.replace(existingQuote.textContent, '').trim();
+                        }
+                        // 移除 "回复 @xxx"
+                        const replyPrefix = parentContentElem?.querySelector('span:first-child');
+                        if (replyPrefix && replyPrefix.textContent?.includes('回复')) {
+                             parentText = parentText.replace(replyPrefix.textContent, '').trim();
+                        }
+
+                        if (parentText.length > 30) parentText = parentText.slice(0, 30) + '...';
+
+                        const quoteDiv = document.createElement('div');
+                        quoteDiv.className = 'imessage-quote';
+                        quoteDiv.innerHTML = `<span class="imessage-quote-name">${parentNick}:</span> ${parentText}`;
+                        contentBox.insertBefore(quoteDiv, contentBox.firstChild);
                     }
                 }
-            } else {
-                setReplyTargetText('')
-            }
+                // B. 搬运到主容器 (这步操作会触发 Observer)
+                container.appendChild(reply);
+            });
         }
 
-        // 2. 执行平铺和排序
-        flattenAndSortComments();
-    })
+        // 2. 全局排序 (只在必要时排序，或者定期排序)
+        const comments = Array.from(container.children).filter(child => child.classList.contains('tk-comment'));
+        
+        // 简单的检查：如果最后一个元素的时间早于第一个，说明乱序了，需要排
+        // 这里为了确保一致性，我们总是检查
+        if (comments.length > 1) {
+             const sorted = comments.sort((a, b) => {
+                const tA = a.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
+                const tB = b.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
+                return new Date(tA).getTime() - new Date(tB).getTime(); // 旧 -> 新
+            });
 
-    observer.observe(document.body, { childList: true, subtree: true })
-    return () => observer.disconnect()
-  }, [isReplying])
+            // 重新插入 DOM
+            sorted.forEach(c => container.appendChild(c));
+        }
+
+      } catch (e) {
+          console.error("Sorting error:", e);
+      } finally {
+          isSortingRef.current = false; // 解锁
+      }
+  }, [])
+
+  // 监听 DOM 变化 (防死循环版)
+  useEffect(() => {
+    // 定义 Observer 回调
+    const handleMutation = () => {
+        // 1. 暂时断开观察，防止我们自己的 DOM 操作再次触发回调 (导致死循环)
+        if (observerRef.current) observerRef.current.disconnect();
+
+        try {
+            const { isReplyMode, cancelBtn } = getTwikooElements()
+            
+            // 更新 React 状态
+            // 注意：不要在这里无条件 set state，否则会无限重渲染
+            if (isReplyMode !== isReplying) {
+                setIsReplying(isReplyMode)
+            }
+            
+            // 单独更新 banner 文本
+            if (isReplyMode && cancelBtn) {
+                const form = cancelBtn.closest('.tk-submit')
+                if(form) {
+                    // 尝试在 form 的兄弟节点中找
+                    // 当我们打平了 DOM 后，结构可能变了。但 Twikoo 在生成回复框时，是把它插在被回复的评论下面的。
+                    // 即使我们把子评论搬走了，回复框 (tk-submit) 依然会生成在被回复的评论里。
+                    // 所以这里的 .closest('.tk-comment') 依然有效。
+                    const parentContainer = form.closest('.tk-comment')
+                    if (parentContainer) {
+                        const nick = parentContainer.querySelector('.tk-nick')?.textContent
+                        const newText = nick ? `Replying to ${nick}` : 'Replying...';
+                        if (newText !== replyTargetText) setReplyTargetText(newText);
+                    }
+                }
+            }
+
+            // 执行核心 DOM 操作
+            flattenAndSortComments();
+
+        } finally {
+            // 2. 操作完成后，重新接上观察器
+            if (observerRef.current) {
+                observerRef.current.observe(document.body, { childList: true, subtree: true });
+            }
+        }
+    };
+
+    // 创建 Observer
+    observerRef.current = new MutationObserver(handleMutation);
+    
+    // 开始观察
+    observerRef.current.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+        if (observerRef.current) observerRef.current.disconnect();
+    }
+  }, [isReplying, replyTargetText, getTwikooElements, flattenAndSortComments])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value
@@ -274,7 +309,7 @@ export const Messages = () => {
         if (btn) {
             btn.click()
             setInputValue('')
-            // 乐观滚动：发送后滚动到底部
+            // 乐观滚动
             setTimeout(() => {
                 const container = document.querySelector('.imessage-mode .tk-comments-container')
                 if (container) container.scrollTop = container.scrollHeight
