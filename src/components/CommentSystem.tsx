@@ -83,11 +83,6 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
           lang: 'zh-CN',
           onCommentLoaded: () => {
               setTwikooLoaded(true)
-              // 尝试滚动到底部
-              setTimeout(() => {
-                  const container = document.querySelector('.tk-comments-container')
-                  if (container) container.scrollTop = container.scrollHeight
-              }, 500)
           }
         })
       }
@@ -122,18 +117,14 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     interface Window { twikoo?: any }
   }
 
+  // 这里的 imessage-mode 类名非常重要，它配合 globals.css 实现隐藏原生输入框
   const containerClass = compact 
-    ? "w-full h-full flex flex-col bg-white dark:bg-[#1e1e1e]" 
+    ? "w-full h-full flex flex-col imessage-mode bg-white dark:bg-[#1e1e1e]" 
     : "mx-auto w-full max-w-[1140px] px-6 pb-12 max-sm:px-0"
 
   const cardClass = compact
     ? "relative w-full h-full flex flex-col"
     : "relative w-full rounded-xl border border-gray-300/70 bg-white/95 p-8 shadow-sm backdrop-blur-sm max-sm:rounded-none max-sm:p-4"
-
-  // 这里的 imessage-mode 类名添加在了包裹 Twikoo 的 div 上
-  const twikooWrapperClass = compact 
-    ? "w-full h-full imessage-mode relative" // relative 是为了绝对定位子元素
-    : "w-full min-h-[200px]"
 
   return (
     <div className={containerClass}>
@@ -170,9 +161,9 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
           </div>
         )}
         
-        <div className={`flex-1 min-h-0 relative ${compact ? '' : ''}`}>
+        <div className={`flex-1 min-h-0 relative overflow-y-auto ${compact ? 'px-4 py-2' : ''}`}>
             {currentSystem === 'giscus' && (
-            <div className="h-full overflow-y-auto px-4">
+            <div>
                 {!giscusLoaded && (
                 <div className="flex flex-col items-center justify-center p-8 opacity-60">
                     <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500"></div>
@@ -185,17 +176,14 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
             )}
             
             {currentSystem === 'twikoo' && (
-            <div className="h-full flex flex-col">
+            <div>
                 {!twikooLoaded && (
-                <div className="flex flex-col items-center justify-center p-8 opacity-60 absolute inset-0">
+                <div className="flex flex-col items-center justify-center p-8 opacity-60">
                     <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500"></div>
                     <p className="text-xs text-gray-500">Loading Messages...</p>
                 </div>
                 )}
-                {/* 重点：这里使用了 twikooWrapperClass 
-                   如果 compact=true，它会包含 'imessage-mode'，从而激活 globals.css 中的绝对定位样式
-                */}
-                <div ref={twikooContainerRef} className={twikooWrapperClass} style={{ display: twikooLoaded ? 'block' : 'none' }} />
+                <div ref={twikooContainerRef} className="w-full min-h-[200px]" style={{ display: twikooLoaded ? 'block' : 'none' }} />
             </div>
             )}
         </div>

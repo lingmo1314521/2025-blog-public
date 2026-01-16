@@ -210,94 +210,37 @@
 }
 
 /* =========================================
-   Messages (Twikoo) 绝对定位强制布局 v4.0
+   Messages 应用特定样式 (隐藏原生输入框)
    ========================================= */
 
-/* 1. 容器样式：作为绝对定位的参照物 */
-.imessage-mode {
-    position: relative !important;
-    height: 100% !important;
-    overflow: hidden !important;
-}
-
-.imessage-mode .tk-main {
-    height: 100% !important;
-    position: static !important; /* 内部元素相对于 .imessage-mode 定位 */
-}
-
-/* 2. 评论列表：撑满高度，并预留底部空间给输入框 */
-.imessage-mode .tk-comments-container {
-    height: 100% !important;
-    overflow-y: auto !important;
-    margin: 0 !important;
-    /* 关键：底部留白，防止最后一条评论被输入框遮挡 */
-    padding: 20px 20px 140px 20px !important; 
-    position: relative !important;
-    z-index: 1 !important;
-}
-
-/* 3. 输入框：强制固定在底部 */
+/* 1. 隐藏 Twikoo 原生的输入框区域 */
+/* 我们会在 messages.tsx 里自己写一个新的输入框来控制它 */
 .imessage-mode .tk-submit {
-    position: absolute !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 15px 20px 20px 20px !important; /* 增加内边距让它看起来更像底部栏 */
-    background: #f5f5f5 !important; /* 不透明背景，遮挡滚动的评论 */
-    border-top: 1px solid rgba(0,0,0,0.1) !important;
-    z-index: 999 !important; /* 确保在最上层 */
-    display: block !important;
-}
-.dark .imessage-mode .tk-submit {
-    background: #1e1e1e !important;
-    border-top: 1px solid rgba(255,255,255,0.1) !important;
+    display: none !important;
 }
 
-/* 4. 隐藏【昵称/邮箱/网址】输入区域 */
+/* 2. 隐藏 Twikoo 原生的元信息输入框 (昵称/邮箱) */
+/* 我们在设置弹窗里处理这些 */
 .imessage-mode .tk-meta-input {
     display: none !important;
 }
 
-/* 5. 隐藏页脚和其他杂项 */
-.imessage-mode .tk-footer, 
-.imessage-mode .tk-row-actions-start,
-.imessage-mode .tk-extras {
+/* 3. 让评论列表区域占满空间 */
+.imessage-mode .tk-main {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+}
+
+.imessage-mode .tk-comments-container {
+    flex: 1 !important;
+    height: 100% !important;
+    overflow-y: auto !important;
+    padding: 20px !important;
+    margin: 0 !important;
+}
+
+/* 4. 隐藏页脚 */
+.imessage-mode .tk-footer {
     display: none !important;
-}
-
-/* 6. 隐藏 "预览" 按钮，只保留 "发送" */
-.imessage-mode .tk-preview {
-    display: none !important;
-}
-
-/* 7. 输入框美化 */
-.imessage-mode .el-textarea__inner {
-    background: #fff !important;
-    border-radius: 20px !important;
-    border: 1px solid #ddd !important;
-    padding: 10px 15px !important;
-    min-height: 40px !important;
-    height: 40px !important;
-    resize: none !important;
-    box-shadow: none !important;
-}
-.dark .imessage-mode .el-textarea__inner {
-    background: #2c2c2c !important;
-    border-color: #444 !important;
-    color: white !important;
-}
-
-/* 8. 发送按钮美化 */
-.imessage-mode .tk-send {
-    margin-top: 10px !important;
-    width: 100% !important;
-    border-radius: 12px !important;
-    background-color: #007aff !important;
-    border-color: #007aff !important;
-    color: white !important;
-    font-weight: bold !important;
-}
-.imessage-mode .tk-send:hover {
-    background-color: #0062cc !important;
 }
