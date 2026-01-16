@@ -28,6 +28,27 @@ export const TRANSLATIONS = {
     'preview': 'Preview',
     'wuthering_waves': 'Wuthering Waves',
 
+    // --- Messages App Specific (New) ---
+    'msg_to': 'To:',
+    'msg_search': 'Search',
+    'msg_imessage': 'iMessage',
+    'msg_settings_title': 'Profile Settings',
+    'msg_nick': 'Nickname',
+    'msg_nick_ph': 'Your Name',
+    'msg_email': 'Email (Optional)',
+    'msg_email_ph': 'For Gravatar',
+    'msg_link': 'Website (Optional)',
+    'msg_save': 'Save',
+    'msg_guestbook': 'Guestbook',
+    'msg_guestbook_desc': 'Leave a message for everyone!',
+    'msg_tech': 'Tech Talk',
+    'msg_tech_desc': 'Discuss React, Next.js...',
+    'msg_bug': 'Bug Report',
+    'msg_bug_desc': 'Found a bug? Tell me here.',
+    'msg_now': 'Now',
+    'msg_yesterday': 'Yesterday',
+    'msg_mon': 'Mon',
+
     // --- System Menu ---
     'about_mac': 'About This Portfolio',
     'sys_settings': 'System Settings...',
@@ -171,6 +192,27 @@ export const TRANSLATIONS = {
     'storage_manager': '访达',
     'preview': '预览',
     'wuthering_waves': '鸣潮',
+
+    // --- Messages App Specific (New) ---
+    'msg_to': '收件人:',
+    'msg_search': '搜索',
+    'msg_imessage': 'iMessage 信息',
+    'msg_settings_title': '个人信息设置',
+    'msg_nick': '昵称',
+    'msg_nick_ph': '你的名字',
+    'msg_email': '邮箱 (选填)',
+    'msg_email_ph': '用于显示 Gravatar 头像',
+    'msg_link': '网址 (选填)',
+    'msg_save': '保存',
+    'msg_guestbook': '留言板',
+    'msg_guestbook_desc': '给所有人留个言吧！',
+    'msg_tech': '技术交流',
+    'msg_tech_desc': '讨论 React, Next.js...',
+    'msg_bug': 'Bug 反馈',
+    'msg_bug_desc': '发现问题？在这里告诉我。',
+    'msg_now': '现在',
+    'msg_yesterday': '昨天',
+    'msg_mon': '周一',
 
     // --- System Menu ---
     'about_mac': '关于本站',
@@ -317,5 +359,12 @@ export const TRANSLATIONS = {
     'rights': '© 2026 LynxMuse (翎). All rights reserved.',
     'cmd_palette': 'Command Palette 命令面板',
     'user_settings': 'User Settings 用户设置',
+    'msg_to': 'To 收件人:',
+    'msg_search': 'Search 搜索',
+    'msg_imessage': 'iMessage 信息',
+    'msg_settings_title': 'Profile 个人设置',
+    'msg_guestbook': 'Guestbook 留言板',
+    'msg_tech': 'Tech Talk 技术交流',
+    'msg_bug': 'Bug Report 反馈',
   }
 }

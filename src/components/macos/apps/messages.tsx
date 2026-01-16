@@ -1,39 +1,14 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Search, Edit, Settings, X, Save, ArrowUp } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
-
-const CONTACTS = [
-  { 
-    id: 'guestbook', 
-    name: 'Guestbook', 
-    slug: 'messages-guestbook', 
-    avatar: '🌍', 
-    desc: 'Leave a message for everyone!',
-    time: 'Now'
-  },
-  { 
-    id: 'tech', 
-    name: 'Tech Talk', 
-    slug: 'messages-tech', 
-    avatar: '💻', 
-    desc: 'Discuss React, Next.js...',
-    time: 'Yesterday'
-  },
-  { 
-    id: 'feedback', 
-    name: 'Bug Report', 
-    slug: 'messages-bugs', 
-    avatar: '🐛', 
-    desc: 'Found a bug? Tell me here.',
-    time: 'Mon'
-  }
-]
+import { useI18n } from '../../i18n-context' // 引入 i18n
 
 // 设置弹窗组件
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
+    const { t } = useI18n()
     const [nick, setNick] = useState('')
     const [mail, setMail] = useState('')
     const [link, setLink] = useState('')
@@ -63,27 +38,29 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
 
     return (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-            <div className="w-80 bg-[#f5f5f5] dark:bg-[#2c2c2c] rounded-xl shadow-2xl border border-white/20 p-5">
+            <div className="w-80 bg-[#f5f5f5] dark:bg-[#2c2c2c] rounded-xl shadow-2xl border border-white/20 p-5 animate-in fade-in zoom-in duration-200">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-sm dark:text-white">Profile Settings</h3>
-                    <button onClick={onClose}><X size={14}/></button>
+                    <h3 className="font-bold text-sm dark:text-white">{t('msg_settings_title')}</h3>
+                    <button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full"><X size={14}/></button>
                 </div>
                 <div className="space-y-3">
                     <div>
-                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Nickname</label>
-                        <input value={nick} onChange={e=>setNick(e.target.value)} className="w-full bg-white dark:bg-black/20 border rounded-md px-2 py-1.5 text-xs outline-none" placeholder="Your Name"/>
+                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{t('msg_nick')}</label>
+                        <input value={nick} onChange={e=>setNick(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" placeholder={t('msg_nick_ph')}/>
                     </div>
                     <div>
-                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Email</label>
-                        <input value={mail} onChange={e=>setMail(e.target.value)} className="w-full bg-white dark:bg-black/20 border rounded-md px-2 py-1.5 text-xs outline-none" placeholder="For Gravatar"/>
+                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{t('msg_email')}</label>
+                        <input value={mail} onChange={e=>setMail(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" placeholder={t('msg_email_ph')}/>
                     </div>
                     <div>
-                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Website</label>
-                        <input value={link} onChange={e=>setLink(e.target.value)} className="w-full bg-white dark:bg-black/20 border rounded-md px-2 py-1.5 text-xs outline-none" placeholder="https://..."/>
+                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{t('msg_link')}</label>
+                        <input value={link} onChange={e=>setLink(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" placeholder="https://..."/>
                     </div>
                 </div>
                 <div className="mt-5 flex justify-end">
-                    <button onClick={handleSave} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1"><Save size={12}/> Save</button>
+                    <button onClick={handleSave} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1">
+                        <Save size={12}/> {t('msg_save')}
+                    </button>
                 </div>
             </div>
         </div>
@@ -91,41 +68,62 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
 }
 
 export const Messages = () => {
+  const { t } = useI18n()
+  
+  // 使用 useMemo 动态生成联系人列表以支持翻译
+  const CONTACTS = useMemo(() => [
+    { 
+      id: 'guestbook', 
+      name: t('msg_guestbook'), 
+      slug: 'messages-guestbook', 
+      avatar: '🌍', 
+      desc: t('msg_guestbook_desc'),
+      time: t('msg_now')
+    },
+    { 
+      id: 'tech', 
+      name: t('msg_tech'), 
+      slug: 'messages-tech', 
+      avatar: '💻', 
+      desc: t('msg_tech_desc'),
+      time: t('msg_yesterday')
+    },
+    { 
+      id: 'feedback', 
+      name: t('msg_bug'), 
+      slug: 'messages-bugs', 
+      avatar: '🐛', 
+      desc: t('msg_bug_desc'),
+      time: t('msg_mon')
+    }
+  ], [t])
+
   const [activeContactId, setActiveContactId] = useState(CONTACTS[0].id)
   const [search, setSearch] = useState('')
   const [showSettings, setShowSettings] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
-  
-  // 新增：自定义输入框状态
   const [inputValue, setInputValue] = useState('')
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
 
-  // 同步输入内容到隐藏的 Twikoo 输入框
+  // 同步输入并触发 Twikoo 发送
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value
       setInputValue(val)
-      
-      // 找到隐藏的 Twikoo textarea
       const twikooTextarea = document.querySelector('.imessage-mode .el-textarea__inner') as HTMLTextAreaElement
       if (twikooTextarea) {
           twikooTextarea.value = val
-          // 触发 input 事件，让 Vue/React 感知到变化
           twikooTextarea.dispatchEvent(new Event('input', { bubbles: true }))
       }
   }
 
-  // 触发发送
   const handleSend = () => {
       if (!inputValue.trim()) return
-
       const twikooSendBtn = document.querySelector('.imessage-mode .tk-send') as HTMLButtonElement
       if (twikooSendBtn) {
-          twikooSendBtn.click() // 模拟点击
-          setInputValue('') // 清空自定义输入框
-      } else {
-          console.error('Twikoo send button not found')
+          twikooSendBtn.click()
+          setInputValue('')
       }
   }
 
@@ -139,7 +137,7 @@ export const Messages = () => {
         <div className="h-12 flex items-center justify-between px-3 shrink-0 pt-2 mb-2">
            <div className="relative flex-1 mr-2">
               <Search size={12} className="absolute left-2 top-1.5 text-gray-400" />
-              <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" className="w-full bg-gray-200/50 dark:bg-black/20 border border-transparent focus:border-blue-500/50 rounded-md py-1 pl-7 pr-2 text-xs outline-none transition-all placeholder-gray-500"/>
+              <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('msg_search')} className="w-full bg-gray-200/50 dark:bg-black/20 border border-transparent focus:border-blue-500/50 rounded-md py-1 pl-7 pr-2 text-xs outline-none transition-all placeholder-gray-500"/>
            </div>
            <button className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded-md text-blue-500"><Edit size={16} /></button>
         </div>
@@ -161,19 +159,16 @@ export const Messages = () => {
 
       {/* 右侧主内容 */}
       <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#1e1e1e] relative">
-        
-        {/* 顶部栏 */}
         <div className="h-12 border-b border-gray-200/50 dark:border-white/10 flex items-center justify-between px-4 bg-white/80 dark:bg-[#1e1e1e]/80 backdrop-blur-md shrink-0 z-20 sticky top-0">
             <div className="flex items-center gap-3">
-                <span className="text-xs text-gray-400">To:</span>
+                <span className="text-xs text-gray-400">{t('msg_to')}</span>
                 <div className="flex items-center gap-1 bg-blue-100/50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full border border-blue-200/50 dark:border-blue-500/20">
                     <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{activeContact.name}</span>
                 </div>
             </div>
-            <button onClick={() => setShowSettings(true)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all" title="Settings"><Settings size={16} /></button>
+            <button onClick={() => setShowSettings(true)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all" title={t('msg_settings_title')}><Settings size={16} /></button>
         </div>
 
-        {/* 聊天区域 (隐藏了原生输入框，只显示评论列表) */}
         <div className="flex-1 overflow-hidden relative flex flex-col">
             <CommentSystem 
                 key={`${activeContact.slug}-${reloadKey}`} 
@@ -184,7 +179,6 @@ export const Messages = () => {
             />
         </div>
 
-        {/* 新增：底部自定义输入栏 (悬浮固定在底部) */}
         <div className="shrink-0 p-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30">
             <div className="relative">
                 <input
@@ -192,19 +186,14 @@ export const Messages = () => {
                     value={inputValue}
                     onChange={handleInputChange}
                     onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                    placeholder="iMessage"
-                    className="w-full bg-white dark:bg-[#2c2c2c] border border-gray-300 dark:border-white/10 rounded-full py-2 pl-4 pr-10 text-sm outline-none focus:border-blue-500 transition-all"
+                    placeholder={t('msg_imessage')}
+                    className="w-full bg-white dark:bg-[#2c2c2c] border border-gray-300 dark:border-white/10 rounded-full py-2 pl-4 pr-10 text-sm outline-none focus:border-blue-500 transition-all text-black dark:text-white"
                 />
-                <button 
-                    onClick={handleSend}
-                    disabled={!inputValue.trim()}
-                    className={`absolute right-1 top-1 w-7 h-7 rounded-full flex items-center justify-center transition-all ${inputValue.trim() ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
-                >
+                <button onClick={handleSend} disabled={!inputValue.trim()} className={`absolute right-1 top-1 w-7 h-7 rounded-full flex items-center justify-center transition-all ${inputValue.trim() ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-300 dark:bg-gray-600 text-gray-500 cursor-not-allowed'}`}>
                     <ArrowUp size={16} strokeWidth={3} />
                 </button>
             </div>
         </div>
-
       </div>
     </div>
   )
