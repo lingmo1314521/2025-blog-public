@@ -16,7 +16,8 @@ import { VSCode } from './apps/vscode'
 import { StorageManager } from './apps/storage-manager'
 import { Preview } from './apps/preview'
 import { WutheringWavesLauncher } from './apps/wuthering-waves'
-import { Gamepad2, Image as ImageIcon } from 'lucide-react'
+import { PhotoBooth } from './apps/photo-booth' // 引入新组件
+import { Gamepad2, Image as ImageIcon, Camera } from 'lucide-react' // 引入Camera图标
 
 const PngIcon = ({ src, alt }: { src: string; alt: string }) => (
   <img src={src} alt={alt} draggable={false} className="w-full h-full object-contain" />
@@ -26,6 +27,18 @@ export const INITIAL_APPS: AppConfig[] = [
   { id: 'launchpad', title: 'Launchpad', icon: <PngIcon src="/icons/launchpad.png" alt="Launchpad" />, width: 0, height: 0, component: null },
   { id: 'finder', title: 'Finder', icon: <PngIcon src="/icons/finder.png" alt="Finder" />, width: 860, height: 500, component: <Finder /> },
   { id: 'safari', title: 'Safari', icon: <PngIcon src="/icons/safari.png" alt="Safari" />, width: 1024, height: 768, component: <WebBrowser initialUrl="https://github.com/LynxMuse" /> },
+  
+  // Photo Booth (新增)
+  { 
+    id: 'photobooth', 
+    title: 'Photo Booth', 
+    // 使用一个模拟的图标容器
+    icon: <div className="w-full h-full bg-gradient-to-br from-red-400 to-orange-500 rounded-xl flex items-center justify-center text-white shadow-lg border-[3px] border-white/80"><Camera size={36} className="drop-shadow-md"/></div>, 
+    width: 800, 
+    height: 650, // 适合视频比例的高度
+    component: <PhotoBooth /> 
+  },
+
   { id: 'vscode', title: 'VS Code', icon: <PngIcon src="/icons/vscode.png" alt="VS Code" />, width: 1100, height: 700, component: <VSCode /> },
   { id: 'terminal', title: 'Terminal', icon: <PngIcon src="/icons/terminal.png" alt="Terminal" />, width: 600, height: 400, component: <Terminal /> },
   
@@ -44,7 +57,6 @@ export const INITIAL_APPS: AppConfig[] = [
     component: <StorageManager /> 
   },
   
-  // 鸣潮
   {
     id: 'wuthering_waves',
     title: 'Wuthering Waves',
@@ -56,7 +68,6 @@ export const INITIAL_APPS: AppConfig[] = [
     component: <WutheringWavesLauncher />
   },
 
-  // Preview
   { 
       id: 'preview', 
       title: 'Preview', 
