@@ -112,12 +112,24 @@ export const Messages = () => {
   const [inputValue, setInputValue] = useState('')
   const [twikooReady, setTwikooReady] = useState(false)
   const [isSending, setIsSending] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
 
+  useEffect(() => {
+    setIsMounted(true)
+    return () => setIsMounted(false)
+  }, [])
+
   // 检查是否可以发送消息
   const canSend = inputValue.trim() !== '' && twikooReady && !isSending
+
+  // 处理 Twikoo 准备就绪
+  const handleTwikooReady = useCallback((isReady: boolean) => {
+    if (!isMounted) return
+    setTwikooReady(isReady)
+  }, [isMounted])
 
   // 处理消息输入
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -126,13 +138,17 @@ export const Messages = () => {
     
     // 通知 Twikoo 输入框更新
     if (twikooReady && window.__commentSystem) {
-      window.__commentSystem.setInputValue(val)
+      try {
+        window.__commentSystem.setInputValue(val)
+      } catch (error) {
+        console.error('Error setting input value:', error)
+      }
     }
   }
 
   // 处理发送消息
   const handleSend = async () => {
-    if (!canSend) return
+    if (!canSend || !isMounted) return
     
     setIsSending(true)
     
@@ -144,6 +160,7 @@ export const Messages = () => {
           setInputValue('')
           // 等待评论刷新
           setTimeout(() => {
+            if (!isMounted) return
             // 滚动到底部查看新消息
             const commentsContainer = document.querySelector('.tk-comments-container')
             if (commentsContainer) {
@@ -155,17 +172,16 @@ export const Messages = () => {
     } catch (error) {
       console.error('Failed to send message:', error)
     } finally {
-      setIsSending(false)
+      if (isMounted) {
+        setIsSending(false)
+      }
     }
-  }
-
-  // 处理 Twikoo 准备就绪
-  const handleTwikooReady = (isReady: boolean) => {
-    setTwikooReady(isReady)
   }
 
   // 处理键盘事件
   useEffect(() => {
+    if (!isMounted) return
+    
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && canSend) {
         e.preventDefault()
@@ -175,13 +191,27 @@ export const Messages = () => {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [canSend])
+  }, [canSend, isMounted])
 
   // 监听联系人的切换
   useEffect(() => {
+    if (!isMounted) return
+    
     setInputValue('')
     setTwikooReady(false)
-  }, [activeContactId])
+  }, [activeContactId, isMounted])
+
+  // 清理函数
+  useEffect(() => {
+    return () => {
+      // 组件卸载时清理全局变量
+      if (window.__commentSystem) {
+        try {
+          delete window.__commentSystem
+        } catch (e) {}
+      }
+    }
+  }, [])
 
   return (
     <div className="flex h-full w-full bg-white dark:bg-[#1e1e1e] text-black dark:text-white font-sans overflow-hidden relative">

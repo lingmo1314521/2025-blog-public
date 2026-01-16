@@ -11,8 +11,6 @@ interface CommentSystemProps {
   compact?: boolean
   reloadKey?: number
   onTwikooReady?: (isReady: boolean) => void
-  onMessageInput?: (value: string) => void
-  onSendMessage?: () => void
 }
 
 export default function CommentSystem({ 
@@ -20,52 +18,75 @@ export default function CommentSystem({
   title, 
   compact = false, 
   reloadKey = 0,
-  onTwikooReady,
-  onMessageInput,
-  onSendMessage
+  onTwikooReady
 }: CommentSystemProps) {
   const [currentSystem, setCurrentSystem] = useState<CommentSystemType>('twikoo')
   const [giscusLoaded, setGiscusLoaded] = useState(false)
   const [twikooLoaded, setTwikooLoaded] = useState(false)
-  const [twikooInstance, setTwikooInstance] = useState<any>(null)
+  const [isMounted, setIsMounted] = useState(false)
   
   const giscusContainerRef = useRef<HTMLDivElement>(null)
   const twikooContainerRef = useRef<HTMLDivElement>(null)
+  const cleanupRef = useRef<() => void>(() => {})
 
-  // 监听自定义输入变化
   useEffect(() => {
-    if (!compact || currentSystem !== 'twikoo') return
+    setIsMounted(true)
+    return () => setIsMounted(false)
+  }, [])
 
-    const handleCustomInput = (event: Event) => {
-      const customEvent = event as CustomEvent<string>
-      if (onMessageInput && customEvent.detail) {
-        onMessageInput(customEvent.detail)
-      }
+  // 清理函数
+  const cleanup = useCallback(() => {
+    if (cleanupRef.current) {
+      cleanupRef.current()
+      cleanupRef.current = () => {}
     }
-
-    const handleCustomSend = () => {
-      if (onSendMessage) {
-        onSendMessage()
-      }
+    
+    // 清理 Twikoo 相关元素
+    const twikooElements = document.querySelectorAll('script[src*="twikoo"]')
+    twikooElements.forEach(el => el.remove())
+    
+    // 清理 Giscus 相关元素
+    const giscusElements = document.querySelectorAll('iframe.giscus-frame')
+    giscusElements.forEach(el => el.remove())
+    
+    if (window.twikoo) {
+      try {
+        delete window.twikoo
+      } catch (e) {}
     }
+    
+    if (window.__commentSystem) {
+      try {
+        delete window.__commentSystem
+      } catch (e) {}
+    }
+    
+    setGiscusLoaded(false)
+    setTwikooLoaded(false)
+    
+    if (onTwikooReady) onTwikooReady(false)
+  }, [onTwikooReady])
 
-    window.addEventListener('custom-message-input', handleCustomInput as EventListener)
-    window.addEventListener('custom-send-message', handleCustomSend as EventListener)
-
+  useEffect(() => {
     return () => {
-      window.removeEventListener('custom-message-input', handleCustomInput as EventListener)
-      window.removeEventListener('custom-send-message', handleCustomSend as EventListener)
+      if (isMounted) {
+        cleanup()
+      }
     }
-  }, [compact, currentSystem, onMessageInput, onSendMessage])
+  }, [isMounted, cleanup])
 
   const initGiscus = useCallback(() => {
-    if (!giscusContainerRef.current) return
+    if (!giscusContainerRef.current || !isMounted) return
     
     // 清理旧的 giscus 实例
-    const oldIframe = giscusContainerRef.current.querySelector('iframe.giscus-frame')
-    if (oldIframe) oldIframe.remove()
+    cleanup()
     
     try {
+      const container = giscusContainerRef.current
+      if (!container) return
+      
+      container.innerHTML = ''
+      
       const script = document.createElement('script')
       script.src = 'https://giscus.app/client.js'
       script.async = true
@@ -84,43 +105,55 @@ export default function CommentSystem({
       script.setAttribute('data-theme', compact ? 'noborder_light' : 'light') 
       script.setAttribute('data-lang', 'zh-CN')
       
+      let checkInterval: NodeJS.Timeout
+      
       script.onload = () => {
-        const checkIframe = () => {
+        if (!isMounted) return
+        
+        checkInterval = setInterval(() => {
+          if (!isMounted) {
+            clearInterval(checkInterval)
+            return
+          }
+          
           const iframe = giscusContainerRef.current?.querySelector('iframe.giscus-frame')
           if (iframe) {
             setGiscusLoaded(true)
-            // 通知父组件
             if (onTwikooReady) onTwikooReady(false)
-          } else {
-            setTimeout(checkIframe, 500)
+            clearInterval(checkInterval)
           }
-        }
-        setTimeout(checkIframe, 1000)
+        }, 500)
       }
       
       script.onerror = () => {
+        if (!isMounted) return
         setGiscusLoaded(false)
         if (onTwikooReady) onTwikooReady(false)
       }
       
-      giscusContainerRef.current.appendChild(script)
+      container.appendChild(script)
+      
+      cleanupRef.current = () => {
+        clearInterval(checkInterval)
+        script.remove()
+      }
+      
     } catch (error) {
       console.error('Giscus init failed:', error)
       setGiscusLoaded(false)
       if (onTwikooReady) onTwikooReady(false)
     }
-  }, [slug, compact, onTwikooReady])
+  }, [slug, compact, onTwikooReady, isMounted, cleanup])
 
   const initTwikoo = useCallback(() => {
     const envId = process.env.NEXT_PUBLIC_TWIKOO_ENV_ID
-    if (!envId) {
-      console.error('Twikoo environment ID is not configured')
+    if (!envId || !isMounted) {
+      console.error('Twikoo environment ID is not configured or component not mounted')
       return 
     }
 
     // 清理旧的 twikoo 实例
-    const oldScripts = document.querySelectorAll('script[src*="twikoo"]')
-    oldScripts.forEach(script => script.remove())
+    cleanup()
     
     if (twikooContainerRef.current) {
       twikooContainerRef.current.innerHTML = ''
@@ -130,51 +163,64 @@ export default function CommentSystem({
     script.src = 'https://cdn.jsdelivr.net/npm/twikoo@1.6.44/dist/twikoo.all.min.js'
     script.async = true
     
+    let isCancelled = false
+    
     script.onload = () => {
+      if (isCancelled || !isMounted) return
+      
       if (window.twikoo && twikooContainerRef.current) {
-        const twikooInstance = window.twikoo.init({
-          envId: envId,
-          el: twikooContainerRef.current,
-          path: compact ? `/messages/${slug}` : `/blog/${slug}`,
-          lang: 'zh-CN',
-          onCommentLoaded: () => {
-            setTwikooLoaded(true)
-            setTwikooInstance(twikooInstance)
-            
-            // 通知父组件 Twikoo 已就绪
-            if (onTwikooReady) onTwikooReady(true)
-            
-            // 如果是紧凑模式，设置自定义输入框联动
-            if (compact) {
-              setTimeout(() => {
-                const twikooTextarea = twikooContainerRef.current?.querySelector('.el-textarea__inner') as HTMLTextAreaElement
-                if (twikooTextarea) {
-                  // 监听自定义输入事件
-                  window.addEventListener('update-twikoo-input', ((e: CustomEvent<string>) => {
-                    twikooTextarea.value = e.detail
-                    // 触发 input 事件让 Twikoo 更新
-                    twikooTextarea.dispatchEvent(new Event('input', { bubbles: true }))
-                  }) as EventListener)
-                }
-              }, 500)
+        try {
+          const twikooInstance = window.twikoo.init({
+            envId: envId,
+            el: twikooContainerRef.current,
+            path: compact ? `/messages/${slug}` : `/blog/${slug}`,
+            lang: 'zh-CN',
+            onCommentLoaded: () => {
+              if (isCancelled || !isMounted) return
+              setTwikooLoaded(true)
+              
+              if (onTwikooReady) onTwikooReady(true)
             }
-          }
-        })
+          })
+          
+          // 存储实例以便清理
+          ;(window as any).__twikooInstance = twikooInstance
+          
+        } catch (error) {
+          console.error('Twikoo init error:', error)
+          setTwikooLoaded(false)
+          if (onTwikooReady) onTwikooReady(false)
+        }
       }
     }
     
     script.onerror = () => {
+      if (isCancelled || !isMounted) return
       console.error('Failed to load Twikoo script')
       setTwikooLoaded(false)
       if (onTwikooReady) onTwikooReady(false)
     }
     
     document.body.appendChild(script)
-  }, [slug, compact, onTwikooReady])
+    
+    cleanupRef.current = () => {
+      isCancelled = true
+      script.remove()
+      if ((window as any).__twikooInstance) {
+        try {
+          delete (window as any).__twikooInstance
+        } catch (e) {}
+      }
+    }
+    
+  }, [slug, compact, onTwikooReady, isMounted, cleanup])
 
   const handleSystemSwitch = (system: CommentSystemType) => {
     if (system === currentSystem) return
+    
+    cleanup()
     setCurrentSystem(system)
+    
     if (system === 'giscus') {
       setGiscusLoaded(false)
       if (onTwikooReady) onTwikooReady(false)
@@ -186,48 +232,6 @@ export default function CommentSystem({
     } catch (e) {}
   }
 
-  // 处理发送消息
-  const handleSendMessage = useCallback(() => {
-    if (currentSystem === 'twikoo' && twikooInstance && twikooContainerRef.current) {
-      const sendButton = twikooContainerRef.current.querySelector('.tk-send') as HTMLButtonElement
-      if (sendButton && !sendButton.disabled) {
-        sendButton.click()
-        
-        // 清空输入框
-        const textarea = twikooContainerRef.current.querySelector('.el-textarea__inner') as HTMLTextAreaElement
-        if (textarea) {
-          textarea.value = ''
-          textarea.dispatchEvent(new Event('input', { bubbles: true }))
-        }
-        
-        return true
-      }
-    }
-    return false
-  }, [currentSystem, twikooInstance])
-
-  // 处理消息输入
-  const handleMessageInput = useCallback((value: string) => {
-    if (currentSystem === 'twikoo' && twikooContainerRef.current) {
-      const textarea = twikooContainerRef.current.querySelector('.el-textarea__inner') as HTMLTextAreaElement
-      if (textarea) {
-        textarea.value = value
-        textarea.dispatchEvent(new Event('input', { bubbles: true }))
-      }
-    }
-  }, [currentSystem])
-
-  // 暴露函数给父组件
-  useEffect(() => {
-    if (compact) {
-      // 创建全局函数供父组件调用
-      ;(window as any).__commentSystem = {
-        sendMessage: handleSendMessage,
-        setInputValue: handleMessageInput
-      }
-    }
-  }, [compact, handleSendMessage, handleMessageInput])
-
   useEffect(() => {
     try {
       const saved = localStorage.getItem('preferred-comment-system') as CommentSystemType
@@ -236,17 +240,71 @@ export default function CommentSystem({
   }, [])
   
   useEffect(() => {
-    setTwikooLoaded(false)
-    setGiscusLoaded(false)
-    setTwikooInstance(null)
+    if (!isMounted) return
     
+    // 延迟初始化以避免冲突
     const timeoutId = setTimeout(() => {
-      if (currentSystem === 'giscus') initGiscus()
-      else initTwikoo()
-    }, 100)
+      if (currentSystem === 'giscus') {
+        initGiscus()
+      } else {
+        initTwikoo()
+      }
+    }, 300)
     
-    return () => clearTimeout(timeoutId)
-  }, [currentSystem, slug, reloadKey, initGiscus, initTwikoo])
+    return () => {
+      clearTimeout(timeoutId)
+    }
+  }, [currentSystem, slug, reloadKey, initGiscus, initTwikoo, isMounted])
+
+  // 处理消息发送的辅助函数
+  const handleSendMessage = useCallback(() => {
+    if (currentSystem !== 'twikoo' || !twikooContainerRef.current) return false
+    
+    try {
+      // 直接查找 Twikoo 的发送按钮
+      const sendButton = twikooContainerRef.current.querySelector('.tk-send') as HTMLButtonElement
+      if (sendButton && !sendButton.disabled) {
+        sendButton.click()
+        return true
+      }
+    } catch (error) {
+      console.error('Error sending message:', error)
+    }
+    return false
+  }, [currentSystem])
+
+  const handleMessageInput = useCallback((value: string) => {
+    if (currentSystem !== 'twikoo' || !twikooContainerRef.current) return
+    
+    try {
+      const textarea = twikooContainerRef.current.querySelector('.el-textarea__inner') as HTMLTextAreaElement
+      if (textarea) {
+        textarea.value = value
+        textarea.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+    } catch (error) {
+      console.error('Error setting input value:', error)
+    }
+  }, [currentSystem])
+
+  // 暴露函数给父组件
+  useEffect(() => {
+    if (compact && isMounted) {
+      // 创建全局函数供父组件调用
+      ;(window as any).__commentSystem = {
+        sendMessage: handleSendMessage,
+        setInputValue: handleMessageInput
+      }
+      
+      return () => {
+        if ((window as any).__commentSystem) {
+          try {
+            delete (window as any).__commentSystem
+          } catch (e) {}
+        }
+      }
+    }
+  }, [compact, isMounted, handleSendMessage, handleMessageInput])
 
   declare global {
     interface Window { 
@@ -323,7 +381,12 @@ export default function CommentSystem({
                     <p className="text-xs text-gray-500">Loading Messages...</p>
                 </div>
                 )}
-                <div ref={twikooContainerRef} className="w-full min-h-[200px]" style={{ display: twikooLoaded ? 'block' : 'none' }} />
+                <div 
+                  ref={twikooContainerRef} 
+                  className="w-full min-h-[200px]" 
+                  style={{ display: twikooLoaded ? 'block' : 'none' }}
+                  key={`twikoo-${slug}-${reloadKey}`}
+                />
             </div>
             )}
         </div>
