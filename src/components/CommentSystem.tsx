@@ -10,7 +10,7 @@ interface CommentSystemProps {
   title?: string
   compact?: boolean
   reloadKey?: number
-  onCountChange?: (count: number) => void // 保留计数回调
+  onCountChange?: (count: number) => void
 }
 
 export default function CommentSystem({ slug, title, compact = false, reloadKey = 0, onCountChange }: CommentSystemProps) {
@@ -91,7 +91,7 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     document.body.appendChild(script)
   }
 
-  // 只保留计数监听
+  // 仅保留计数功能，不再干涉输入框
   useEffect(() => {
     if (!compact || !twikooLoaded || !twikooContainerRef.current) return;
 
@@ -151,8 +151,27 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
               <h3 className="text-xl font-semibold text-gray-800">💬 文章评论</h3>
               <p className="mt-1 text-sm text-gray-500">欢迎留下你的看法和见解</p>
             </div>
+            
             <div className="flex items-center gap-2">
-              {/* ... buttons ... */}
+              <span className="text-sm text-gray-500">评论系统：</span>
+              <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+                <button
+                  onClick={() => handleSystemSwitch('giscus')}
+                  className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    currentSystem === 'giscus' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Giscus {currentSystem === 'giscus' && !giscusLoaded && <span className="ml-1 h-1.5 w-1.5 animate-ping rounded-full bg-blue-500"></span>}
+                </button>
+                <button
+                  onClick={() => handleSystemSwitch('twikoo')}
+                  className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    currentSystem === 'twikoo' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Twikoo {currentSystem === 'twikoo' && !twikooLoaded && <span className="ml-1 h-1.5 w-1.5 animate-ping rounded-full bg-blue-500"></span>}
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -160,13 +179,26 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
         <div className={`flex-1 min-h-0 relative overflow-y-auto ${compact ? 'px-4 py-2' : ''}`}>
             {currentSystem === 'giscus' && (
             <div>
+                {!giscusLoaded && (
+                <div className="flex flex-col items-center justify-center p-8 opacity-60">
+                    <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500"></div>
+                    <p className="text-xs text-gray-500">Connecting to GitHub...</p>
+                    <button onClick={initGiscus} className="mt-2 text-xs text-blue-500 hover:underline">Retry</button>
+                </div>
+                )}
                 <div ref={giscusContainerRef} className="w-full min-h-[200px]" style={{ display: giscusLoaded ? 'block' : 'none' }} />
             </div>
             )}
             
             {currentSystem === 'twikoo' && (
             <div>
-                {/* ID 必须保留 */}
+                {!twikooLoaded && (
+                <div className="flex flex-col items-center justify-center p-8 opacity-60">
+                    <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500"></div>
+                    <p className="text-xs text-gray-500">Loading Messages...</p>
+                </div>
+                )}
+                {/* 必须保留 ID */}
                 <div id="twikoo" ref={twikooContainerRef} className="w-full min-h-[200px]" style={{ display: twikooLoaded ? 'block' : 'none' }} />
             </div>
             )}
@@ -174,9 +206,19 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
 
         {compact && (
             <div className="shrink-0 h-6 flex items-center justify-center gap-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/5 z-20">
-                <button onClick={() => handleSystemSwitch('twikoo')} className={`flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider transition-colors ${currentSystem === 'twikoo' ? 'text-blue-500' : 'text-gray-300 hover:text-gray-500'}`}><MessageSquare size={9} /> Twikoo</button>
+                <button 
+                    onClick={() => handleSystemSwitch('twikoo')}
+                    className={`flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider transition-colors ${currentSystem === 'twikoo' ? 'text-blue-500' : 'text-gray-300 hover:text-gray-500'}`}
+                >
+                    <MessageSquare size={9} /> Twikoo
+                </button>
                 <div className="w-[1px] h-2 bg-gray-200 dark:bg-white/10"></div>
-                <button onClick={() => handleSystemSwitch('giscus')} className={`flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider transition-colors ${currentSystem === 'giscus' ? 'text-blue-500' : 'text-gray-300 hover:text-gray-500'}`}><Server size={9} /> GitHub</button>
+                <button 
+                    onClick={() => handleSystemSwitch('giscus')}
+                    className={`flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider transition-colors ${currentSystem === 'giscus' ? 'text-blue-500' : 'text-gray-300 hover:text-gray-500'}`}
+                >
+                    <Server size={9} /> GitHub
+                </button>
             </div>
         )}
       </div>
