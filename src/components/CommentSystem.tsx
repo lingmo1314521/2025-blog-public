@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { MessageSquare, Server } from 'lucide-react' 
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { MessageSquare, Server } from 'lucide-react'
 
 type CommentSystemType = 'giscus' | 'twikoo'
 
@@ -10,26 +10,62 @@ interface CommentSystemProps {
   title?: string
   compact?: boolean
   reloadKey?: number
-  onSystemChange?: (system: CommentSystemType) => void
+  onTwikooReady?: (isReady: boolean) => void
+  onMessageInput?: (value: string) => void
+  onSendMessage?: () => void
 }
 
-export default function CommentSystem({ slug, title, compact = false, reloadKey = 0, onSystemChange }: CommentSystemProps) {
+export default function CommentSystem({ 
+  slug, 
+  title, 
+  compact = false, 
+  reloadKey = 0,
+  onTwikooReady,
+  onMessageInput,
+  onSendMessage
+}: CommentSystemProps) {
   const [currentSystem, setCurrentSystem] = useState<CommentSystemType>('twikoo')
   const [giscusLoaded, setGiscusLoaded] = useState(false)
   const [twikooLoaded, setTwikooLoaded] = useState(false)
+  const [twikooInstance, setTwikooInstance] = useState<any>(null)
   
   const giscusContainerRef = useRef<HTMLDivElement>(null)
   const twikooContainerRef = useRef<HTMLDivElement>(null)
 
-  // 同步状态到父组件
+  // 监听自定义输入变化
   useEffect(() => {
-    onSystemChange?.(currentSystem)
-  }, [currentSystem, onSystemChange])
+    if (!compact || currentSystem !== 'twikoo') return
 
-  const initGiscus = () => {
+    const handleCustomInput = (event: Event) => {
+      const customEvent = event as CustomEvent<string>
+      if (onMessageInput && customEvent.detail) {
+        onMessageInput(customEvent.detail)
+      }
+    }
+
+    const handleCustomSend = () => {
+      if (onSendMessage) {
+        onSendMessage()
+      }
+    }
+
+    window.addEventListener('custom-message-input', handleCustomInput as EventListener)
+    window.addEventListener('custom-send-message', handleCustomSend as EventListener)
+
+    return () => {
+      window.removeEventListener('custom-message-input', handleCustomInput as EventListener)
+      window.removeEventListener('custom-send-message', handleCustomSend as EventListener)
+    }
+  }, [compact, currentSystem, onMessageInput, onSendMessage])
+
+  const initGiscus = useCallback(() => {
     if (!giscusContainerRef.current) return
+    
+    // 清理旧的 giscus 实例
+    const oldIframe = giscusContainerRef.current.querySelector('iframe.giscus-frame')
+    if (oldIframe) oldIframe.remove()
+    
     try {
-      giscusContainerRef.current.innerHTML = ''
       const script = document.createElement('script')
       script.src = 'https://giscus.app/client.js'
       script.async = true
@@ -45,50 +81,49 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
       script.setAttribute('data-reactions-enabled', '1')
       script.setAttribute('data-emit-metadata', '0')
       script.setAttribute('data-input-position', 'top') 
-      script.setAttribute('data-theme', compact ? 'noborder_light' : 'light') // 暗色模式需根据系统主题动态调整，这里暂时简化
+      script.setAttribute('data-theme', compact ? 'noborder_light' : 'light') 
       script.setAttribute('data-lang', 'zh-CN')
-      script.setAttribute('data-loading', 'lazy')
       
       script.onload = () => {
-        // Giscus iframe 加载需要时间，轮询检查
         const checkIframe = () => {
-          // 在 Shadow DOM 或 iframe 内部
-          // Giscus 实际上是插入了一个 iframe 并在旁边放样式
-          // 只要 script 加载完，基本可以认为开始了
-          setGiscusLoaded(true) 
+          const iframe = giscusContainerRef.current?.querySelector('iframe.giscus-frame')
+          if (iframe) {
+            setGiscusLoaded(true)
+            // 通知父组件
+            if (onTwikooReady) onTwikooReady(false)
+          } else {
+            setTimeout(checkIframe, 500)
+          }
         }
-        setTimeout(checkIframe, 1500)
+        setTimeout(checkIframe, 1000)
       }
       
-      script.onerror = () => setGiscusLoaded(false)
+      script.onerror = () => {
+        setGiscusLoaded(false)
+        if (onTwikooReady) onTwikooReady(false)
+      }
+      
       giscusContainerRef.current.appendChild(script)
     } catch (error) {
       console.error('Giscus init failed:', error)
       setGiscusLoaded(false)
+      if (onTwikooReady) onTwikooReady(false)
     }
-  }
+  }, [slug, compact, onTwikooReady])
 
-  const initTwikoo = () => {
-    const envId = process.env.NEXT_PUBLIC_TWIKOO_ENV_ID || 'https://twikoo.vercel.app' // 请确保有默认值或环境变量
-    
-    // 清理旧的脚本以防重复监听
+  const initTwikoo = useCallback(() => {
+    const envId = process.env.NEXT_PUBLIC_TWIKOO_ENV_ID
+    if (!envId) {
+      console.error('Twikoo environment ID is not configured')
+      return 
+    }
+
+    // 清理旧的 twikoo 实例
     const oldScripts = document.querySelectorAll('script[src*="twikoo"]')
-    // 注意：Twikoo 全局单例，通常不建议频繁删除 script，但在 SPA 切换时可能需要重新 init
+    oldScripts.forEach(script => script.remove())
     
     if (twikooContainerRef.current) {
-        twikooContainerRef.current.innerHTML = ''
-    }
-
-    // 检查 window.twikoo 是否已存在
-    if (window.twikoo) {
-        window.twikoo.init({
-            envId: envId,
-            el: twikooContainerRef.current,
-            path: compact ? `/messages/${slug}` : `/blog/${slug}`,
-            lang: 'zh-CN',
-            onCommentLoaded: () => setTwikooLoaded(true)
-        })
-        return
+      twikooContainerRef.current.innerHTML = ''
     }
 
     const script = document.createElement('script')
@@ -97,27 +132,101 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     
     script.onload = () => {
       if (window.twikoo && twikooContainerRef.current) {
-        window.twikoo.init({
+        const twikooInstance = window.twikoo.init({
           envId: envId,
           el: twikooContainerRef.current,
           path: compact ? `/messages/${slug}` : `/blog/${slug}`,
           lang: 'zh-CN',
           onCommentLoaded: () => {
-              setTwikooLoaded(true)
+            setTwikooLoaded(true)
+            setTwikooInstance(twikooInstance)
+            
+            // 通知父组件 Twikoo 已就绪
+            if (onTwikooReady) onTwikooReady(true)
+            
+            // 如果是紧凑模式，设置自定义输入框联动
+            if (compact) {
+              setTimeout(() => {
+                const twikooTextarea = twikooContainerRef.current?.querySelector('.el-textarea__inner') as HTMLTextAreaElement
+                if (twikooTextarea) {
+                  // 监听自定义输入事件
+                  window.addEventListener('update-twikoo-input', ((e: CustomEvent<string>) => {
+                    twikooTextarea.value = e.detail
+                    // 触发 input 事件让 Twikoo 更新
+                    twikooTextarea.dispatchEvent(new Event('input', { bubbles: true }))
+                  }) as EventListener)
+                }
+              }, 500)
+            }
           }
         })
       }
     }
+    
+    script.onerror = () => {
+      console.error('Failed to load Twikoo script')
+      setTwikooLoaded(false)
+      if (onTwikooReady) onTwikooReady(false)
+    }
+    
     document.body.appendChild(script)
-  }
+  }, [slug, compact, onTwikooReady])
 
   const handleSystemSwitch = (system: CommentSystemType) => {
     if (system === currentSystem) return
     setCurrentSystem(system)
-    if (system === 'giscus') setGiscusLoaded(false)
-    else setTwikooLoaded(false)
-    try { localStorage.setItem('preferred-comment-system', system) } catch (e) {}
+    if (system === 'giscus') {
+      setGiscusLoaded(false)
+      if (onTwikooReady) onTwikooReady(false)
+    } else {
+      setTwikooLoaded(false)
+    }
+    try { 
+      localStorage.setItem('preferred-comment-system', system) 
+    } catch (e) {}
   }
+
+  // 处理发送消息
+  const handleSendMessage = useCallback(() => {
+    if (currentSystem === 'twikoo' && twikooInstance && twikooContainerRef.current) {
+      const sendButton = twikooContainerRef.current.querySelector('.tk-send') as HTMLButtonElement
+      if (sendButton && !sendButton.disabled) {
+        sendButton.click()
+        
+        // 清空输入框
+        const textarea = twikooContainerRef.current.querySelector('.el-textarea__inner') as HTMLTextAreaElement
+        if (textarea) {
+          textarea.value = ''
+          textarea.dispatchEvent(new Event('input', { bubbles: true }))
+        }
+        
+        return true
+      }
+    }
+    return false
+  }, [currentSystem, twikooInstance])
+
+  // 处理消息输入
+  const handleMessageInput = useCallback((value: string) => {
+    if (currentSystem === 'twikoo' && twikooContainerRef.current) {
+      const textarea = twikooContainerRef.current.querySelector('.el-textarea__inner') as HTMLTextAreaElement
+      if (textarea) {
+        textarea.value = value
+        textarea.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+    }
+  }, [currentSystem])
+
+  // 暴露函数给父组件
+  useEffect(() => {
+    if (compact) {
+      // 创建全局函数供父组件调用
+      ;(window as any).__commentSystem = {
+        sendMessage: handleSendMessage,
+        setInputValue: handleMessageInput
+      }
+    }
+  }, [compact, handleSendMessage, handleMessageInput])
 
   useEffect(() => {
     try {
@@ -127,22 +236,30 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
   }, [])
   
   useEffect(() => {
-    // 每次切换系统或 Slug 变化时重置加载状态
     setTwikooLoaded(false)
     setGiscusLoaded(false)
+    setTwikooInstance(null)
     
-    let timer: NodeJS.Timeout
-    if (currentSystem === 'giscus') {
-        timer = setTimeout(() => initGiscus(), 100)
-    } else {
-        timer = setTimeout(() => initTwikoo(), 100)
+    const timeoutId = setTimeout(() => {
+      if (currentSystem === 'giscus') initGiscus()
+      else initTwikoo()
+    }, 100)
+    
+    return () => clearTimeout(timeoutId)
+  }, [currentSystem, slug, reloadKey, initGiscus, initTwikoo])
+
+  declare global {
+    interface Window { 
+      twikoo?: any 
+      __commentSystem?: {
+        sendMessage: () => boolean
+        setInputValue: (value: string) => void
+      }
     }
-    return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSystem, slug, reloadKey])
+  }
 
   const containerClass = compact 
-    ? "w-full h-full flex flex-col imessage-mode bg-slate-50 dark:bg-[#151515]" 
+    ? "w-full h-full flex flex-col imessage-mode bg-white dark:bg-[#1e1e1e]" 
     : "mx-auto w-full max-w-[1140px] px-6 pb-12 max-sm:px-0"
 
   const cardClass = compact
@@ -184,9 +301,9 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
           </div>
         )}
         
-        <div className={`flex-1 min-h-0 relative overflow-y-auto overflow-x-hidden ${compact ? 'px-4 py-2 scrollbar-thin' : ''}`}>
-            {/* Giscus 容器 */}
-            <div className={currentSystem === 'giscus' ? 'block' : 'hidden'}>
+        <div className={`flex-1 min-h-0 relative overflow-y-auto ${compact ? 'px-4 py-2' : ''}`}>
+            {currentSystem === 'giscus' && (
+            <div>
                 {!giscusLoaded && (
                 <div className="flex flex-col items-center justify-center p-8 opacity-60">
                     <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500"></div>
@@ -194,36 +311,37 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
                     <button onClick={initGiscus} className="mt-2 text-xs text-blue-500 hover:underline">Retry</button>
                 </div>
                 )}
-                <div ref={giscusContainerRef} className="w-full min-h-[200px]" />
+                <div ref={giscusContainerRef} className="w-full min-h-[200px]" style={{ display: giscusLoaded ? 'block' : 'none' }} />
             </div>
+            )}
             
-            {/* Twikoo 容器 */}
-            <div className={currentSystem === 'twikoo' ? 'block' : 'hidden'}>
+            {currentSystem === 'twikoo' && (
+            <div>
                 {!twikooLoaded && (
                 <div className="flex flex-col items-center justify-center p-8 opacity-60">
                     <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500"></div>
                     <p className="text-xs text-gray-500">Loading Messages...</p>
                 </div>
                 )}
-                {/* 必须始终渲染 ref div，因为 Twikoo init 需要 DOM 存在 */}
-                <div ref={twikooContainerRef} className="w-full min-h-[200px]" />
+                <div ref={twikooContainerRef} className="w-full min-h-[200px]" style={{ display: twikooLoaded ? 'block' : 'none' }} />
             </div>
+            )}
         </div>
 
         {compact && (
-            <div className="shrink-0 h-8 flex items-center justify-center gap-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/5 z-20">
+            <div className="shrink-0 h-6 flex items-center justify-center gap-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/5 z-20">
                 <button 
                     onClick={() => handleSystemSwitch('twikoo')}
-                    className={`flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider transition-colors ${currentSystem === 'twikoo' ? 'text-blue-500' : 'text-gray-400 hover:text-gray-600'}`}
+                    className={`flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider transition-colors ${currentSystem === 'twikoo' ? 'text-blue-500' : 'text-gray-300 hover:text-gray-500'}`}
                 >
-                    <MessageSquare size={10} /> Twikoo
+                    <MessageSquare size={9} /> Twikoo
                 </button>
-                <div className="w-[1px] h-3 bg-gray-300 dark:bg-white/10"></div>
+                <div className="w-[1px] h-2 bg-gray-200 dark:bg-white/10"></div>
                 <button 
                     onClick={() => handleSystemSwitch('giscus')}
-                    className={`flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider transition-colors ${currentSystem === 'giscus' ? 'text-blue-500' : 'text-gray-400 hover:text-gray-600'}`}
+                    className={`flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider transition-colors ${currentSystem === 'giscus' ? 'text-blue-500' : 'text-gray-300 hover:text-gray-500'}`}
                 >
-                    <Server size={10} /> GitHub
+                    <Server size={9} /> GitHub
                 </button>
             </div>
         )}
