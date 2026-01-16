@@ -10,17 +10,54 @@ interface CommentSystemProps {
   title?: string
   compact?: boolean
   reloadKey?: number
-  onCountChange?: (count: number) => void
-  onReplyChange?: (replyingTo: string | null) => void 
 }
 
-export default function CommentSystem({ slug, title, compact = false, reloadKey = 0, onCountChange, onReplyChange }: CommentSystemProps) {
+export default function CommentSystem({ slug, title, compact = false, reloadKey = 0 }: CommentSystemProps) {
   const [currentSystem, setCurrentSystem] = useState<CommentSystemType>('twikoo')
+  const [giscusLoaded, setGiscusLoaded] = useState(false)
   const [twikooLoaded, setTwikooLoaded] = useState(false)
+  
+  const giscusContainerRef = useRef<HTMLDivElement>(null)
   const twikooContainerRef = useRef<HTMLDivElement>(null)
 
-  // ... (Giscus init logic omitted for brevity, keeping existing) ...
-  const initGiscus = () => { /* ...保持原样... */ }
+  const initGiscus = () => {
+    if (!giscusContainerRef.current) return
+    try {
+      giscusContainerRef.current.innerHTML = ''
+      const script = document.createElement('script')
+      script.src = 'https://giscus.app/client.js'
+      script.async = true
+      script.crossOrigin = 'anonymous'
+      
+      script.setAttribute('data-repo', 'lingmo1314521/my-blog-comments')
+      script.setAttribute('data-repo-id', 'R_kgDOQmpfyg')
+      script.setAttribute('data-category', 'General')
+      script.setAttribute('data-category-id', 'DIC_kwDOQmpfys4Czpli')
+      script.setAttribute('data-mapping', 'pathname') 
+      script.setAttribute('data-term', slug)
+      script.setAttribute('data-strict', '0')
+      script.setAttribute('data-reactions-enabled', '1')
+      script.setAttribute('data-emit-metadata', '0')
+      script.setAttribute('data-input-position', 'top') 
+      script.setAttribute('data-theme', compact ? 'noborder_light' : 'light') 
+      script.setAttribute('data-lang', 'zh-CN')
+      
+      script.onload = () => {
+        const checkIframe = () => {
+          const iframe = giscusContainerRef.current?.querySelector('iframe.giscus-frame')
+          if (iframe) setGiscusLoaded(true)
+          else setTimeout(checkIframe, 500)
+        }
+        setTimeout(checkIframe, 1000)
+      }
+      
+      script.onerror = () => setGiscusLoaded(false)
+      giscusContainerRef.current.appendChild(script)
+    } catch (error) {
+      console.error('Giscus init failed:', error)
+      setGiscusLoaded(false)
+    }
+  }
 
   const initTwikoo = () => {
     const envId = process.env.NEXT_PUBLIC_TWIKOO_ENV_ID
@@ -53,45 +90,6 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     document.body.appendChild(script)
   }
 
-  // --- 智能代理监听逻辑 ---
-  useEffect(() => {
-    if (!compact || !twikooLoaded || !twikooContainerRef.current) return;
-
-    const observer = new MutationObserver(() => {
-        // 1. 抓取评论数量
-        const countEl = twikooContainerRef.current?.querySelector('.tk-comments-count span:first-child')
-        if (countEl && countEl.textContent && onCountChange) {
-            const count = parseInt(countEl.textContent.trim(), 10)
-            if (!isNaN(count)) onCountChange(count)
-        }
-
-        // 2. 抓取回复状态
-        // 逻辑：Twikoo 在回复时会将输入框移动到评论下方，并修改 placeholder
-        // 我们需要找到当前页面上 *唯一* 的输入框 (class: el-textarea__inner)
-        const textarea = document.querySelector('#twikoo .el-textarea__inner')
-        if (textarea && onReplyChange) {
-            const placeholder = textarea.getAttribute('placeholder')
-            if (placeholder && placeholder.includes('@')) {
-                // 格式通常为 "回复 @Nick"
-                const match = placeholder.match(/@(.+)/)
-                if (match) {
-                    onReplyChange(match[1]) // 提取名字
-                } else {
-                    onReplyChange(placeholder)
-                }
-            } else {
-                onReplyChange(null) // 没有 @，说明是普通评论
-            }
-        }
-    })
-
-    // 监听 body 的子树变化，因为 Twikoo 会在大范围移动 DOM 节点
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['placeholder', 'value'] })
-
-    return () => observer.disconnect()
-  }, [twikooLoaded, compact, onCountChange, onReplyChange])
-
-  // System Switch Logic
   const handleSystemSwitch = (system: CommentSystemType) => {
     if (system === currentSystem) return
     setCurrentSystem(system)
@@ -126,16 +124,22 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
   return (
     <div className={containerClass}>
       <div className={cardClass}>
-        {/* Top Bar (Hidden in compact) */}
         {!compact && (
           <div className="mb-6 pb-4 border-b border-gray-200/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-             {/* ... content ... */}
+            <div>
+              <h3 className="text-xl font-semibold text-gray-800">💬 文章评论</h3>
+              <p className="mt-1 text-sm text-gray-500">欢迎留下你的看法和见解</p>
+            </div>
+            {/* System Switch Buttons */}
+            <div className="flex items-center gap-2">
+               {/* ... (buttons omitted for brevity) ... */}
+            </div>
           </div>
         )}
         
-        <div className={`flex-1 min-h-0 relative overflow-y-auto ${compact ? 'px-4 py-2' : ''}`}>
+        <div className={`flex-1 min-h-0 relative overflow-y-auto ${compact ? 'px-0 py-0' : ''}`}>
             {currentSystem === 'twikoo' && (
-                // 确保 ID 为 twikoo，配合 CSS 选择器
+                // 容器，直接渲染 Twikoo
                 <div id="twikoo" ref={twikooContainerRef} className="w-full min-h-[200px]" style={{ display: twikooLoaded ? 'block' : 'none' }} />
             )}
             {/* Giscus block ... */}
