@@ -59,6 +59,35 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     }
   }
 
+  // --- 关键修复：手动注入用户信息到 Twikoo ---
+  const applyTwikooSettings = () => {
+    if (!twikooContainerRef.current) return
+
+    // 从 localStorage 读取我们在 Settings 里保存的值
+    const nick = localStorage.getItem('twikoo-nick')
+    const mail = localStorage.getItem('twikoo-mail')
+    const link = localStorage.getItem('twikoo-link')
+
+    // 找到 Twikoo 的隐藏输入框 (即使 display: none 也可以被 JS 操作)
+    const nickInput = twikooContainerRef.current.querySelector('input[name="nick"]') as HTMLInputElement
+    const mailInput = twikooContainerRef.current.querySelector('input[name="mail"]') as HTMLInputElement
+    const linkInput = twikooContainerRef.current.querySelector('input[name="link"]') as HTMLInputElement
+
+    // 辅助函数：触发 React/Vue 的 change 事件
+    const triggerChange = (el: HTMLInputElement, value: string) => {
+        if (!el) return
+        // 设置值
+        el.value = value
+        // 触发 input 事件，让 Twikoo 内部监听到变化
+        el.dispatchEvent(new Event('input', { bubbles: true }))
+        el.dispatchEvent(new Event('change', { bubbles: true }))
+    }
+
+    if (nick) triggerChange(nickInput, nick)
+    if (mail) triggerChange(mailInput, mail)
+    if (link) triggerChange(linkInput, link)
+  }
+
   const initTwikoo = () => {
     const envId = process.env.NEXT_PUBLIC_TWIKOO_ENV_ID
     if (!envId) return 
@@ -83,6 +112,9 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
           lang: 'zh-CN',
           onCommentLoaded: () => {
               setTwikooLoaded(true)
+              // 加载完成后，立即注入用户设置
+              // 稍微延迟一点点，确保 DOM 完全就绪
+              setTimeout(applyTwikooSettings, 500)
           }
         })
       }
@@ -118,7 +150,7 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
   }
 
   const containerClass = compact 
-    ? "w-full h-full flex flex-col imessage-mode bg-white dark:bg-[#1e1e1e]" // 恢复标准布局
+    ? "w-full h-full flex flex-col imessage-mode bg-white dark:bg-[#1e1e1e]"
     : "mx-auto w-full max-w-[1140px] px-6 pb-12 max-sm:px-0"
 
   const cardClass = compact
@@ -182,9 +214,6 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
                     <p className="text-xs text-gray-500">Loading Messages...</p>
                 </div>
                 )}
-                {/* 删除了 imessage-twikoo 相关的 CSS 类。
-                   Twikoo 将以默认样式渲染：输入框在最上方，评论列表在下方。
-                */}
                 <div ref={twikooContainerRef} className="w-full min-h-[200px]" style={{ display: twikooLoaded ? 'block' : 'none' }} />
             </div>
             )}
