@@ -213,7 +213,7 @@
    Messages 应用特定样式 (iMessage 风格)
    ========================================= */
 
-/* 1. 隐藏 Twikoo 原生的输入框整体区域 */
+/* 1. 隐藏 Twikoo 原生的输入框 */
 .imessage-mode .tk-submit {
     display: none !important;
 }
@@ -223,8 +223,7 @@
     display: none !important;
 }
 
-/* 3. 隐藏 Twikoo 原生的标题（评论数量统计） */
-/* 我们已经将其移到了输入框上方 */
+/* 3. 隐藏 Twikoo 原生的标题栏 (我们要把数字挪到别处) */
 .imessage-mode .tk-comments-title {
     display: none !important;
 }
@@ -264,7 +263,7 @@
     width: 100% !important;
 }
 
-/* --- 头像样式 (恢复显示，但美化) --- */
+/* --- 头像样式 (恢复显示) --- */
 .imessage-mode .tk-avatar {
     display: block !important;
     width: 30px !important;
@@ -300,7 +299,7 @@
     font-size: 14px !important;
     line-height: 1.4 !important;
     position: relative;
-    margin-left: 0 !important; /* 不需要 margin，由头像撑开 */
+    margin-left: 0 !important;
     box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
 }
 .dark .imessage-mode .tk-content {
@@ -319,9 +318,9 @@
     background: #007AFF !important;
     color: #fff !important;
     border-bottom-left-radius: 18px !important;
-    border-bottom-right-radius: 4px !important; /* 尾巴在右下 */
+    border-bottom-right-radius: 4px !important;
     margin-left: 0 !important;
-    margin-right: 0 !important;
+    margin-right: 10px !important;
 }
 .imessage-mode .tk-master .tk-content a {
     color: white !important;

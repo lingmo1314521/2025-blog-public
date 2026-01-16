@@ -102,7 +102,6 @@ export const Messages = () => {
   const [showSettings, setShowSettings] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [inputValue, setInputValue] = useState('')
-  // 新增：评论数量状态
   const [msgCount, setMsgCount] = useState(0)
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
@@ -176,13 +175,13 @@ export const Messages = () => {
                 title={activeContact.name}
                 compact={true} 
                 reloadKey={reloadKey}
-                onCountChange={setMsgCount} // 传递回调
+                onCountChange={setMsgCount}
             />
         </div>
 
         <div className="shrink-0 px-4 pb-4 pt-2 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30">
-            {/* 评论数量显示 (左上角) */}
-            <div className="flex items-center gap-1 mb-2 ml-2 text-[10px] text-gray-400 font-medium select-none">
+            {/* 极简风格评论数量显示 */}
+            <div className="flex items-center gap-1 mb-2 ml-2 text-[10px] text-gray-400 font-medium select-none animate-in fade-in">
                 <MessageCircle size={10} />
                 <span>{msgCount} Messages</span>
             </div>

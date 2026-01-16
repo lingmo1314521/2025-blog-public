@@ -10,7 +10,6 @@ interface CommentSystemProps {
   title?: string
   compact?: boolean
   reloadKey?: number
-  // 新增：回调函数，用于将评论数量传给父组件
   onCountChange?: (count: number) => void
 }
 
@@ -92,26 +91,42 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     document.body.appendChild(script)
   }
 
-  // --- 监听评论数量逻辑 ---
+  // --- 强力监听评论数量逻辑 (修复版) ---
   useEffect(() => {
-    if (!compact || !twikooLoaded || !twikooContainerRef.current) return;
+    if (!compact || !twikooContainerRef.current) return;
 
-    const observer = new MutationObserver(() => {
-        // 尝试从 Twikoo DOM 中抓取数量
-        // Twikoo 的结构通常是 .tk-comments-count > span:first-child
-        const countEl = twikooContainerRef.current?.querySelector('.tk-comments-count span:first-child')
+    // 定义抓取函数
+    const updateCount = () => {
+        // 尝试抓取 .tk-comments-count
+        const countEl = twikooContainerRef.current?.querySelector('.tk-comments-count')
         if (countEl && countEl.textContent) {
-            const count = parseInt(countEl.textContent.trim(), 10)
-            if (!isNaN(count) && onCountChange) {
-                onCountChange(count)
+            // 使用正则提取字符串中的第一个数字 (例如 "9 条评论" -> 9)
+            const match = countEl.textContent.match(/\d+/)
+            if (match) {
+                const count = parseInt(match[0], 10)
+                if (!isNaN(count) && onCountChange) {
+                    onCountChange(count)
+                }
             }
         }
-    })
+    }
 
-    observer.observe(twikooContainerRef.current, { childList: true, subtree: true })
+    // 1. 立即尝试一次
+    updateCount()
 
-    return () => observer.disconnect()
-  }, [twikooLoaded, compact, onCountChange])
+    // 2. 建立观察者：监听子节点变化和字符数据变化
+    const observer = new MutationObserver(updateCount)
+    observer.observe(twikooContainerRef.current, { childList: true, subtree: true, characterData: true })
+
+    // 3. 定时器兜底 (每秒检查一次，防止 MutationObserver 漏掉异步请求后的渲染)
+    // 这是为了解决“一直为0”最有效的手段
+    const interval = setInterval(updateCount, 1500)
+
+    return () => {
+        observer.disconnect()
+        clearInterval(interval)
+    }
+  }, [compact, onCountChange, reloadKey]) // 依赖项精简，确保重载时重新挂载
 
   const handleSystemSwitch = (system: CommentSystemType) => {
     if (system === currentSystem) return
