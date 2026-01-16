@@ -20,34 +20,6 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
   const giscusContainerRef = useRef<HTMLDivElement>(null)
   const twikooContainerRef = useRef<HTMLDivElement>(null)
 
-  // 注入用户信息的辅助函数
-  const injectUserInfo = () => {
-    // 只有在 compact 模式（iMessage 风格）才需要手动注入，因为我们隐藏了输入框
-    if (!compact) return;
-
-    // 稍微延迟，确保 DOM 已经完全渲染
-    setTimeout(() => {
-        const nick = localStorage.getItem('twikoo-nick') || ''
-        const mail = localStorage.getItem('twikoo-mail') || ''
-        const link = localStorage.getItem('twikoo-link') || ''
-
-        const inputs = [
-            { selector: 'input[name="nick"]', value: nick },
-            { selector: 'input[name="mail"]', value: mail },
-            { selector: 'input[name="link"]', value: link }
-        ]
-
-        inputs.forEach(({ selector, value }) => {
-            const el = document.querySelector(`.imessage-twikoo ${selector}`) as HTMLInputElement
-            if (el) {
-                el.value = value
-                // 关键：触发 input 事件，让 Twikoo (Vue) 监听到变化
-                el.dispatchEvent(new Event('input', { bubbles: true }))
-            }
-        })
-    }, 500)
-  }
-
   const initGiscus = () => {
     if (!giscusContainerRef.current) return
     try {
@@ -111,11 +83,6 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
           lang: 'zh-CN',
           onCommentLoaded: () => {
               setTwikooLoaded(true)
-              // 自动滚动到底部
-              const container = document.querySelector('.tk-comments-container')
-              if (container) container.scrollTop = container.scrollHeight
-              // 注入用户信息
-              injectUserInfo()
           }
         })
       }
@@ -151,7 +118,7 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
   }
 
   const containerClass = compact 
-    ? "w-full h-full flex flex-col imessage-mode overflow-hidden" 
+    ? "w-full h-full flex flex-col imessage-mode bg-white dark:bg-[#1e1e1e]" // 恢复标准布局
     : "mx-auto w-full max-w-[1140px] px-6 pb-12 max-sm:px-0"
 
   const cardClass = compact
@@ -162,7 +129,6 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     <div className={containerClass}>
       <div className={cardClass}>
         
-        {/* 顶部标题栏：仅在博客普通模式下显示 */}
         {!compact && (
           <div className="mb-6 pb-4 border-b border-gray-200/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
@@ -194,9 +160,9 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
           </div>
         )}
         
-        <div className={`flex-1 min-h-0 relative ${compact ? '' : ''}`}>
+        <div className={`flex-1 min-h-0 relative overflow-y-auto ${compact ? 'px-4 py-2' : ''}`}>
             {currentSystem === 'giscus' && (
-            <div className="h-full overflow-y-auto px-4">
+            <div>
                 {!giscusLoaded && (
                 <div className="flex flex-col items-center justify-center p-8 opacity-60">
                     <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500"></div>
@@ -209,15 +175,17 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
             )}
             
             {currentSystem === 'twikoo' && (
-            <div className="h-full flex flex-col">
+            <div>
                 {!twikooLoaded && (
-                <div className="flex flex-col items-center justify-center p-8 opacity-60 absolute inset-0">
+                <div className="flex flex-col items-center justify-center p-8 opacity-60">
                     <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500"></div>
                     <p className="text-xs text-gray-500">Loading Messages...</p>
                 </div>
                 )}
-                {/* 增加 imessage-twikoo 类，配合 CSS 强制布局 */}
-                <div ref={twikooContainerRef} className={`w-full h-full ${compact ? 'imessage-twikoo' : ''}`} style={{ display: twikooLoaded ? 'block' : 'none' }} />
+                {/* 删除了 imessage-twikoo 相关的 CSS 类。
+                   Twikoo 将以默认样式渲染：输入框在最上方，评论列表在下方。
+                */}
+                <div ref={twikooContainerRef} className="w-full min-h-[200px]" style={{ display: twikooLoaded ? 'block' : 'none' }} />
             </div>
             )}
         </div>

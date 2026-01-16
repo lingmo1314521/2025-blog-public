@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Search, Edit, Settings, X, Save, User } from 'lucide-react'
+import { Search, Edit, Settings, X, Save } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 
@@ -32,14 +32,14 @@ const CONTACTS = [
   }
 ]
 
-// 设置弹窗组件
+// 设置弹窗组件 (单独配置用户信息)
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const [nick, setNick] = useState('')
     const [mail, setMail] = useState('')
     const [link, setLink] = useState('')
 
     useEffect(() => {
-        // 初始化时读取本地存储
+        // 读取 LocalStorage
         setNick(localStorage.getItem('twikoo-nick') || '')
         setMail(localStorage.getItem('twikoo-mail') || '')
         setLink(localStorage.getItem('twikoo-link') || '')
@@ -49,7 +49,7 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
         localStorage.setItem('twikoo-nick', nick)
         localStorage.setItem('twikoo-mail', mail)
         localStorage.setItem('twikoo-link', link)
-        onSave() // 触发父组件的重载
+        onSave()
         onClose()
     }
 
@@ -57,12 +57,10 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
             <div className="w-80 bg-[#f5f5f5] dark:bg-[#2c2c2c] rounded-xl shadow-2xl border border-white/20 p-5 animate-in fade-in zoom-in duration-200">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-sm dark:text-white flex items-center gap-2"><User size={16}/> User Profile</h3>
+                    <h3 className="font-bold text-sm dark:text-white">User Settings</h3>
                     <button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full"><X size={14}/></button>
                 </div>
                 
-                <p className="text-xs text-gray-500 mb-4">Set your identity for Twikoo comments. Email is for Gravatar.</p>
-
                 <div className="space-y-3">
                     <div>
                         <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Nickname</label>
@@ -79,8 +77,8 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
                 </div>
 
                 <div className="mt-5 flex justify-end">
-                    <button onClick={handleSave} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1 transition-colors">
-                        <Save size={12}/> Save & Apply
+                    <button onClick={handleSave} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1">
+                        <Save size={12}/> Save
                     </button>
                 </div>
             </div>
@@ -92,7 +90,7 @@ export const Messages = () => {
   const [activeContactId, setActiveContactId] = useState(CONTACTS[0].id)
   const [search, setSearch] = useState('')
   const [showSettings, setShowSettings] = useState(false)
-  const [reloadKey, setReloadKey] = useState(0) // 用于强制刷新 Twikoo
+  const [reloadKey, setReloadKey] = useState(0) 
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
@@ -100,7 +98,6 @@ export const Messages = () => {
   return (
     <div className="flex h-full w-full bg-white dark:bg-[#1e1e1e] text-black dark:text-white font-sans overflow-hidden relative">
       
-      {/* Settings Modal */}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onSave={() => setReloadKey(k => k + 1)} />}
 
       {/* 左侧边栏 */}
@@ -180,7 +177,6 @@ export const Messages = () => {
 
         {/* 聊天区域容器 */}
         <div className="flex-1 overflow-hidden relative flex flex-col">
-            {/* 传递 reloadKey，当 key 变化时，CommentSystem 会重新挂载 */}
             <CommentSystem 
                 key={`${activeContact.slug}-${reloadKey}`} 
                 slug={activeContact.slug} 
