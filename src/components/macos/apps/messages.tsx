@@ -1,75 +1,13 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { Search, Edit, Settings, X, ArrowUp, RefreshCw, MessageCircle, Shield } from 'lucide-react'
+import { Search, Edit, Settings, X, Save, ArrowUp, RefreshCw, MessageCircle } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
-import { useOs } from '../os-context'
 import { toast } from 'sonner' 
 
-// ==================================================================================
-// 1. 独立的 Twikoo 后台宿主组件
-// ==================================================================================
-const TwikooAdminHost = () => {
-    const containerRef = useRef<HTMLDivElement>(null)
-
-    useEffect(() => {
-        // 查找 Twikoo 生成的后台 DOM
-        const adminEl = document.querySelector('.tk-admin-container') as HTMLElement
-        
-        if (adminEl && containerRef.current) {
-            // 搬运节点到当前窗口
-            containerRef.current.appendChild(adminEl)
-            
-            // 强制覆盖样式，确保在窗口内可见
-            adminEl.style.display = 'block'
-            adminEl.style.visibility = 'visible'
-            adminEl.style.opacity = '1'
-            adminEl.style.position = 'static'
-            adminEl.style.width = '100%'
-            adminEl.style.zIndex = '1'
-            adminEl.style.pointerEvents = 'auto'
-            
-            // 隐藏内部关闭按钮 (使用窗口的红灯关闭)
-            const closeBtn = adminEl.querySelector('.tk-admin-close') as HTMLElement
-            if (closeBtn) closeBtn.style.display = 'none' 
-        }
-
-        return () => {
-            // 窗口关闭时：将节点还给 body 并隐藏
-            if (adminEl) {
-                document.body.appendChild(adminEl)
-                adminEl.style.display = 'none' // 关键：还回去时必须隐藏
-            }
-        }
-    }, [])
-
-    return (
-        <div 
-            ref={containerRef} 
-            className="w-full h-full bg-white dark:bg-[#1e1e1e] overflow-y-auto p-4 select-text"
-        >
-            <style jsx global>{`
-                .tk-admin-container .tk-admin {
-                    position: static !important;
-                    box-shadow: none !important;
-                    width: 100% !important;
-                    max-width: 100% !important;
-                    transform: none !important;
-                    padding: 0 !important;
-                }
-                .tk-admin-container {
-                    background: transparent !important;
-                }
-            `}</style>
-        </div>
-    )
-}
-
-// ==================================================================================
-// 2. 设置弹窗
-// ==================================================================================
+// --- SettingsModal (你的自定义设置) ---
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const { t } = useI18n()
     const [nick, setNick] = useState('')
@@ -109,8 +47,8 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
     }
 
     return (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-            <div className="w-80 bg-[#f5f5f5] dark:bg-[#2c2c2c] rounded-xl shadow-2xl border border-white/20 p-5" onClick={e => e.stopPropagation()}>
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="w-80 bg-[#f5f5f5] dark:bg-[#2c2c2c] rounded-xl shadow-2xl border border-white/20 p-5 animate-in fade-in zoom-in duration-200">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="font-bold text-sm dark:text-white">{t('msg_settings_title')}</h3>
                     <button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full cursor-pointer"><X size={14}/></button>
@@ -131,7 +69,7 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
                 </div>
                 <div className="mt-5 flex justify-end">
                     <button onClick={handleSave} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1 cursor-pointer">
-                        {t('msg_save')}
+                        <Save size={12}/> {t('msg_save')}
                     </button>
                 </div>
             </div>
@@ -139,37 +77,57 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
     )
 }
 
-// ==================================================================================
-// 3. Messages 主应用
-// ==================================================================================
 export const Messages = () => {
   const { t } = useI18n()
-  const { launchApp, windows } = useOs()
   
   const CONTACTS = useMemo(() => [
-    { id: 'guestbook', name: t('msg_guestbook'), slug: 'messages-guestbook', avatar: '🌍', desc: t('msg_guestbook_desc'), time: t('msg_now') },
-    { id: 'tech', name: t('msg_tech'), slug: 'messages-tech', avatar: '💻', desc: t('msg_tech_desc'), time: t('msg_yesterday') },
-    { id: 'feedback', name: t('msg_bug'), slug: 'messages-bugs', avatar: '🐛', desc: t('msg_bug_desc'), time: t('msg_mon') }
+    { 
+      id: 'guestbook', 
+      name: t('msg_guestbook'), 
+      slug: 'messages-guestbook', 
+      avatar: '🌍', 
+      desc: t('msg_guestbook_desc'),
+      time: t('msg_now')
+    },
+    { 
+      id: 'tech', 
+      name: t('msg_tech'), 
+      slug: 'messages-tech', 
+      avatar: '💻', 
+      desc: t('msg_tech_desc'),
+      time: t('msg_yesterday')
+    },
+    { 
+      id: 'feedback', 
+      name: t('msg_bug'), 
+      slug: 'messages-bugs', 
+      avatar: '🐛', 
+      desc: t('msg_bug_desc'),
+      time: t('msg_mon')
+    }
   ], [t])
 
   const [activeContactId, setActiveContactId] = useState(CONTACTS[0].id)
   const [search, setSearch] = useState('')
   const [showSettings, setShowSettings] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
+  
   const [inputValue, setInputValue] = useState('')
   const [isReplying, setIsReplying] = useState(false)
   const [replyTargetText, setReplyTargetText] = useState('') 
 
+  const containerRef = useRef<HTMLDivElement>(null)
+  
   const headerCountRef = useRef<HTMLDivElement>(null)
   const headerIconsRef = useRef<HTMLDivElement>(null)
-  const observerRef = useRef<MutationObserver | null>(null)
-  const isProcessingRef = useRef(false)
-  const timerRef = useRef<NodeJS.Timeout | null>(null) // 用于防抖
-  const isAdminOpenRef = useRef(false)
+
+  const observerRef = useRef<MutationObserver | null>(null);
+  const isProcessingRef = useRef(false);
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
 
+  // --- 获取 Twikoo 输入框 ---
   const getTwikooElements = useCallback(() => {
       const cancelBtn = document.querySelector('.imessage-mode .tk-cancel') as HTMLButtonElement
       if (cancelBtn) {
@@ -183,6 +141,7 @@ export const Messages = () => {
               }
           }
       }
+
       const allTextareas = Array.from(document.querySelectorAll('.imessage-mode textarea'))
       const mainInput = allTextareas[allTextareas.length - 1] as HTMLTextAreaElement
       let mainBtn = null
@@ -192,59 +151,32 @@ export const Messages = () => {
       }
       if (!mainBtn) mainBtn = document.querySelector('.imessage-mode .tk-send') as HTMLButtonElement
 
-      return { input: mainInput, btn: mainBtn, cancelBtn: null, isReplyMode: false }
+      return {
+          input: mainInput,
+          btn: mainBtn,
+          cancelBtn: null,
+          isReplyMode: false
+      }
   }, [])
 
-  // --- 核心 DOM 操作 ---
+  // --- 核心：DOM 操作 (搬运头元素 + 平铺排序) ---
   const processDomChanges = useCallback(() => {
-      // 这里的锁很重要，防止递归调用
       if (isProcessingRef.current) return;
       isProcessingRef.current = true;
 
       try {
-        // --- 1. Admin 弹窗逻辑 ---
-        const adminContainer = document.querySelector('.tk-admin-container') as HTMLElement;
-        const isAdminWindowOpen = windows.some(w => w.id === 'twikoo-admin');
-
-        // 关键修复：
-        // 1. 检查 container 是否存在
-        // 2. 检查内部是否有 .tk-admin 元素 (说明已加载内容)
-        // 3. 检查是否未显示 (display !== none)
-        if (adminContainer && !isAdminWindowOpen && !isAdminOpenRef.current) {
-             const adminInner = adminContainer.querySelector('.tk-admin');
-             const style = window.getComputedStyle(adminContainer);
-             
-             // 只有当内部有内容，且容器不是隐藏状态时，才弹窗
-             if (adminInner && style.display !== 'none' && style.visibility !== 'hidden') {
-                
-                // 立即隐藏原 DOM 防止闪烁
-                adminContainer.style.display = 'none';
-                isAdminOpenRef.current = true;
-                
-                launchApp({
-                    id: 'twikoo-admin',
-                    title: 'Comment Admin',
-                    icon: <Shield className="text-green-500" />,
-                    width: 400,
-                    height: 500,
-                    component: <TwikooAdminHost />,
-                    resizable: true,
-                });
-             }
-        }
-        
-        if (!isAdminWindowOpen) {
-            isAdminOpenRef.current = false;
-        }
-
-        // --- 2. 搬运 Header ---
+        // --- 1. 搬运头部元素 ---
         const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
+        
         if (originalHeader) {
+            // A. 评论数 -> 左上角
             const countEl = originalHeader.querySelector('.tk-comments-count');
             if (countEl && headerCountRef.current && !headerCountRef.current.contains(countEl)) {
                 headerCountRef.current.innerHTML = ''; 
                 headerCountRef.current.appendChild(countEl);
             }
+
+            // B. 图标 -> 右上角
             const iconWrappers = originalHeader.querySelectorAll('.tk-icon');
             if (iconWrappers.length > 0 && headerIconsRef.current) {
                 const siblings = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
@@ -256,119 +188,104 @@ export const Messages = () => {
             }
         }
 
-        // --- 3. 评论排序和嵌套 ---
         const container = document.querySelector('.imessage-mode .tk-comments-container');
-        if (container) {
-            // 嵌套处理 (DOM操作)
-            const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment'));
-            if (nestedReplies.length > 0) {
-                // 暂时断开观察，避免 appendChild 触发循环
-                observerRef.current?.disconnect();
-                
-                nestedReplies.forEach(reply => {
-                    const contentBox = reply.querySelector('.tk-content');
-                    if (contentBox && !contentBox.querySelector('.imessage-quote')) {
-                        const replyList = reply.closest('.tk-replies');
-                        const parentComment = replyList?.closest('.tk-comment') as HTMLElement;
-                        if (parentComment) {
-                            const parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'User';
-                            const parentContentElem = parentComment.querySelector('.tk-main > .tk-content');
-                            let parentText = parentContentElem?.textContent?.replace(/\s+/g, ' ').trim() || '';
-                            if (parentText.length > 30) parentText = parentText.slice(0, 30) + '...';
+        if (!container) return;
 
-                            const quoteDiv = document.createElement('div');
-                            quoteDiv.className = 'imessage-quote';
-                            quoteDiv.innerHTML = `<span class="imessage-quote-name">${parentNick}:</span> ${parentText}`;
-                            contentBox.insertBefore(quoteDiv, contentBox.firstChild);
+        // --- 2. 嵌套回复处理 ---
+        const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment'));
+        
+        if (nestedReplies.length > 0) {
+            nestedReplies.forEach(reply => {
+                const contentBox = reply.querySelector('.tk-content');
+                if (contentBox && !contentBox.querySelector('.imessage-quote')) {
+                    const replyList = reply.closest('.tk-replies');
+                    const parentComment = replyList?.closest('.tk-comment') as HTMLElement;
+                    if (parentComment) {
+                        const parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'User';
+                        const parentContentElem = parentComment.querySelector('.tk-main > .tk-content');
+                        let parentText = parentContentElem?.textContent?.replace(/\s+/g, ' ').trim() || '';
+                        
+                        const existingQuote = parentContentElem?.querySelector('.imessage-quote');
+                        if (existingQuote && existingQuote.textContent) {
+                            parentText = parentText.replace(existingQuote.textContent, '').trim();
                         }
+                        const replyPrefix = parentContentElem?.querySelector('span:first-child');
+                        if (replyPrefix && replyPrefix.textContent?.includes('回复')) {
+                             parentText = parentText.replace(replyPrefix.textContent, '').trim();
+                        }
+
+                        if (parentText.length > 30) parentText = parentText.slice(0, 30) + '...';
+
+                        const quoteDiv = document.createElement('div');
+                        quoteDiv.className = 'imessage-quote';
+                        quoteDiv.innerHTML = `<span class="imessage-quote-name">${parentNick}:</span> ${parentText}`;
+                        contentBox.insertBefore(quoteDiv, contentBox.firstChild);
                     }
-                    container.appendChild(reply);
-                });
-            }
-
-            // 排序 (只有在顺序不对时才操作)
-            const comments = Array.from(container.children).filter(child => child.classList.contains('tk-comment'));
-            if (comments.length > 1) {
-                const needsSort = comments.some((c, i, arr) => {
-                    if (i === 0) return false;
-                    const prevT = new Date(arr[i-1].querySelector('time')?.getAttribute('datetime') || 0).getTime();
-                    const currT = new Date(c.querySelector('time')?.getAttribute('datetime') || 0).getTime();
-                    return prevT > currT;
-                });
-
-                if (needsSort) {
-                    // 暂时断开观察
-                    if (observerRef.current) observerRef.current.disconnect(); 
-                    
-                    const sorted = comments.sort((a, b) => {
-                        const tA = a.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
-                        const tB = b.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
-                        return new Date(tA).getTime() - new Date(tB).getTime(); 
-                    });
-                    
-                    sorted.forEach(c => container.appendChild(c));
                 }
-            }
+                container.appendChild(reply);
+            });
+        }
+
+        // --- 3. 排序 ---
+        const comments = Array.from(container.children).filter(child => child.classList.contains('tk-comment'));
+        if (comments.length > 1) {
+             const sorted = comments.sort((a, b) => {
+                const tA = a.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
+                const tB = b.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
+                return new Date(tA).getTime() - new Date(tB).getTime(); 
+            });
+            sorted.forEach(c => container.appendChild(c));
         }
 
       } catch (e) {
-          console.error(e);
+          console.error("DOM processing error:", e);
       } finally {
           isProcessingRef.current = false;
-          // 必须重新连接观察，否则后续变化无法捕获
-          if (observerRef.current) {
-              observerRef.current.observe(document.body, { childList: true, subtree: true });
-          }
       }
-  }, [launchApp, windows])
+  }, [])
 
-  // --- 防抖调用 ---
-  const debouncedProcess = useCallback(() => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
-          processDomChanges();
-      }, 50); // 50ms 防抖，大幅减少调用次数
-  }, [processDomChanges]);
-
+  // 监听 DOM
   useEffect(() => {
-    observerRef.current = new MutationObserver(() => {
-        debouncedProcess(); // 使用防抖函数
-    });
-    
-    // 初始化时先执行一次
-    const timer = setTimeout(processDomChanges, 500);
+    const handleMutation = () => {
+        if (observerRef.current) observerRef.current.disconnect();
 
+        try {
+            const { isReplyMode, cancelBtn } = getTwikooElements()
+            
+            if (isReplyMode !== isReplying) {
+                setIsReplying(isReplyMode)
+            }
+            
+            if (isReplyMode && cancelBtn) {
+                const form = cancelBtn.closest('.tk-submit')
+                if(form) {
+                    const parentContainer = form.parentElement?.closest('.tk-comment')
+                    if (parentContainer) {
+                        const nick = parentContainer.querySelector('.tk-nick')?.textContent
+                        const newText = nick ? `Replying to ${nick}` : 'Replying...';
+                        if (newText !== replyTargetText) setReplyTargetText(newText);
+                    }
+                }
+            } else {
+                setReplyTargetText('')
+            }
+
+            processDomChanges();
+
+        } finally {
+            if (observerRef.current) {
+                observerRef.current.observe(document.body, { childList: true, subtree: true });
+            }
+        }
+    };
+
+    observerRef.current = new MutationObserver(handleMutation);
     observerRef.current.observe(document.body, { childList: true, subtree: true });
 
     return () => {
         if (observerRef.current) observerRef.current.disconnect();
-        if (timerRef.current) clearTimeout(timerRef.current);
-        clearTimeout(timer);
     }
-  }, [debouncedProcess, processDomChanges]);
-
-  // 更新 Reply 状态 (这个不需要防抖，需要实时响应 UI)
-  useEffect(() => {
-      const interval = setInterval(() => {
-        const { isReplyMode, cancelBtn } = getTwikooElements()
-        if (isReplyMode !== isReplying) setIsReplying(isReplyMode)
-        
-        if (isReplyMode && cancelBtn) {
-            const form = cancelBtn.closest('.tk-submit')
-            if(form) {
-                const parentContainer = form.parentElement?.closest('.tk-comment')
-                if (parentContainer) {
-                    const nick = parentContainer.querySelector('.tk-nick')?.textContent
-                    const newText = nick ? `Replying to ${nick}` : 'Replying...';
-                    if (newText !== replyTargetText) setReplyTargetText(newText);
-                }
-            }
-        } else {
-            setReplyTargetText('')
-        }
-      }, 200); // 降低检测频率
-      return () => clearInterval(interval);
-  }, [isReplying, replyTargetText, getTwikooElements])
+  }, [isReplying, replyTargetText, getTwikooElements, processDomChanges])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value
@@ -409,19 +326,12 @@ export const Messages = () => {
   }
 
   return (
-    <div className="flex h-full w-full bg-white dark:bg-[#1e1e1e] text-black dark:text-white font-sans overflow-hidden relative">
+    <div className="flex h-full w-full bg-white dark:bg-[#1e1e1e] text-black dark:text-white font-sans overflow-hidden relative" ref={containerRef}>
       
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onSave={() => setReloadKey(k => k + 1)} />}
-      
-      {/* 隐藏初始状态的 admin，防止闪烁 */}
-      <style jsx global>{`
-         .imessage-mode .tk-admin-container {
-             display: none; 
-         }
-      `}</style>
 
-      {/* 左侧边栏 */}
-      <div className="w-[280px] flex flex-col border-r border-gray-200 dark:border-white/10 bg-[#f5f5f5]/90 dark:bg-[#252525]/90 backdrop-blur-xl z-20 select-none">
+      {/* 左侧边栏 (保持不变) */}
+      <div className="w-[280px] flex flex-col border-r border-gray-200 dark:border-white/10 bg-[#f5f5f5]/90 dark:bg-[#252525]/90 backdrop-blur-xl z-20">
         <div className="h-12 flex items-center justify-between px-3 shrink-0 pt-2 mb-2">
            <div className="relative flex-1 mr-2">
               <Search size={12} className="absolute left-2 top-1.5 text-gray-400" />
@@ -431,7 +341,7 @@ export const Messages = () => {
         </div>
         <div className="flex-1 overflow-y-auto px-2 pb-2 scrollbar-none">
             {filteredContacts.map(contact => (
-                <div key={contact.id} onClick={() => setActiveContactId(contact.id)} className={clsx("group flex gap-3 p-3 rounded-lg cursor-pointer transition-all mb-0.5", activeContactId === contact.id ? "bg-blue-500 text-white shadow-sm" : "hover:bg-gray-200 dark:hover:bg-white/5")}>
+                <div key={contact.id} onClick={() => setActiveContactId(contact.id)} className={clsx("group flex gap-3 p-3 rounded-lg cursor-pointer transition-all mb-0.5 select-none", activeContactId === contact.id ? "bg-blue-500 text-white shadow-sm" : "hover:bg-gray-200 dark:hover:bg-white/5")}>
                     <div className={clsx("w-10 h-10 rounded-full flex items-center justify-center text-xl shrink-0 bg-white shadow-sm overflow-hidden", activeContactId === contact.id ? "bg-white/20 text-white backdrop-blur-sm" : "text-gray-600")}>{contact.avatar}</div>
                     <div className="flex-1 min-w-0 flex flex-col justify-center">
                         <div className="flex justify-between items-baseline">
@@ -447,8 +357,7 @@ export const Messages = () => {
 
       {/* 右侧主内容 */}
       <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#1e1e1e] relative z-0">
-        {/* Header */}
-        <div className="h-12 border-b border-gray-200/50 dark:border-white/10 flex items-center justify-between px-4 bg-white/80 dark:bg-[#1e1e1e]/80 backdrop-blur-md shrink-0 z-20 sticky top-0 select-none">
+        <div className="h-12 border-b border-gray-200/50 dark:border-white/10 flex items-center justify-between px-4 bg-white/80 dark:bg-[#1e1e1e]/80 backdrop-blur-md shrink-0 z-20 sticky top-0">
             <div className="flex items-center gap-3">
                 <span className="text-xs text-gray-400">{t('msg_to')}</span>
                 <div className="flex items-center gap-1 bg-blue-100/50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full border border-blue-200/50 dark:border-blue-500/20">
@@ -461,8 +370,7 @@ export const Messages = () => {
             </div>
         </div>
 
-        {/* 消息区域 - 添加 select-text 以允许复制 */}
-        <div className="flex-1 overflow-hidden relative flex flex-col w-full select-text">
+        <div className="flex-1 overflow-hidden relative flex flex-col w-full">
             <CommentSystem 
                 key={`${activeContact.slug}-${reloadKey}`} 
                 slug={activeContact.slug} 
@@ -472,10 +380,12 @@ export const Messages = () => {
             />
         </div>
 
-        {/* 底部输入框区域 */}
-        <div className="shrink-0 p-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30 relative group select-none">
+        <div className="shrink-0 p-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30 relative group">
             
+            {/* 左上角：评论数搬运点 */}
             <div id="twikoo-moved-count" ref={headerCountRef} className="absolute top-2 left-6 z-40 select-none pointer-events-none"></div>
+            
+            {/* 右上角：管理图标搬运点 */}
             <div id="twikoo-moved-icons" ref={headerIconsRef} className="absolute top-2 right-6 z-40 flex items-center gap-2"></div>
 
             <div className="relative max-w-4xl mx-auto w-full pt-3">
