@@ -9,7 +9,7 @@ interface CommentSystemProps {
   slug: string
   title?: string
   compact?: boolean
-  reloadKey?: number // 用于强制刷新
+  reloadKey?: number 
 }
 
 export default function CommentSystem({ slug, title, compact = false, reloadKey = 0 }: CommentSystemProps) {
@@ -63,11 +63,9 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     const envId = process.env.NEXT_PUBLIC_TWIKOO_ENV_ID
     if (!envId) return 
 
-    // 移除旧脚本，强制重新加载
     const oldScripts = document.querySelectorAll('script[src*="twikoo"]')
     oldScripts.forEach(script => script.remove())
     
-    // 清空容器
     if (twikooContainerRef.current) {
         twikooContainerRef.current.innerHTML = ''
     }
@@ -85,6 +83,11 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
           lang: 'zh-CN',
           onCommentLoaded: () => {
               setTwikooLoaded(true)
+              // 尝试滚动到底部
+              setTimeout(() => {
+                  const container = document.querySelector('.tk-comments-container')
+                  if (container) container.scrollTop = container.scrollHeight
+              }, 500)
           }
         })
       }
@@ -107,7 +110,6 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     } catch (e) {}
   }, [])
   
-  // 监听 reloadKey
   useEffect(() => {
     setTwikooLoaded(false)
     setGiscusLoaded(false)
@@ -120,14 +122,18 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     interface Window { twikoo?: any }
   }
 
-  // 关键修改：如果 compact=true，添加 imessage-mode 类，触发 globals.css 中的隐藏和布局逻辑
   const containerClass = compact 
-    ? "w-full h-full flex flex-col imessage-mode bg-white dark:bg-[#1e1e1e]" 
+    ? "w-full h-full flex flex-col bg-white dark:bg-[#1e1e1e]" 
     : "mx-auto w-full max-w-[1140px] px-6 pb-12 max-sm:px-0"
 
   const cardClass = compact
     ? "relative w-full h-full flex flex-col"
     : "relative w-full rounded-xl border border-gray-300/70 bg-white/95 p-8 shadow-sm backdrop-blur-sm max-sm:rounded-none max-sm:p-4"
+
+  // 这里的 imessage-mode 类名添加在了包裹 Twikoo 的 div 上
+  const twikooWrapperClass = compact 
+    ? "w-full h-full imessage-mode relative" // relative 是为了绝对定位子元素
+    : "w-full min-h-[200px]"
 
   return (
     <div className={containerClass}>
@@ -186,8 +192,10 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
                     <p className="text-xs text-gray-500">Loading Messages...</p>
                 </div>
                 )}
-                {/* 这里的 div 将承载 Twikoo 渲染，配合 globals.css 实现置底和隐藏 meta-input */}
-                <div ref={twikooContainerRef} className="w-full h-full" style={{ display: twikooLoaded ? 'block' : 'none' }} />
+                {/* 重点：这里使用了 twikooWrapperClass 
+                   如果 compact=true，它会包含 'imessage-mode'，从而激活 globals.css 中的绝对定位样式
+                */}
+                <div ref={twikooContainerRef} className={twikooWrapperClass} style={{ display: twikooLoaded ? 'block' : 'none' }} />
             </div>
             )}
         </div>
