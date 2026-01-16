@@ -9,11 +9,10 @@ interface CommentSystemProps {
   slug: string
   title?: string
   compact?: boolean
-  reloadKey?: number
-  onCountChange?: (count: number) => void
+  reloadKey?: number 
 }
 
-export default function CommentSystem({ slug, title, compact = false, reloadKey = 0, onCountChange }: CommentSystemProps) {
+export default function CommentSystem({ slug, title, compact = false, reloadKey = 0 }: CommentSystemProps) {
   const [currentSystem, setCurrentSystem] = useState<CommentSystemType>('twikoo')
   const [giscusLoaded, setGiscusLoaded] = useState(false)
   const [twikooLoaded, setTwikooLoaded] = useState(false)
@@ -90,43 +89,6 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     }
     document.body.appendChild(script)
   }
-
-  // --- 强力监听评论数量逻辑 (修复版) ---
-  useEffect(() => {
-    if (!compact || !twikooContainerRef.current) return;
-
-    // 定义抓取函数
-    const updateCount = () => {
-        // 尝试抓取 .tk-comments-count
-        const countEl = twikooContainerRef.current?.querySelector('.tk-comments-count')
-        if (countEl && countEl.textContent) {
-            // 使用正则提取字符串中的第一个数字 (例如 "9 条评论" -> 9)
-            const match = countEl.textContent.match(/\d+/)
-            if (match) {
-                const count = parseInt(match[0], 10)
-                if (!isNaN(count) && onCountChange) {
-                    onCountChange(count)
-                }
-            }
-        }
-    }
-
-    // 1. 立即尝试一次
-    updateCount()
-
-    // 2. 建立观察者：监听子节点变化和字符数据变化
-    const observer = new MutationObserver(updateCount)
-    observer.observe(twikooContainerRef.current, { childList: true, subtree: true, characterData: true })
-
-    // 3. 定时器兜底 (每秒检查一次，防止 MutationObserver 漏掉异步请求后的渲染)
-    // 这是为了解决“一直为0”最有效的手段
-    const interval = setInterval(updateCount, 1500)
-
-    return () => {
-        observer.disconnect()
-        clearInterval(interval)
-    }
-  }, [compact, onCountChange, reloadKey]) // 依赖项精简，确保重载时重新挂载
 
   const handleSystemSwitch = (system: CommentSystemType) => {
     if (system === currentSystem) return
