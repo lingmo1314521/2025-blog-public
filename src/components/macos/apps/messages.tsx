@@ -32,25 +32,46 @@ const CONTACTS = [
   }
 ]
 
-// --- 新增：用户信息设置弹窗 ---
+// --- 用户信息设置弹窗 (修复版) ---
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const [nick, setNick] = useState('')
     const [mail, setMail] = useState('')
     const [link, setLink] = useState('')
 
     useEffect(() => {
-        // Twikoo 默认使用这些 localStorage key 来存储用户信息
-        setNick(localStorage.getItem('twikoo-nick') || '')
-        setMail(localStorage.getItem('twikoo-mail') || '')
-        setLink(localStorage.getItem('twikoo-link') || '')
+        // 修复：从 'twikoo' JSON 对象中读取
+        try {
+            const storedData = localStorage.getItem('twikoo')
+            if (storedData) {
+                const data = JSON.parse(storedData)
+                setNick(data.nick || '')
+                setMail(data.mail || '')
+                setLink(data.link || '')
+            }
+        } catch (e) {
+            console.error('Failed to parse Twikoo data', e)
+        }
     }, [])
 
     const handleSave = () => {
-        localStorage.setItem('twikoo-nick', nick)
-        localStorage.setItem('twikoo-mail', mail)
-        localStorage.setItem('twikoo-link', link)
-        onSave() // 触发刷新
-        onClose()
+        // 修复：写入到 'twikoo' JSON 对象
+        try {
+            const storedData = localStorage.getItem('twikoo')
+            let data = storedData ? JSON.parse(storedData) : {}
+            
+            // 更新字段
+            data.nick = nick
+            data.mail = mail
+            data.link = link
+            
+            localStorage.setItem('twikoo', JSON.stringify(data))
+            
+            // 触发回调刷新
+            onSave()
+            onClose()
+        } catch (e) {
+            console.error('Failed to save Twikoo data', e)
+        }
     }
 
     return (
@@ -104,8 +125,8 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
 export const Messages = () => {
   const [activeContactId, setActiveContactId] = useState(CONTACTS[0].id)
   const [search, setSearch] = useState('')
-  const [showSettings, setShowSettings] = useState(false) // 控制弹窗显示
-  const [reloadKey, setReloadKey] = useState(0) // 用于强制刷新
+  const [showSettings, setShowSettings] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0) 
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
@@ -113,7 +134,6 @@ export const Messages = () => {
   return (
     <div className="flex h-full w-full bg-white dark:bg-[#1e1e1e] text-black dark:text-white font-sans overflow-hidden relative">
       
-      {/* 弹窗 */}
       {showSettings && (
           <SettingsModal 
             onClose={() => setShowSettings(false)} 
@@ -186,8 +206,7 @@ export const Messages = () => {
                     <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{activeContact.name}</span>
                 </div>
             </div>
-            
-            {/* 设置按钮：点击打开用户信息设置弹窗 */}
+            {/* 设置按钮 */}
             <button 
                 onClick={() => setShowSettings(true)}
                 className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all"
