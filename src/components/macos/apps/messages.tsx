@@ -7,7 +7,7 @@ import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
 import { toast } from 'sonner' 
 
-// --- SettingsModal 组件 ---
+// --- SettingsModal 组件 (保持不变) ---
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const { t } = useI18n()
     const [nick, setNick] = useState('')
@@ -33,7 +33,6 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
             data.nick = nick; data.mail = mail; data.link = link
             localStorage.setItem('twikoo', JSON.stringify(data))
             
-            // 同步设置到当前页面所有可能的 Twikoo 输入框
             const inputs = document.querySelectorAll('.imessage-mode input')
             inputs.forEach((input: any) => {
                 if(input.name === 'nick') { input.value = nick; input.dispatchEvent(new Event('input')); }
@@ -113,7 +112,6 @@ export const Messages = () => {
   const [showSettings, setShowSettings] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   
-  // 状态管理
   const [inputValue, setInputValue] = useState('')
   const [isReplying, setIsReplying] = useState(false)
   const [replyTargetText, setReplyTargetText] = useState('') 
@@ -123,16 +121,10 @@ export const Messages = () => {
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
 
-  // ==================================================================================
-  // 核心逻辑：智能 DOM 桥接
-  // ==================================================================================
-  
+  // --- 获取 Twikoo 输入框逻辑 ---
   const getTwikooElements = () => {
-      // 1. 优先检查是否存在“取消回复”按钮 (判断是否处于回复模式)
       const cancelBtn = document.querySelector('.imessage-mode .tk-cancel') as HTMLButtonElement
-
       if (cancelBtn) {
-          // 向上寻找包含这个取消按钮的输入框区域
           const formContainer = cancelBtn.closest('.tk-submit')
           if (formContainer) {
               return {
@@ -144,25 +136,13 @@ export const Messages = () => {
           }
       }
 
-      // 2. 如果没找到，则认为是在发新消息
-      // Twikoo 的默认输入框没有 .tk-cancel 按钮
-      
-      // 查找所有输入框
       const allTextareas = Array.from(document.querySelectorAll('.imessage-mode textarea'))
-      
-      // 我们需要找到那个“主输入框”。通常它在 DOM 的最下方，或者它是唯一没有 .tk-cancel 兄弟元素的框。
-      // 为了安全，我们找最后一个可见的 textarea，通常新消息框在底部。
       const mainInput = allTextareas[allTextareas.length - 1] as HTMLTextAreaElement
-      
-      // 找到对应的发送按钮 (通常在 input 的父级或兄弟级)
-      // Twikoo 结构: .tk-submit > .tk-row > .tk-send
       let mainBtn = null
       if (mainInput) {
           const wrapper = mainInput.closest('.tk-submit')
           if (wrapper) mainBtn = wrapper.querySelector('.tk-send') as HTMLButtonElement
       }
-      
-      // 如果上述方法失败，尝试直接 query selector
       if (!mainBtn) mainBtn = document.querySelector('.imessage-mode .tk-send') as HTMLButtonElement
 
       return {
@@ -173,30 +153,64 @@ export const Messages = () => {
       }
   }
 
+  // --- 关键逻辑：注入引用内容 ---
+  // 这个函数会找到所有的“回复”，并将原评论的内容复制一份插进去
+  const injectQuotes = () => {
+      // 1. 找到所有在 .tk-replies 列表中的评论 (这些都是回复)
+      const replyComments = document.querySelectorAll('.imessage-mode .tk-replies .tk-comment')
+      
+      replyComments.forEach(reply => {
+          // 2. 找到该回复的气泡内容容器
+          const contentBox = reply.querySelector('.tk-content')
+          if (!contentBox) return;
+
+          // 3. 防止重复注入
+          if (contentBox.querySelector('.imessage-quote')) return;
+
+          // 4. 寻找“父级”评论
+          // 在 Twikoo 的 DOM 结构中，.tk-replies 的父元素就是 .tk-comment (父评论)
+          const replyList = reply.closest('.tk-replies');
+          if (!replyList) return;
+          
+          const parentComment = replyList.closest('.tk-comment') as HTMLElement;
+          if (!parentComment) return;
+
+          // 5. 提取父级评论的信息 (昵称和内容)
+          // 注意：使用 :scope > ... 确保只查找直接子元素，不查找嵌套的
+          const parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'Someone';
+          const parentContentElement = parentComment.querySelector('.tk-main > .tk-content');
+          
+          if (parentContentElement) {
+              // 简单的文本提取，去除多余空格，截取前 40 个字符
+              let parentText = parentContentElement.textContent?.replace(/\s+/g, ' ').trim() || '';
+              if (parentText.length > 40) parentText = parentText.slice(0, 40) + '...';
+              
+              // 6. 创建引用 DOM
+              const quoteDiv = document.createElement('div');
+              quoteDiv.className = 'imessage-quote';
+              
+              // 也可以加入父级头像，这里仅使用文字保持简洁
+              quoteDiv.innerHTML = `<span class="imessage-quote-name">${parentNick}:</span> ${parentText}`;
+              
+              // 7. 插入到回复气泡的最前面
+              contentBox.insertBefore(quoteDiv, contentBox.firstChild);
+          }
+      });
+  }
+
   // 监听 DOM 变化
   useEffect(() => {
     const observer = new MutationObserver(() => {
         const { isReplyMode, cancelBtn } = getTwikooElements()
         
-        // 状态防抖，防止频繁重渲染
+        // 检测回复模式 (用于输入框 UI)
         if (isReplyMode !== isReplying) {
             setIsReplying(isReplyMode)
-            
-            // 获取被回复人的名字，用于 Banner 显示
             if (isReplyMode && cancelBtn) {
-                // 结构: tk-comment (Target) -> tk-replies -> tk-submit (Input)
-                // 我们需要找到 Input 之前的那个 tk-comment 兄弟，或者 input 的父级的父级的... 
-                // 由于我们魔改了 CSS，DOM 结构其实没变。
-                // 往上找 .tk-comment，这个通常是“上一级”评论。但由于嵌套，最近的 .tk-comment 可能是自己（如果刚生成的话，不对，输入框是追加的）。
-                // 正确逻辑：取消按钮所在的 .tk-submit 是被 append 到 .tk-replies 里的。
-                // .tk-replies 的父级是 .tk-main， .tk-main 的 sibling 是 .tk-avatar
-                
-                // 简单方案：查找 .tk-submit 的 previousSibling (可能是被回复的评论)
+                // 尝试获取被回复人名字用于 Banner
                 const form = cancelBtn.closest('.tk-submit')
                 if(form) {
-                    // 在 form 之前的元素里找名字？比较复杂。
-                    // 简化：显示 Generic Text
-                    const parentComment = form.closest('.tk-comment') // 这是父级评论
+                    const parentComment = form.closest('.tk-comment')
                     if (parentComment) {
                         const nick = parentComment.querySelector('.tk-nick')?.textContent
                         setReplyTargetText(nick ? `Replying to ${nick}` : 'Replying...')
@@ -206,6 +220,9 @@ export const Messages = () => {
                 setReplyTargetText('')
             }
         }
+
+        // --- 执行引用注入 ---
+        injectQuotes();
     })
 
     observer.observe(document.body, { childList: true, subtree: true })
@@ -215,7 +232,6 @@ export const Messages = () => {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value
       setInputValue(val)
-      
       const { input } = getTwikooElements()
       if (input) {
           input.value = val
@@ -236,7 +252,6 @@ export const Messages = () => {
         if (btn) {
             btn.click()
             setInputValue('')
-            // 乐观 UI: 稍微滚动到底部
             setTimeout(() => {
                 const container = document.querySelector('.imessage-mode .tk-comments-container')
                 if (container) container.scrollTop = container.scrollHeight
@@ -312,7 +327,6 @@ export const Messages = () => {
         <div className="shrink-0 p-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30">
             <div className="relative max-w-4xl mx-auto w-full">
                 
-                {/* 回复提示横幅 */}
                 {isReplying && (
                     <div className="absolute -top-10 left-0 right-0 flex items-center justify-between bg-gray-200/90 dark:bg-[#333]/90 backdrop-blur-sm px-4 py-2 rounded-lg text-xs border border-gray-300 dark:border-white/10 shadow-sm animate-in slide-in-from-bottom-2 z-10">
                         <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300 truncate">
