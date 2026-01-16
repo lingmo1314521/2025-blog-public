@@ -11,7 +11,6 @@ interface CommentSystemProps {
   compact?: boolean
   reloadKey?: number
   onCountChange?: (count: number) => void
-  // 新增：当正在回复某人时触发，返回回复对象的昵称，如果取消回复则返回 null
   onReplyChange?: (replyingTo: string | null) => void 
 }
 
@@ -106,25 +105,30 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
         }
 
         // 2. 抓取回复状态
-        // Twikoo 点击回复后，textarea 的 placeholder 会变成 "回复 @xxx"
-        // 并且 el-textarea 会被移动到评论下方
-        if (onReplyChange) {
-            // 找到所有可能的 textarea
-            const textareas = document.querySelectorAll('.imessage-mode .el-textarea__inner')
-            let foundReply = null
+        // 核心逻辑：检查 .tk-submit 是否还在根容器下。
+        // 如果 Twikoo 处于回复模式，.tk-submit 会被移动到具体的 .tk-comment 内部
+        const submitEl = document.querySelector('.imessage-mode .tk-submit')
+        const rootComments = document.querySelector('.imessage-mode .tk-comments') // Twikoo 的根列表容器通常叫 .tk-comments
+        
+        if (submitEl && onReplyChange) {
+            // 如果 input 的父级不是根容器，说明它跑到了某条评论下面 -> 正在回复
+            // 注意：Twikoo 的层级结构较深，这里简单判断它是否被移动了
+            const parentComment = submitEl.closest('.tk-comment')
             
-            textareas.forEach((ta) => {
-                const placeholder = ta.getAttribute('placeholder')
-                if (placeholder && placeholder.startsWith('回复 @')) {
-                    foundReply = placeholder
-                }
-            })
-            
-            onReplyChange(foundReply)
+            if (parentComment) {
+                // 找到了父评论，说明正在回复
+                const nickEl = parentComment.querySelector('.tk-nick')
+                const replyName = nickEl ? nickEl.textContent : 'Someone'
+                onReplyChange(replyName)
+            } else {
+                // 没有在评论内，说明是根回复
+                onReplyChange(null)
+            }
         }
     })
 
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['placeholder'] })
+    // 监听整个 body 的子树变化，因为 Twikoo 会在大范围移动 DOM 节点
+    observer.observe(document.body, { childList: true, subtree: true })
 
     return () => observer.disconnect()
   }, [twikooLoaded, compact, onCountChange, onReplyChange])

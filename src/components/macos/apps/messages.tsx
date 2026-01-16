@@ -103,7 +103,6 @@ export const Messages = () => {
   const [reloadKey, setReloadKey] = useState(0)
   const [inputValue, setInputValue] = useState('')
   const [msgCount, setMsgCount] = useState(0)
-  // 新增：回复状态
   const [replyingTo, setReplyingTo] = useState<string | null>(null)
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
@@ -125,24 +124,19 @@ export const Messages = () => {
       if (twikooSendBtn) {
           twikooSendBtn.click()
           setInputValue('')
-          // 发送后重置回复状态
+          // 提交后重置回复状态
           setReplyingTo(null)
       }
   }
 
-  // 取消回复：这通常意味着我们需要模拟点击 Twikoo 内部的取消按钮，
-  // 或者简单地将输入框重置回底部（如果 Twikoo 允许的话）。
-  // 简单的做法是模拟点击一个空白处或者特定的取消按钮。
+  // 点击取消回复时，触发 Twikoo 内部隐藏的 cancel 按钮
   const cancelReply = () => {
-      // 尝试找到 Twikoo 的 "取消回复" 按钮，通常是 .tk-cancel
       const cancelBtn = document.querySelector('.imessage-mode .tk-cancel') as HTMLElement
       if (cancelBtn) {
-          cancelBtn.click()
+          cancelBtn.click() // 这会重置 Twikoo 状态，从而触发 MutationObserver，更新 replyingTo 为 null
       } else {
-          // 如果找不到，可能需要手动刷新一下组件或者接受只能硬重置
-          // 这里我们只是清空状态，让 UI 恢复
+          // 兜底方案
           setReplyingTo(null)
-          setReloadKey(k => k + 1) // 暴力重置，把输入框归位
       }
   }
 
@@ -196,7 +190,7 @@ export const Messages = () => {
                 compact={true} 
                 reloadKey={reloadKey}
                 onCountChange={setMsgCount}
-                onReplyChange={setReplyingTo} // 绑定回复监听
+                onReplyChange={setReplyingTo} // 监听回复状态
             />
         </div>
 
@@ -207,9 +201,9 @@ export const Messages = () => {
                 {replyingTo ? (
                     <div className="flex items-center gap-2 animate-in slide-in-from-bottom-2 fade-in">
                         <span className="text-[10px] font-bold text-blue-500 flex items-center gap-1">
-                            <Reply size={10} /> {replyingTo}
+                            <Reply size={10} /> Reply to {replyingTo}
                         </span>
-                        <button onClick={cancelReply} className="bg-gray-200 dark:bg-white/10 hover:bg-gray-300 rounded-full p-0.5">
+                        <button onClick={cancelReply} className="bg-gray-200 dark:bg-white/10 hover:bg-gray-300 rounded-full p-0.5 text-gray-500">
                             <X size={8} />
                         </button>
                     </div>
