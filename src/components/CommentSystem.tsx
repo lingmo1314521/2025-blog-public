@@ -12,7 +12,7 @@ interface CommentSystemProps {
 }
 
 export default function CommentSystem({ slug, title, compact = false }: CommentSystemProps) {
-  // 修改 1: 默认优先使用 twikoo
+  // 默认使用 twikoo
   const [currentSystem, setCurrentSystem] = useState<CommentSystemType>('twikoo')
   const [giscusLoaded, setGiscusLoaded] = useState(false)
   const [twikooLoaded, setTwikooLoaded] = useState(false)
@@ -39,7 +39,6 @@ export default function CommentSystem({ slug, title, compact = false }: CommentS
       script.setAttribute('data-reactions-enabled', '1')
       script.setAttribute('data-emit-metadata', '0')
       script.setAttribute('data-input-position', 'top') 
-      // iMessage 模式强制无边框
       script.setAttribute('data-theme', compact ? 'noborder_light' : 'light') 
       script.setAttribute('data-lang', 'zh-CN')
       
@@ -96,7 +95,6 @@ export default function CommentSystem({ slug, title, compact = false }: CommentS
   useEffect(() => {
     try {
       const saved = localStorage.getItem('preferred-comment-system') as CommentSystemType
-      // 这里的逻辑稍微调整：如果本地没存，默认也是 twikoo
       if (saved) setCurrentSystem(saved)
     } catch (e) {}
   }, [])
@@ -110,12 +108,13 @@ export default function CommentSystem({ slug, title, compact = false }: CommentS
     interface Window { twikoo?: any }
   }
 
+  // 确保 compact 模式下容器高度占满
   const containerClass = compact 
-    ? "w-full h-full flex flex-col imessage-mode overflow-hidden" // 修改：增加 h-full 和 overflow-hidden
+    ? "w-full h-full flex flex-col imessage-mode overflow-hidden" 
     : "mx-auto w-full max-w-[1140px] px-6 pb-12 max-sm:px-0"
 
   const cardClass = compact
-    ? "relative w-full h-full flex flex-col" // 修改：h-full 确保撑开
+    ? "relative w-full h-full flex flex-col"
     : "relative w-full rounded-xl border border-gray-300/70 bg-white/95 p-8 shadow-sm backdrop-blur-sm max-sm:rounded-none max-sm:p-4"
 
   return (
@@ -154,8 +153,8 @@ export default function CommentSystem({ slug, title, compact = false }: CommentS
           </div>
         )}
         
-        {/* 评论内容区：在 compact 模式下占据剩余所有空间 */}
-        <div className={`flex-1 min-h-0 relative ${compact ? '' : ''}`}>
+        {/* 评论内容区 */}
+        <div className={`flex-1 min-h-0 relative ${compact ? 'h-full' : ''}`}>
             {currentSystem === 'giscus' && (
             <div className="h-full overflow-y-auto px-4">
                 {!giscusLoaded && (
@@ -177,9 +176,7 @@ export default function CommentSystem({ slug, title, compact = false }: CommentS
                     <p className="text-xs text-gray-500">Loading Messages...</p>
                 </div>
                 )}
-                {/* 修改：imessage-twikoo 类名是关键。
-                   我们让它 h-full，让 CSS Flexbox 在内部发挥作用，把输入框推到底部 
-                */}
+                {/* 关键：imessage-twikoo 标识符，且高度占满 */}
                 <div ref={twikooContainerRef} className={`w-full h-full ${compact ? 'imessage-twikoo' : ''}`} style={{ display: twikooLoaded ? 'block' : 'none' }} />
             </div>
             )}

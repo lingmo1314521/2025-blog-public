@@ -108,7 +108,7 @@ export const Messages = () => {
         </div>
 
         {/* 聊天区域容器：高度自适应 */}
-        <div className="flex-1 overflow-hidden relative">
+        <div className="flex-1 overflow-hidden relative w-full h-full">
             <CommentSystem 
                 key={activeContact.slug} 
                 slug={activeContact.slug} 
