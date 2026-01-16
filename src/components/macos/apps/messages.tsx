@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Search, Edit, Settings, X, Save } from 'lucide-react'
+import { Search, Edit, Settings, X, Save, User } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 
@@ -46,7 +46,6 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
     }, [])
 
     const handleSave = () => {
-        // Twikoo 读取这些特定的 localStorage key
         localStorage.setItem('twikoo-nick', nick)
         localStorage.setItem('twikoo-mail', mail)
         localStorage.setItem('twikoo-link', link)
@@ -58,10 +57,12 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
             <div className="w-80 bg-[#f5f5f5] dark:bg-[#2c2c2c] rounded-xl shadow-2xl border border-white/20 p-5 animate-in fade-in zoom-in duration-200">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-sm dark:text-white">User Settings</h3>
+                    <h3 className="font-bold text-sm dark:text-white flex items-center gap-2"><User size={16}/> User Profile</h3>
                     <button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full"><X size={14}/></button>
                 </div>
                 
+                <p className="text-xs text-gray-500 mb-4">Set your identity for Twikoo comments. Email is for Gravatar.</p>
+
                 <div className="space-y-3">
                     <div>
                         <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Nickname</label>
@@ -78,8 +79,8 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
                 </div>
 
                 <div className="mt-5 flex justify-end">
-                    <button onClick={handleSave} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1">
-                        <Save size={12}/> Save
+                    <button onClick={handleSave} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1 transition-colors">
+                        <Save size={12}/> Save & Apply
                     </button>
                 </div>
             </div>
