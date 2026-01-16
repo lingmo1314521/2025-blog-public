@@ -17,6 +17,7 @@
     "@types/jsrsasign": "^10.5.15",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.18",
+    "framer-motion": "^12.26.2",
     "html-react-parser": "^5.2.8",
     "jsrsasign": "^11.1.0",
     "jszip": "^3.10.1",
