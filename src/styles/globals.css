@@ -33,7 +33,7 @@
 }
 
 /* =========================================
-   Twikoo iMessage 完美修复版 (含引用显示)
+   Twikoo iMessage 完美修复版 (修复内容消失bug)
    ========================================= */
 
 /* 1. 全局容器重置 */
@@ -205,7 +205,6 @@
     max-height: none !important;
 }
 
-/* Master 下的回复 (别人回我) 样式修正 */
 .imessage-mode .tk-master .tk-replies {
     align-items: flex-start !important; 
     margin-right: -42px !important; 
@@ -230,7 +229,6 @@
     margin-right: 10px !important;
 }
 
-/* 隐藏回复竖线和间距 */
 .imessage-mode .tk-replies .tk-comment {
     margin-bottom: 12px !important;
     margin-top: 0 !important;
@@ -239,15 +237,18 @@
 }
 
 /* -------------------------------------------
-   [NEW] 引用内容 (Quote) 样式
+   [NEW] 引用内容 & 修复内容消失
    ------------------------------------------- */
 
-/* 隐藏原生 Twikoo 的 "回复 @xxx" 文字 (因为我们要自己做更好的) */
-.imessage-mode .tk-content > span:first-child {
+/* 核心修复：不要隐藏所有 first-child span！
+   只隐藏包含 .tk-ruser (被回复用户名) 的那个 span。
+   这需要浏览器支持 :has() 选择器 (现代浏览器均支持)。
+*/
+.imessage-mode .tk-content > span:has(.tk-ruser) {
     display: none !important;
 }
 
-/* 我们用 JS 插入的引用容器样式 */
+/* 引用容器样式 */
 .imessage-quote {
     display: block;
     margin-bottom: 6px;
@@ -264,18 +265,15 @@
     user-select: none;
 }
 
-/* 针对深色模式的引用线 */
 .dark .imessage-mode .imessage-quote {
     border-left-color: rgba(255, 255, 255, 0.3);
 }
 
-/* 针对我发出的消息 (蓝色背景) 的引用线 */
 .imessage-mode .tk-master .tk-content .imessage-quote {
     border-left-color: rgba(255, 255, 255, 0.5);
     opacity: 0.8;
 }
 
-/* 引用中的名字 */
 .imessage-quote-name {
     font-weight: 700;
     margin-right: 4px;
