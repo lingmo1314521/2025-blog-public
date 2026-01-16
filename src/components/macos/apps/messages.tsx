@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
-import { Search, Edit, Settings, X, Save, ArrowUp } from 'lucide-react'
+import { Search, Edit, Settings, X, Save, ArrowUp, MessageCircle } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
@@ -102,6 +102,7 @@ export const Messages = () => {
   const [showSettings, setShowSettings] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [inputValue, setInputValue] = useState('')
+  const [msgCount, setMsgCount] = useState(0) // 评论数量
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
@@ -130,7 +131,6 @@ export const Messages = () => {
       
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onSave={() => setReloadKey(k => k + 1)} />}
 
-      {/* 左侧边栏 */}
       <div className="w-[280px] flex flex-col border-r border-gray-200 dark:border-white/10 bg-[#f5f5f5]/90 dark:bg-[#252525]/90 backdrop-blur-xl">
         <div className="h-12 flex items-center justify-between px-3 shrink-0 pt-2 mb-2">
            <div className="relative flex-1 mr-2">
@@ -155,7 +155,6 @@ export const Messages = () => {
         </div>
       </div>
 
-      {/* 右侧主内容 */}
       <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#1e1e1e] relative">
         <div className="h-12 border-b border-gray-200/50 dark:border-white/10 flex items-center justify-between px-4 bg-white/80 dark:bg-[#1e1e1e]/80 backdrop-blur-md shrink-0 z-20 sticky top-0">
             <div className="flex items-center gap-3">
@@ -174,10 +173,17 @@ export const Messages = () => {
                 title={activeContact.name}
                 compact={true} 
                 reloadKey={reloadKey}
+                onCountChange={setMsgCount}
             />
         </div>
 
-        <div className="shrink-0 p-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30">
+        <div className="shrink-0 px-4 pb-4 pt-2 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30">
+            {/* 评论数量统计 */}
+            <div className="flex items-center gap-1.5 mb-2 ml-1 opacity-60">
+                <MessageCircle size={12} className="text-gray-500" />
+                <span className="text-[10px] font-medium text-gray-500">{msgCount} Messages</span>
+            </div>
+
             <div className="relative">
                 <input
                     type="text"

@@ -9,10 +9,11 @@ interface CommentSystemProps {
   slug: string
   title?: string
   compact?: boolean
-  reloadKey?: number 
+  reloadKey?: number
+  onCountChange?: (count: number) => void
 }
 
-export default function CommentSystem({ slug, title, compact = false, reloadKey = 0 }: CommentSystemProps) {
+export default function CommentSystem({ slug, title, compact = false, reloadKey = 0, onCountChange }: CommentSystemProps) {
   const [currentSystem, setCurrentSystem] = useState<CommentSystemType>('twikoo')
   const [giscusLoaded, setGiscusLoaded] = useState(false)
   const [twikooLoaded, setTwikooLoaded] = useState(false)
@@ -89,6 +90,25 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     }
     document.body.appendChild(script)
   }
+
+  // --- 监听评论数逻辑 ---
+  useEffect(() => {
+    if (!compact || !twikooLoaded || !twikooContainerRef.current) return;
+
+    // 创建观察者来监听 DOM 变化，一旦 Twikoo 渲染出数字，就提取出来
+    const observer = new MutationObserver(() => {
+        const countEl = twikooContainerRef.current?.querySelector('.tk-comments-count span:first-child')
+        if (countEl && countEl.textContent) {
+            const count = parseInt(countEl.textContent.trim(), 10)
+            if (!isNaN(count) && onCountChange) {
+                onCountChange(count)
+            }
+        }
+    })
+
+    observer.observe(twikooContainerRef.current, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [twikooLoaded, compact, onCountChange])
 
   const handleSystemSwitch = (system: CommentSystemType) => {
     if (system === currentSystem) return
