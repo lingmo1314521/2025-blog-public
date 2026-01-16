@@ -1,11 +1,105 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { Search, Edit, Settings, X, Save, ArrowUp, RefreshCw, MessageCircle } from 'lucide-react'
+import { Search, Edit, Settings, X, Save, ArrowUp, RefreshCw, MessageCircle, Shield } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
 import { toast } from 'sonner' 
+import { useOs } from '../os-context' //
+
+// --- [NEW] Twikoo Admin Window Component ---
+// 这个组件负责“偷取”Twikoo原本的Admin DOM，并放入我们的窗口中
+const TwikooAdminFrame = ({ onClose }: { onClose: () => void }) => {
+    const containerRef = useRef<HTMLDivElement>(null)
+
+    useEffect(() => {
+        // 1. 查找原始的 Admin DOM
+        const adminEl = document.querySelector('.tk-admin-container') as HTMLElement
+        
+        if (adminEl && containerRef.current) {
+            // 2. 搬运 DOM 到当前窗口容器
+            containerRef.current.appendChild(adminEl)
+
+            // 3. 强制样式覆盖 (使其适应窗口而非全屏覆盖)
+            // 我们通过 JS 直接设置 style 确保优先级最高
+            const originalStyles = {
+                position: adminEl.style.position,
+                display: adminEl.style.display,
+                visibility: adminEl.style.visibility,
+                inset: adminEl.style.inset,
+                zIndex: adminEl.style.zIndex,
+                background: adminEl.style.background
+            }
+
+            adminEl.style.position = 'absolute'
+            adminEl.style.inset = '0'
+            adminEl.style.width = '100%'
+            adminEl.style.height = '100%'
+            adminEl.style.zIndex = '1'
+            adminEl.style.display = 'flex'
+            adminEl.style.justifyContent = 'center'
+            adminEl.style.alignItems = 'center'
+            adminEl.style.visibility = 'visible' // 确保在窗口内可见
+            adminEl.style.background = 'transparent' // 去掉原来的遮罩背景
+
+            // 4. 监听 Twikoo 内部的“关闭”按钮事件 (通常是右上角的 X)
+            // 我们劫持它来关闭我们的窗口
+            const closeBtn = adminEl.querySelector('.tk-admin-close')
+            const handleInternalClose = (e: Event) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onClose()
+            }
+            if (closeBtn) closeBtn.addEventListener('click', handleInternalClose)
+
+            return () => {
+                // Cleanup: 窗口关闭时
+                if (closeBtn) closeBtn.removeEventListener('click', handleInternalClose)
+                
+                // 还原样式并放回 body (防止 Twikoo 报错)
+                adminEl.style.position = originalStyles.position || ''
+                adminEl.style.display = 'none' // 隐藏回去
+                adminEl.style.visibility = ''
+                adminEl.style.inset = ''
+                adminEl.style.zIndex = ''
+                adminEl.style.background = ''
+                
+                document.body.appendChild(adminEl)
+            }
+        }
+    }, [onClose])
+
+    return (
+        <div ref={containerRef} className="w-full h-full bg-[#f9f9f9] dark:bg-[#2c2c2c] relative overflow-hidden flex items-center justify-center">
+            {/* 注入 CSS 来美化 Admin 面板在窗口内的显示 */}
+            <style jsx global>{`
+                /* 隐藏 Twikoo 原本的关闭按钮，因为窗口自带了红绿灯 */
+                #window-twikoo-admin .tk-admin-close {
+                    display: none !important;
+                }
+                /* 去除 Admin 面板的阴影和圆角，使其融合进窗口 */
+                #window-twikoo-admin .tk-admin {
+                    box-shadow: none !important;
+                    background: transparent !important;
+                    padding: 0 !important;
+                    animation: none !important; /* 禁止原本的弹窗动画 */
+                }
+                /* 调整登录框样式 */
+                #window-twikoo-admin .tk-login {
+                    background: var(--color-card, #fff);
+                    padding: 30px;
+                    border-radius: 12px;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+                }
+                .dark #window-twikoo-admin .tk-login {
+                    background: #333;
+                    color: white;
+                }
+            `}</style>
+        </div>
+    )
+}
 
 // --- SettingsModal 组件 ---
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
@@ -79,6 +173,7 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
 
 export const Messages = () => {
   const { t } = useI18n()
+  const { launchApp, closeWindow, windows } = useOs() //
   
   const CONTACTS = useMemo(() => [
     { 
@@ -161,12 +256,43 @@ export const Messages = () => {
       }
   }, [])
 
-  // --- 核心：DOM 操作 (搬运头元素 + 平铺排序) ---
+  // --- 核心：DOM 操作 (搬运头元素 + 平铺排序 + 拦截Admin) ---
   const processDomChanges = useCallback(() => {
       if (isProcessingRef.current) return;
       isProcessingRef.current = true;
 
       try {
+        // --- 0. [NEW] 拦截 Twikoo Admin Panel ---
+        // 监听 .tk-admin-container 是否出现且可见
+        const adminEl = document.querySelector('.tk-admin-container')
+        if (adminEl) {
+            const adminInner = adminEl.querySelector('.tk-admin')
+            // Twikoo 只有在点击齿轮时会给 .tk-admin 添加 __show 类，或者直接插入 dom
+            // 我们检查它是否不在我们的窗口里，并且处于显示状态
+            const isInsideWindow = adminEl.closest('#window-twikoo-admin')
+            
+            if (!isInsideWindow && (adminInner?.classList.contains('__show') || getComputedStyle(adminEl).display !== 'none')) {
+                // 1. 立即隐藏原位置 (防止闪烁)
+                (adminEl as HTMLElement).style.visibility = 'hidden';
+
+                // 2. 检查窗口是否已经打开，防止重复打开
+                const isWindowOpen = document.getElementById('window-twikoo-admin')
+                
+                if (!isWindowOpen) {
+                    launchApp({
+                        id: 'twikoo-admin', // 固定 ID
+                        title: 'Twikoo Admin',
+                        icon: <Shield size={24} className="text-gray-500" />,
+                        width: 400,
+                        height: 480,
+                        resizable: false,
+                        maximizable: false,
+                        component: <TwikooAdminFrame onClose={() => closeWindow('twikoo-admin')} />
+                    })
+                }
+            }
+        }
+
         // --- 1. 搬运头部元素 (评论数 & 图标) ---
         // 我们要从 .tk-comments-title 中抓取元素
         // 由于 CSS 隐藏了 .tk-comments-title，我们依然可以通过 JS 访问它
@@ -253,7 +379,7 @@ export const Messages = () => {
       } finally {
           isProcessingRef.current = false;
       }
-  }, [])
+  }, [launchApp, closeWindow])
 
   // 监听 DOM 变化
   useEffect(() => {
@@ -285,13 +411,15 @@ export const Messages = () => {
 
         } finally {
             if (observerRef.current) {
-                observerRef.current.observe(document.body, { childList: true, subtree: true });
+                // 监听整个 body，因为 Twikoo admin 可能插入到 body 底部而不是 messages 容器内
+                observerRef.current.observe(document.body, { childList: true, subtree: true, attributes: true });
             }
         }
     };
 
     observerRef.current = new MutationObserver(handleMutation);
-    observerRef.current.observe(document.body, { childList: true, subtree: true });
+    // 监听 attributes 以检测 class 变化 (Twikoo Admin 的显隐通常是 class 切换)
+    observerRef.current.observe(document.body, { childList: true, subtree: true, attributes: true });
 
     return () => {
         if (observerRef.current) observerRef.current.disconnect();
