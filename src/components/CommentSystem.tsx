@@ -10,11 +10,9 @@ interface CommentSystemProps {
   title?: string
   compact?: boolean
   reloadKey?: number
-  onCountChange?: (count: number) => void
-  onReplyChange?: (replyingTo: string | null) => void 
 }
 
-export default function CommentSystem({ slug, title, compact = false, reloadKey = 0, onCountChange, onReplyChange }: CommentSystemProps) {
+export default function CommentSystem({ slug, title, compact = false, reloadKey = 0 }: CommentSystemProps) {
   const [currentSystem, setCurrentSystem] = useState<CommentSystemType>('twikoo')
   const [giscusLoaded, setGiscusLoaded] = useState(false)
   const [twikooLoaded, setTwikooLoaded] = useState(false)
@@ -92,43 +90,6 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     document.body.appendChild(script)
   }
 
-  // --- 深度监听 Twikoo DOM 变化 ---
-  useEffect(() => {
-    if (!compact || !twikooLoaded || !twikooContainerRef.current) return;
-
-    const observer = new MutationObserver(() => {
-        // 1. 抓取评论数量
-        const countEl = twikooContainerRef.current?.querySelector('.tk-comments-count span:first-child')
-        if (countEl && countEl.textContent && onCountChange) {
-            const count = parseInt(countEl.textContent.trim(), 10)
-            if (!isNaN(count)) onCountChange(count)
-        }
-
-        // 2. 抓取回复状态
-        // 找到我们"隐藏"的幽灵输入框
-        const textarea = document.querySelector('.imessage-mode .el-textarea__inner')
-        if (textarea && onReplyChange) {
-            const placeholder = textarea.getAttribute('placeholder')
-            if (placeholder && placeholder.includes('@')) {
-                // 如果 placeholder 变成了 "回复 @xxx"，说明进入了回复模式
-                const match = placeholder.match(/@(.+)/)
-                if (match) {
-                    onReplyChange(match[1]) // 提取名字
-                } else {
-                    onReplyChange(placeholder)
-                }
-            } else {
-                onReplyChange(null) // 否则就是普通评论模式
-            }
-        }
-    })
-
-    // 监听 body 的 subtree，因为 Twikoo 可能会把 input 移到很深的地方
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['placeholder'] })
-
-    return () => observer.disconnect()
-  }, [twikooLoaded, compact, onCountChange, onReplyChange])
-
   const handleSystemSwitch = (system: CommentSystemType) => {
     if (system === currentSystem) return
     setCurrentSystem(system)
@@ -160,8 +121,10 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     ? "w-full h-full flex flex-col imessage-mode bg-white dark:bg-[#1e1e1e]" 
     : "mx-auto w-full max-w-[1140px] px-6 pb-12 max-sm:px-0"
 
+  // 关键：compact 模式下，card 必须是 relative 且 overflow: hidden
+  // 这样内部的 absolute bottom: 0 的输入框才会停留在卡片底部
   const cardClass = compact
-    ? "relative w-full h-full flex flex-col"
+    ? "relative w-full h-full flex flex-col overflow-hidden" 
     : "relative w-full rounded-xl border border-gray-300/70 bg-white/95 p-8 shadow-sm backdrop-blur-sm max-sm:rounded-none max-sm:p-4"
 
   return (
@@ -193,9 +156,9 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
           </div>
         )}
         
-        <div className={`flex-1 min-h-0 relative overflow-y-auto ${compact ? 'px-4 py-2' : ''}`}>
+        <div className={`flex-1 min-h-0 relative ${compact ? 'px-0' : ''}`}>
             {currentSystem === 'giscus' && (
-            <div>
+            <div className="h-full overflow-y-auto px-4">
                 {!giscusLoaded && (
                 <div className="flex flex-col items-center justify-center p-8 opacity-60">
                     <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500"></div>
@@ -208,14 +171,15 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
             )}
             
             {currentSystem === 'twikoo' && (
-            <div>
+            <div className="h-full w-full">
                 {!twikooLoaded && (
                 <div className="flex flex-col items-center justify-center p-8 opacity-60">
                     <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500"></div>
                     <p className="text-xs text-gray-500">Loading Messages...</p>
                 </div>
                 )}
-                <div ref={twikooContainerRef} className="w-full min-h-[200px]" style={{ display: twikooLoaded ? 'block' : 'none' }} />
+                {/* 这里的容器必须是 full height */}
+                <div ref={twikooContainerRef} className="w-full h-full" style={{ display: twikooLoaded ? 'block' : 'none' }} />
             </div>
             )}
         </div>
