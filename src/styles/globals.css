@@ -210,18 +210,22 @@
 }
 
 /* =========================================
-   Messages 应用特定样式 (iMessage 风格极致复刻)
+   Messages 应用特定样式 (iMessage 风格)
    ========================================= */
 
-/* 1. 隐藏 Twikoo 原生的输入框和杂项 */
-.imessage-mode .tk-submit, 
-.imessage-mode .tk-meta-input,
-.imessage-mode .tk-footer,
-.imessage-mode .tk-row-actions-start {
+/* 1. 隐藏 Twikoo 原生的输入框整体区域 */
+/* 我们使用 Messages 应用底部的自定义输入栏来代理输入 */
+.imessage-mode .tk-submit {
     display: none !important;
 }
 
-/* 2. 评论容器布局 */
+/* 2. 【关键】隐藏 Twikoo 内部的元信息输入框 (昵称/邮箱/网址) */
+/* 这些信息现在移到了右上角的“设置”齿轮里 */
+.imessage-mode .tk-meta-input {
+    display: none !important;
+}
+
+/* 3. 布局调整：让评论列表占满空间 */
 .imessage-mode .tk-main {
     display: flex !important;
     flex-direction: column !important;
@@ -234,55 +238,56 @@
     overflow-y: auto !important;
     padding: 20px !important;
     margin: 0 !important;
-    display: flex !important;
-    flex-direction: column !important;
+    /* 优化滚动体验 */
+    scroll-behavior: smooth;
 }
 
-/* 3. 气泡化改造 */
+/* 4. 隐藏 Twikoo 的页脚、版权和操作栏 */
+.imessage-mode .tk-footer, 
+.imessage-mode .tk-row-actions-start,
+.imessage-mode .tk-extras {
+    display: none !important;
+}
+
+/* 5. 气泡样式微调 */
 .imessage-mode .tk-comment {
-    margin-bottom: 10px !important;
+    margin-bottom: 12px !important;
     display: flex !important;
     flex-direction: row !important;
     align-items: flex-end !important;
     border: none !important;
     background: transparent !important;
     padding: 0 !important;
-    width: 100% !important;
 }
 
-/* 隐藏头像（像 iMessage 个人对话一样，通常不显示对方头像，或者显示得很小，这里为了简洁我们隐藏） */
-/* 如果你想显示头像，可以去掉这个 display: none，调整大小 */
+/* 隐藏头像，让界面更像私人聊天 (可选，如需显示头像可删除此段) */
 .imessage-mode .tk-avatar {
-    display: none !important; 
+    display: none !important;
 }
 
-/* 气泡内容 */
 .imessage-mode .tk-main {
     max-width: 75% !important;
-    display: flex !important;
-    flex-direction: column !important;
     position: relative !important;
 }
 
-/* --- 对方的气泡 (左侧) --- */
+/* 对方气泡 (左侧) */
 .imessage-mode .tk-content {
     background: #E9E9EB !important;
     color: #000 !important;
-    padding: 8px 14px !important;
+    padding: 8px 12px !important;
     border-radius: 18px !important;
-    border-bottom-left-radius: 4px !important; /* 左下角小尾巴 */
+    border-bottom-left-radius: 4px !important;
     font-size: 14px !important;
     line-height: 1.4 !important;
-    position: relative;
     margin-left: 10px !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
 }
 .dark .imessage-mode .tk-content {
     background: #262628 !important;
     color: #fff !important;
 }
 
-/* --- 我方/管理员的气泡 (右侧) --- */
-/* Twikoo 会给管理员加 .tk-master 类 */
+/* 管理员气泡 (右侧) */
 .imessage-mode .tk-master {
     flex-direction: row-reverse !important;
 }
@@ -290,7 +295,7 @@
     background: #007AFF !important;
     color: #fff !important;
     border-bottom-left-radius: 18px !important;
-    border-bottom-right-radius: 4px !important; /* 右下角小尾巴 */
+    border-bottom-right-radius: 4px !important;
     margin-left: 0 !important;
     margin-right: 10px !important;
 }
@@ -299,28 +304,8 @@
     text-decoration: underline !important;
 }
 
-/* 昵称/时间显示 (微小字体) */
-.imessage-mode .tk-meta {
-    font-size: 10px !important;
-    color: #999 !important;
-    margin-bottom: 2px !important;
-    margin-left: 14px !important;
-    display: none !important; /* 默认隐藏，太乱了 */
-}
-/* 只有当鼠标悬停在气泡上时显示时间 */
-.imessage-mode .tk-comment:hover .tk-meta {
-    display: block !important;
-}
-.imessage-mode .tk-master .tk-meta {
-    text-align: right !important;
-    margin-right: 14px !important;
-}
-
-/* 隐藏回复嵌套线 */
+/* 隐藏回复线 */
 .imessage-mode .tk-replies {
     margin-left: 0 !important;
     border-left: none !important;
-}
-.imessage-mode .tk-replies .tk-comment {
-    margin-top: 5px !important;
 }

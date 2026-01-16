@@ -13,7 +13,7 @@ interface CommentSystemProps {
 }
 
 export default function CommentSystem({ slug, title, compact = false, reloadKey = 0 }: CommentSystemProps) {
-  const [currentSystem, setCurrentSystem] = useState<CommentSystemType>('twikoo')
+  const [currentSystem, setCurrentSystem] = useState<CommentSystemType>('twikoo') // 默认使用 Twikoo
   const [giscusLoaded, setGiscusLoaded] = useState(false)
   const [twikooLoaded, setTwikooLoaded] = useState(false)
   
@@ -117,7 +117,7 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     interface Window { twikoo?: any }
   }
 
-  // 这里的 imessage-mode 类名非常重要，它配合 globals.css 实现隐藏原生输入框
+  // compact=true 时添加 imessage-mode，触发 globals.css 中的隐藏/定制样式
   const containerClass = compact 
     ? "w-full h-full flex flex-col imessage-mode bg-white dark:bg-[#1e1e1e]" 
     : "mx-auto w-full max-w-[1140px] px-6 pb-12 max-sm:px-0"
