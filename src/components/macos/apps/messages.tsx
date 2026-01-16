@@ -7,7 +7,7 @@ import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
 import { toast } from 'sonner' 
 
-// --- SettingsModal (你的自定义设置) ---
+// --- SettingsModal 组件 ---
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const { t } = useI18n()
     const [nick, setNick] = useState('')
@@ -118,16 +118,18 @@ export const Messages = () => {
 
   const containerRef = useRef<HTMLDivElement>(null)
   
+  // 占位符 Refs
   const headerCountRef = useRef<HTMLDivElement>(null)
   const headerIconsRef = useRef<HTMLDivElement>(null)
 
+  // 观察者与锁
   const observerRef = useRef<MutationObserver | null>(null);
   const isProcessingRef = useRef(false);
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
 
-  // --- 获取 Twikoo 输入框 ---
+  // --- Twikoo 元素获取 ---
   const getTwikooElements = useCallback(() => {
       const cancelBtn = document.querySelector('.imessage-mode .tk-cancel') as HTMLButtonElement
       if (cancelBtn) {
@@ -165,21 +167,28 @@ export const Messages = () => {
       isProcessingRef.current = true;
 
       try {
-        // --- 1. 搬运头部元素 ---
+        // --- 1. 搬运头部元素 (评论数 & 图标) ---
+        // 我们要从 .tk-comments-title 中抓取元素
+        // 由于 CSS 隐藏了 .tk-comments-title，我们依然可以通过 JS 访问它
         const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
         
         if (originalHeader) {
-            // A. 评论数 -> 左上角
+            // A. 搬运评论数 (tk-comments-count) 到 footer 左上角
             const countEl = originalHeader.querySelector('.tk-comments-count');
             if (countEl && headerCountRef.current && !headerCountRef.current.contains(countEl)) {
-                headerCountRef.current.innerHTML = ''; 
+                headerCountRef.current.innerHTML = ''; // 清空旧的
                 headerCountRef.current.appendChild(countEl);
             }
 
-            // B. 图标 -> 右上角
+            // B. 搬运图标 (通常是 tk-icon 的父级 span) 到 footer 右上角
+            // 结构通常是: <span><span class="tk-icon">...</span></span>
+            // 我们找包含 .tk-icon 的 span
             const iconWrappers = originalHeader.querySelectorAll('.tk-icon');
             if (iconWrappers.length > 0 && headerIconsRef.current) {
+                // 找到包含图标的容器（通常是 count 的兄弟元素）
+                // 简单起见，我们把除了 count 之外的所有子元素都搬过去
                 const siblings = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
+                
                 siblings.forEach(sibling => {
                     if (!headerIconsRef.current?.contains(sibling)) {
                         headerIconsRef.current?.appendChild(sibling);
@@ -191,11 +200,12 @@ export const Messages = () => {
         const container = document.querySelector('.imessage-mode .tk-comments-container');
         if (!container) return;
 
-        // --- 2. 嵌套回复处理 ---
+        // --- 2. 处理嵌套回复：注入引用 + 搬运到最外层 ---
         const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment'));
         
         if (nestedReplies.length > 0) {
             nestedReplies.forEach(reply => {
+                // A. 注入引用
                 const contentBox = reply.querySelector('.tk-content');
                 if (contentBox && !contentBox.querySelector('.imessage-quote')) {
                     const replyList = reply.closest('.tk-replies');
@@ -222,11 +232,12 @@ export const Messages = () => {
                         contentBox.insertBefore(quoteDiv, contentBox.firstChild);
                     }
                 }
+                // B. 搬运到主容器
                 container.appendChild(reply);
             });
         }
 
-        // --- 3. 排序 ---
+        // --- 3. 全局排序 ---
         const comments = Array.from(container.children).filter(child => child.classList.contains('tk-comment'));
         if (comments.length > 1) {
              const sorted = comments.sort((a, b) => {
@@ -244,7 +255,7 @@ export const Messages = () => {
       }
   }, [])
 
-  // 监听 DOM
+  // 监听 DOM 变化
   useEffect(() => {
     const handleMutation = () => {
         if (observerRef.current) observerRef.current.disconnect();
@@ -270,7 +281,7 @@ export const Messages = () => {
                 setReplyTargetText('')
             }
 
-            processDomChanges();
+            processDomChanges(); // 执行搬运和排序
 
         } finally {
             if (observerRef.current) {
@@ -357,6 +368,7 @@ export const Messages = () => {
 
       {/* 右侧主内容 */}
       <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#1e1e1e] relative z-0">
+        {/* 顶部 Header */}
         <div className="h-12 border-b border-gray-200/50 dark:border-white/10 flex items-center justify-between px-4 bg-white/80 dark:bg-[#1e1e1e]/80 backdrop-blur-md shrink-0 z-20 sticky top-0">
             <div className="flex items-center gap-3">
                 <span className="text-xs text-gray-400">{t('msg_to')}</span>
@@ -370,6 +382,7 @@ export const Messages = () => {
             </div>
         </div>
 
+        {/* 消息区域 */}
         <div className="flex-1 overflow-hidden relative flex flex-col w-full">
             <CommentSystem 
                 key={`${activeContact.slug}-${reloadKey}`} 
@@ -380,12 +393,14 @@ export const Messages = () => {
             />
         </div>
 
+        {/* 底部输入框区域 */}
         <div className="shrink-0 p-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30 relative group">
             
-            {/* 左上角：评论数搬运点 */}
+            {/* [NEW] 搬运元素的占位符 */}
+            {/* 左上角：评论数 */}
             <div id="twikoo-moved-count" ref={headerCountRef} className="absolute top-2 left-6 z-40 select-none pointer-events-none"></div>
             
-            {/* 右上角：管理图标搬运点 */}
+            {/* 右上角：图标 */}
             <div id="twikoo-moved-icons" ref={headerIconsRef} className="absolute top-2 right-6 z-40 flex items-center gap-2"></div>
 
             <div className="relative max-w-4xl mx-auto w-full pt-3">
