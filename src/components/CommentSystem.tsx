@@ -9,9 +9,12 @@ interface CommentSystemProps {
   slug: string
   title?: string
   compact?: boolean
+  reloadKey?: number
+  onCountChange?: (count: number) => void
+  onReplyChange?: (replyingTo: string | null) => void 
 }
 
-export default function CommentSystem({ slug, title, compact = false }: CommentSystemProps) {
+export default function CommentSystem({ slug, title, compact = false, reloadKey = 0, onCountChange, onReplyChange }: CommentSystemProps) {
   const [currentSystem, setCurrentSystem] = useState<CommentSystemType>('twikoo')
   const [giscusLoaded, setGiscusLoaded] = useState(false)
   const [twikooLoaded, setTwikooLoaded] = useState(false)
@@ -62,7 +65,6 @@ export default function CommentSystem({ slug, title, compact = false }: CommentS
     const envId = process.env.NEXT_PUBLIC_TWIKOO_ENV_ID
     if (!envId) return 
 
-    // 移除旧脚本防止重复
     const oldScripts = document.querySelectorAll('script[src*="twikoo"]')
     oldScripts.forEach(script => script.remove())
     
@@ -90,6 +92,41 @@ export default function CommentSystem({ slug, title, compact = false }: CommentS
     document.body.appendChild(script)
   }
 
+  // --- 深度监听 Twikoo DOM 变化 ---
+  useEffect(() => {
+    if (!compact || !twikooLoaded || !twikooContainerRef.current) return;
+
+    const observer = new MutationObserver(() => {
+        // 1. 抓取评论数量
+        const countEl = twikooContainerRef.current?.querySelector('.tk-comments-count span:first-child')
+        if (countEl && countEl.textContent && onCountChange) {
+            const count = parseInt(countEl.textContent.trim(), 10)
+            if (!isNaN(count)) onCountChange(count)
+        }
+
+        // 2. 抓取回复状态
+        const textarea = document.querySelector('.imessage-mode .el-textarea__inner')
+        if (textarea && onReplyChange) {
+            const placeholder = textarea.getAttribute('placeholder')
+            if (placeholder && placeholder.includes('@')) {
+                // 提取名字 "回复 @Nick"
+                const match = placeholder.match(/@(.+)/)
+                if (match) {
+                    onReplyChange(match[1])
+                } else {
+                    onReplyChange(placeholder)
+                }
+            } else {
+                onReplyChange(null)
+            }
+        }
+    })
+
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['placeholder', 'class'] })
+
+    return () => observer.disconnect()
+  }, [twikooLoaded, compact, onCountChange, onReplyChange])
+
   const handleSystemSwitch = (system: CommentSystemType) => {
     if (system === currentSystem) return
     setCurrentSystem(system)
@@ -105,14 +142,13 @@ export default function CommentSystem({ slug, title, compact = false }: CommentS
     } catch (e) {}
   }, [])
   
-  // 仅在 slug 或 system 变化时重载，不引入额外 key
   useEffect(() => {
     setTwikooLoaded(false)
     setGiscusLoaded(false)
     
     if (currentSystem === 'giscus') setTimeout(() => initGiscus(), 100)
     else setTimeout(() => initTwikoo(), 100)
-  }, [currentSystem, slug])
+  }, [currentSystem, slug, reloadKey])
 
   declare global {
     interface Window { twikoo?: any }
@@ -129,30 +165,24 @@ export default function CommentSystem({ slug, title, compact = false }: CommentS
   return (
     <div className={containerClass}>
       <div className={cardClass}>
-        
         {!compact && (
           <div className="mb-6 pb-4 border-b border-gray-200/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h3 className="text-xl font-semibold text-gray-800">💬 文章评论</h3>
               <p className="mt-1 text-sm text-gray-500">欢迎留下你的看法和见解</p>
             </div>
-            
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-500">评论系统：</span>
               <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
                 <button
                   onClick={() => handleSystemSwitch('giscus')}
-                  className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                    currentSystem === 'giscus' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                  }`}
+                  className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${currentSystem === 'giscus' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
                 >
                   Giscus {currentSystem === 'giscus' && !giscusLoaded && <span className="ml-1 h-1.5 w-1.5 animate-ping rounded-full bg-blue-500"></span>}
                 </button>
                 <button
                   onClick={() => handleSystemSwitch('twikoo')}
-                  className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                    currentSystem === 'twikoo' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                  }`}
+                  className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${currentSystem === 'twikoo' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
                 >
                   Twikoo {currentSystem === 'twikoo' && !twikooLoaded && <span className="ml-1 h-1.5 w-1.5 animate-ping rounded-full bg-blue-500"></span>}
                 </button>
