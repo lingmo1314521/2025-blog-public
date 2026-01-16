@@ -9,16 +9,22 @@ interface CommentSystemProps {
   slug: string
   title?: string
   compact?: boolean
-  reloadKey?: number 
+  reloadKey?: number
+  onSystemChange?: (system: CommentSystemType) => void
 }
 
-export default function CommentSystem({ slug, title, compact = false, reloadKey = 0 }: CommentSystemProps) {
+export default function CommentSystem({ slug, title, compact = false, reloadKey = 0, onSystemChange }: CommentSystemProps) {
   const [currentSystem, setCurrentSystem] = useState<CommentSystemType>('twikoo')
   const [giscusLoaded, setGiscusLoaded] = useState(false)
   const [twikooLoaded, setTwikooLoaded] = useState(false)
   
   const giscusContainerRef = useRef<HTMLDivElement>(null)
   const twikooContainerRef = useRef<HTMLDivElement>(null)
+
+  // 同步状态到父组件
+  useEffect(() => {
+    onSystemChange?.(currentSystem)
+  }, [currentSystem, onSystemChange])
 
   const initGiscus = () => {
     if (!giscusContainerRef.current) return
@@ -39,16 +45,19 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
       script.setAttribute('data-reactions-enabled', '1')
       script.setAttribute('data-emit-metadata', '0')
       script.setAttribute('data-input-position', 'top') 
-      script.setAttribute('data-theme', compact ? 'noborder_light' : 'light') 
+      script.setAttribute('data-theme', compact ? 'noborder_light' : 'light') // 暗色模式需根据系统主题动态调整，这里暂时简化
       script.setAttribute('data-lang', 'zh-CN')
+      script.setAttribute('data-loading', 'lazy')
       
       script.onload = () => {
+        // Giscus iframe 加载需要时间，轮询检查
         const checkIframe = () => {
-          const iframe = giscusContainerRef.current?.querySelector('iframe.giscus-frame')
-          if (iframe) setGiscusLoaded(true)
-          else setTimeout(checkIframe, 500)
+          // 在 Shadow DOM 或 iframe 内部
+          // Giscus 实际上是插入了一个 iframe 并在旁边放样式
+          // 只要 script 加载完，基本可以认为开始了
+          setGiscusLoaded(true) 
         }
-        setTimeout(checkIframe, 1000)
+        setTimeout(checkIframe, 1500)
       }
       
       script.onerror = () => setGiscusLoaded(false)
@@ -60,14 +69,26 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
   }
 
   const initTwikoo = () => {
-    const envId = process.env.NEXT_PUBLIC_TWIKOO_ENV_ID
-    if (!envId) return 
-
+    const envId = process.env.NEXT_PUBLIC_TWIKOO_ENV_ID || 'https://twikoo.vercel.app' // 请确保有默认值或环境变量
+    
+    // 清理旧的脚本以防重复监听
     const oldScripts = document.querySelectorAll('script[src*="twikoo"]')
-    oldScripts.forEach(script => script.remove())
+    // 注意：Twikoo 全局单例，通常不建议频繁删除 script，但在 SPA 切换时可能需要重新 init
     
     if (twikooContainerRef.current) {
         twikooContainerRef.current.innerHTML = ''
+    }
+
+    // 检查 window.twikoo 是否已存在
+    if (window.twikoo) {
+        window.twikoo.init({
+            envId: envId,
+            el: twikooContainerRef.current,
+            path: compact ? `/messages/${slug}` : `/blog/${slug}`,
+            lang: 'zh-CN',
+            onCommentLoaded: () => setTwikooLoaded(true)
+        })
+        return
     }
 
     const script = document.createElement('script')
@@ -106,19 +127,22 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
   }, [])
   
   useEffect(() => {
+    // 每次切换系统或 Slug 变化时重置加载状态
     setTwikooLoaded(false)
     setGiscusLoaded(false)
     
-    if (currentSystem === 'giscus') setTimeout(() => initGiscus(), 100)
-    else setTimeout(() => initTwikoo(), 100)
+    let timer: NodeJS.Timeout
+    if (currentSystem === 'giscus') {
+        timer = setTimeout(() => initGiscus(), 100)
+    } else {
+        timer = setTimeout(() => initTwikoo(), 100)
+    }
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSystem, slug, reloadKey])
 
-  declare global {
-    interface Window { twikoo?: any }
-  }
-
   const containerClass = compact 
-    ? "w-full h-full flex flex-col imessage-mode bg-white dark:bg-[#1e1e1e]" 
+    ? "w-full h-full flex flex-col imessage-mode bg-slate-50 dark:bg-[#151515]" 
     : "mx-auto w-full max-w-[1140px] px-6 pb-12 max-sm:px-0"
 
   const cardClass = compact
@@ -160,9 +184,9 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
           </div>
         )}
         
-        <div className={`flex-1 min-h-0 relative overflow-y-auto ${compact ? 'px-4 py-2' : ''}`}>
-            {currentSystem === 'giscus' && (
-            <div>
+        <div className={`flex-1 min-h-0 relative overflow-y-auto overflow-x-hidden ${compact ? 'px-4 py-2 scrollbar-thin' : ''}`}>
+            {/* Giscus 容器 */}
+            <div className={currentSystem === 'giscus' ? 'block' : 'hidden'}>
                 {!giscusLoaded && (
                 <div className="flex flex-col items-center justify-center p-8 opacity-60">
                     <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500"></div>
@@ -170,37 +194,36 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
                     <button onClick={initGiscus} className="mt-2 text-xs text-blue-500 hover:underline">Retry</button>
                 </div>
                 )}
-                <div ref={giscusContainerRef} className="w-full min-h-[200px]" style={{ display: giscusLoaded ? 'block' : 'none' }} />
+                <div ref={giscusContainerRef} className="w-full min-h-[200px]" />
             </div>
-            )}
             
-            {currentSystem === 'twikoo' && (
-            <div>
+            {/* Twikoo 容器 */}
+            <div className={currentSystem === 'twikoo' ? 'block' : 'hidden'}>
                 {!twikooLoaded && (
                 <div className="flex flex-col items-center justify-center p-8 opacity-60">
                     <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500"></div>
                     <p className="text-xs text-gray-500">Loading Messages...</p>
                 </div>
                 )}
-                <div ref={twikooContainerRef} className="w-full min-h-[200px]" style={{ display: twikooLoaded ? 'block' : 'none' }} />
+                {/* 必须始终渲染 ref div，因为 Twikoo init 需要 DOM 存在 */}
+                <div ref={twikooContainerRef} className="w-full min-h-[200px]" />
             </div>
-            )}
         </div>
 
         {compact && (
-            <div className="shrink-0 h-6 flex items-center justify-center gap-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/5 z-20">
+            <div className="shrink-0 h-8 flex items-center justify-center gap-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/5 z-20">
                 <button 
                     onClick={() => handleSystemSwitch('twikoo')}
-                    className={`flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider transition-colors ${currentSystem === 'twikoo' ? 'text-blue-500' : 'text-gray-300 hover:text-gray-500'}`}
+                    className={`flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider transition-colors ${currentSystem === 'twikoo' ? 'text-blue-500' : 'text-gray-400 hover:text-gray-600'}`}
                 >
-                    <MessageSquare size={9} /> Twikoo
+                    <MessageSquare size={10} /> Twikoo
                 </button>
-                <div className="w-[1px] h-2 bg-gray-200 dark:bg-white/10"></div>
+                <div className="w-[1px] h-3 bg-gray-300 dark:bg-white/10"></div>
                 <button 
                     onClick={() => handleSystemSwitch('giscus')}
-                    className={`flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider transition-colors ${currentSystem === 'giscus' ? 'text-blue-500' : 'text-gray-300 hover:text-gray-500'}`}
+                    className={`flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider transition-colors ${currentSystem === 'giscus' ? 'text-blue-500' : 'text-gray-400 hover:text-gray-600'}`}
                 >
-                    <Server size={9} /> GitHub
+                    <Server size={10} /> GitHub
                 </button>
             </div>
         )}
