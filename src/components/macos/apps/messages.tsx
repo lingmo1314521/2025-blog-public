@@ -146,7 +146,7 @@ export const Messages = () => {
             <button onClick={() => setShowSettings(true)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all" title={t('msg_settings_title')}><Settings size={16} /></button>
         </div>
 
-        {/* 聊天区域 - 占据全部空间，输入框由 globals.css 绝对定位在底部 */}
+        {/* 聊天区域 - 占据全部空间 */}
         <div className="flex-1 overflow-hidden relative flex flex-col">
             <CommentSystem 
                 key={`${activeContact.slug}-${reloadKey}`} 

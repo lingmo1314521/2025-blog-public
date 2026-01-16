@@ -9,7 +9,7 @@ interface CommentSystemProps {
   slug: string
   title?: string
   compact?: boolean
-  reloadKey?: number
+  reloadKey?: number 
 }
 
 export default function CommentSystem({ slug, title, compact = false, reloadKey = 0 }: CommentSystemProps) {
@@ -121,10 +121,8 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     ? "w-full h-full flex flex-col imessage-mode bg-white dark:bg-[#1e1e1e]" 
     : "mx-auto w-full max-w-[1140px] px-6 pb-12 max-sm:px-0"
 
-  // 关键：compact 模式下，card 必须是 relative 且 overflow: hidden
-  // 这样内部的 absolute bottom: 0 的输入框才会停留在卡片底部
   const cardClass = compact
-    ? "relative w-full h-full flex flex-col overflow-hidden" 
+    ? "relative w-full h-full flex flex-col"
     : "relative w-full rounded-xl border border-gray-300/70 bg-white/95 p-8 shadow-sm backdrop-blur-sm max-sm:rounded-none max-sm:p-4"
 
   return (
@@ -156,9 +154,9 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
           </div>
         )}
         
-        <div className={`flex-1 min-h-0 relative ${compact ? 'px-0' : ''}`}>
+        <div className={`flex-1 min-h-0 relative overflow-y-auto ${compact ? 'px-4 py-2' : ''}`}>
             {currentSystem === 'giscus' && (
-            <div className="h-full overflow-y-auto px-4">
+            <div>
                 {!giscusLoaded && (
                 <div className="flex flex-col items-center justify-center p-8 opacity-60">
                     <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500"></div>
@@ -171,15 +169,14 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
             )}
             
             {currentSystem === 'twikoo' && (
-            <div className="h-full w-full">
+            <div>
                 {!twikooLoaded && (
                 <div className="flex flex-col items-center justify-center p-8 opacity-60">
                     <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500"></div>
                     <p className="text-xs text-gray-500">Loading Messages...</p>
                 </div>
                 )}
-                {/* 这里的容器必须是 full height */}
-                <div ref={twikooContainerRef} className="w-full h-full" style={{ display: twikooLoaded ? 'block' : 'none' }} />
+                <div ref={twikooContainerRef} className="w-full min-h-[200px]" style={{ display: twikooLoaded ? 'block' : 'none' }} />
             </div>
             )}
         </div>
