@@ -10,9 +10,10 @@ interface CommentSystemProps {
   title?: string
   compact?: boolean
   reloadKey?: number
+  onCountChange?: (count: number) => void // 保留计数回调
 }
 
-export default function CommentSystem({ slug, title, compact = false, reloadKey = 0 }: CommentSystemProps) {
+export default function CommentSystem({ slug, title, compact = false, reloadKey = 0, onCountChange }: CommentSystemProps) {
   const [currentSystem, setCurrentSystem] = useState<CommentSystemType>('twikoo')
   const [giscusLoaded, setGiscusLoaded] = useState(false)
   const [twikooLoaded, setTwikooLoaded] = useState(false)
@@ -90,9 +91,27 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     document.body.appendChild(script)
   }
 
+  // 只保留计数监听
+  useEffect(() => {
+    if (!compact || !twikooLoaded || !twikooContainerRef.current) return;
+
+    const observer = new MutationObserver(() => {
+        const countEl = twikooContainerRef.current?.querySelector('.tk-comments-count span:first-child')
+        if (countEl && countEl.textContent && onCountChange) {
+            const count = parseInt(countEl.textContent.trim(), 10)
+            if (!isNaN(count)) onCountChange(count)
+        }
+    })
+
+    observer.observe(twikooContainerRef.current, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [twikooLoaded, compact, onCountChange])
+
   const handleSystemSwitch = (system: CommentSystemType) => {
     if (system === currentSystem) return
     setCurrentSystem(system)
+    if (system === 'giscus') setGiscusLoaded(false)
+    else setTwikooLoaded(false)
     try { localStorage.setItem('preferred-comment-system', system) } catch (e) {}
   }
 
@@ -105,6 +124,8 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
   
   useEffect(() => {
     setTwikooLoaded(false)
+    setGiscusLoaded(false)
+    
     if (currentSystem === 'giscus') setTimeout(() => initGiscus(), 100)
     else setTimeout(() => initTwikoo(), 100)
   }, [currentSystem, slug, reloadKey])
@@ -130,20 +151,34 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
               <h3 className="text-xl font-semibold text-gray-800">💬 文章评论</h3>
               <p className="mt-1 text-sm text-gray-500">欢迎留下你的看法和见解</p>
             </div>
-            {/* System Switch Buttons */}
             <div className="flex items-center gap-2">
-               {/* ... (buttons omitted for brevity) ... */}
+              {/* ... buttons ... */}
             </div>
           </div>
         )}
         
-        <div className={`flex-1 min-h-0 relative overflow-y-auto ${compact ? 'px-0 py-0' : ''}`}>
-            {currentSystem === 'twikoo' && (
-                // 容器，直接渲染 Twikoo
-                <div id="twikoo" ref={twikooContainerRef} className="w-full min-h-[200px]" style={{ display: twikooLoaded ? 'block' : 'none' }} />
+        <div className={`flex-1 min-h-0 relative overflow-y-auto ${compact ? 'px-4 py-2' : ''}`}>
+            {currentSystem === 'giscus' && (
+            <div>
+                <div ref={giscusContainerRef} className="w-full min-h-[200px]" style={{ display: giscusLoaded ? 'block' : 'none' }} />
+            </div>
             )}
-            {/* Giscus block ... */}
+            
+            {currentSystem === 'twikoo' && (
+            <div>
+                {/* ID 必须保留 */}
+                <div id="twikoo" ref={twikooContainerRef} className="w-full min-h-[200px]" style={{ display: twikooLoaded ? 'block' : 'none' }} />
+            </div>
+            )}
         </div>
+
+        {compact && (
+            <div className="shrink-0 h-6 flex items-center justify-center gap-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/5 z-20">
+                <button onClick={() => handleSystemSwitch('twikoo')} className={`flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider transition-colors ${currentSystem === 'twikoo' ? 'text-blue-500' : 'text-gray-300 hover:text-gray-500'}`}><MessageSquare size={9} /> Twikoo</button>
+                <div className="w-[1px] h-2 bg-gray-200 dark:bg-white/10"></div>
+                <button onClick={() => handleSystemSwitch('giscus')} className={`flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider transition-colors ${currentSystem === 'giscus' ? 'text-blue-500' : 'text-gray-300 hover:text-gray-500'}`}><Server size={9} /> GitHub</button>
+            </div>
+        )}
       </div>
     </div>
   )

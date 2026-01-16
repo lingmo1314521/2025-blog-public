@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
-import { Search, Edit, Settings, X, Save } from 'lucide-react'
+import { Search, Edit, Settings, X, Save, MessageCircle } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
@@ -70,15 +70,37 @@ export const Messages = () => {
   const { t } = useI18n()
   
   const CONTACTS = useMemo(() => [
-    { id: 'guestbook', name: t('msg_guestbook'), slug: 'messages-guestbook', avatar: '🌍', desc: t('msg_guestbook_desc'), time: t('msg_now') },
-    { id: 'tech', name: t('msg_tech'), slug: 'messages-tech', avatar: '💻', desc: t('msg_tech_desc'), time: t('msg_yesterday') },
-    { id: 'feedback', name: t('msg_bug'), slug: 'messages-bugs', avatar: '🐛', desc: t('msg_bug_desc'), time: t('msg_mon') }
+    { 
+      id: 'guestbook', 
+      name: t('msg_guestbook'), 
+      slug: 'messages-guestbook', 
+      avatar: '🌍', 
+      desc: t('msg_guestbook_desc'),
+      time: t('msg_now')
+    },
+    { 
+      id: 'tech', 
+      name: t('msg_tech'), 
+      slug: 'messages-tech', 
+      avatar: '💻', 
+      desc: t('msg_tech_desc'),
+      time: t('msg_yesterday')
+    },
+    { 
+      id: 'feedback', 
+      name: t('msg_bug'), 
+      slug: 'messages-bugs', 
+      avatar: '🐛', 
+      desc: t('msg_bug_desc'),
+      time: t('msg_mon')
+    }
   ], [t])
 
   const [activeContactId, setActiveContactId] = useState(CONTACTS[0].id)
   const [search, setSearch] = useState('')
   const [showSettings, setShowSettings] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
+  const [msgCount, setMsgCount] = useState(0)
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
@@ -115,17 +137,26 @@ export const Messages = () => {
 
       {/* 右侧主内容 */}
       <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#1e1e1e] relative">
+        
+        {/* 顶部栏 */}
         <div className="h-12 border-b border-gray-200/50 dark:border-white/10 flex items-center justify-between px-4 bg-white/80 dark:bg-[#1e1e1e]/80 backdrop-blur-md shrink-0 z-20 sticky top-0">
             <div className="flex items-center gap-3">
                 <span className="text-xs text-gray-400">{t('msg_to')}</span>
                 <div className="flex items-center gap-1 bg-blue-100/50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full border border-blue-200/50 dark:border-blue-500/20">
                     <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{activeContact.name}</span>
                 </div>
+                {/* 计数显示 */}
+                {msgCount > 0 && (
+                    <div className="flex items-center gap-1 text-[10px] text-gray-400 font-medium ml-2 border-l border-gray-300 dark:border-white/10 pl-3">
+                        <MessageCircle size={10} />
+                        <span>{msgCount} Messages</span>
+                    </div>
+                )}
             </div>
             <button onClick={() => setShowSettings(true)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all" title={t('msg_settings_title')}><Settings size={16} /></button>
         </div>
 
-        {/* 聊天区域 - 无需底部代理输入框 */}
+        {/* 聊天区域 - Twikoo */}
         <div className="flex-1 overflow-hidden relative flex flex-col">
             <CommentSystem 
                 key={`${activeContact.slug}-${reloadKey}`} 
@@ -133,6 +164,7 @@ export const Messages = () => {
                 title={activeContact.name}
                 compact={true} 
                 reloadKey={reloadKey}
+                onCountChange={setMsgCount}
             />
         </div>
       </div>
