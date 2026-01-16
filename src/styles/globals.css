@@ -33,7 +33,7 @@
 }
 
 /* =========================================
-   Twikoo iMessage 完美修复版 (修复内容消失bug)
+   Twikoo iMessage 终极形态 (排序修复版)
    ========================================= */
 
 /* 1. 全局容器重置 */
@@ -60,10 +60,19 @@
     z-index: -1 !important;
 }
 
+/* -------------------------------------------
+   [核心修复] 消息流排序控制
+   ------------------------------------------- */
 .imessage-mode .tk-comments-container {
     padding: 20px 16px !important;
     display: flex !important;
-    flex-direction: column !important;
+    /* 关键：反转 flex 方向 */
+    /* Twikoo 默认 DOM 是 [新 -> 旧]，反转后变成 [旧 -> 新] (上 -> 下) */
+    flex-direction: column-reverse !important; 
+    /* 确保第一条消息贴在最上方 (因为 reverse 后主轴起点变到底部) */
+    /* justify-content: flex-end; -- 在 column-reverse 下，这会让消息少的时候贴顶 */
+    /* 但 iMessage 消息少的时候是贴底的，column-reverse 默认就是贴底，所以无需额外 justify */
+    min-height: 100% !important;
 }
 
 /* -------------------------------------------
@@ -79,6 +88,7 @@
     width: 100% !important;
     border: none !important;
     position: relative !important;
+    /* 既然反转了容器，margin-bottom 其实变成了视觉上的 "margin-top" */
 }
 
 /* 头像 */
@@ -191,14 +201,14 @@
 }
 
 /* -------------------------------------------
-   回复列表处理
+   回复列表处理 (不需要反转，保持原样)
    ------------------------------------------- */
 .imessage-mode .tk-replies {
     width: calc(100% + 42px) !important; 
     margin-left: -42px !important; 
     margin-top: 12px !important;
     display: flex !important;
-    flex-direction: column !important;
+    flex-direction: column !important; /* 回复通常已经是旧->新顺序，保持 column */
     border: none !important;
     padding: 0 !important;
     position: relative !important;
@@ -237,13 +247,10 @@
 }
 
 /* -------------------------------------------
-   [NEW] 引用内容 & 修复内容消失
+   引用内容 & 修复内容消失
    ------------------------------------------- */
 
-/* 核心修复：不要隐藏所有 first-child span！
-   只隐藏包含 .tk-ruser (被回复用户名) 的那个 span。
-   这需要浏览器支持 :has() 选择器 (现代浏览器均支持)。
-*/
+/* 只隐藏包含 .tk-ruser (被回复用户名) 的 span */
 .imessage-mode .tk-content > span:has(.tk-ruser) {
     display: none !important;
 }
