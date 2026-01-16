@@ -107,34 +107,38 @@ export const Messages = () => {
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
 
-  // 【核心】实时查找并同步输入
+  // 【核心】实时同步输入
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value
       setInputValue(val)
       
-      // 动态查找：因为 Twikoo 会把输入框移来移去，所以每次输入都要重新找
-      const twikooTextarea = document.querySelector('.imessage-mode .el-textarea__inner') as HTMLTextAreaElement
+      // 必须实时查找！Twikoo 会动态替换 DOM 节点
+      const twikooTextarea = document.querySelector('#twikoo .el-textarea__inner') as HTMLTextAreaElement
       if (twikooTextarea) {
           twikooTextarea.value = val
+          // 触发 Vue 的双向绑定更新
           twikooTextarea.dispatchEvent(new Event('input', { bubbles: true }))
       }
   }
 
-  // 【核心】实时查找并触发发送
+  // 【核心】实时触发发送
   const handleSend = () => {
       if (!inputValue.trim()) return
-      const twikooSendBtn = document.querySelector('.imessage-mode .tk-send') as HTMLButtonElement
+      const twikooSendBtn = document.querySelector('#twikoo .tk-send') as HTMLButtonElement
       if (twikooSendBtn) {
           twikooSendBtn.click()
           setInputValue('')
-          setTimeout(() => setReplyingTo(null), 800) // 等待发送完成再重置UI
+          setTimeout(() => setReplyingTo(null), 800)
+      } else {
+          console.error("Twikoo send button not found!")
       }
   }
 
+  // 【核心】代理取消回复
   const cancelReply = () => {
-      const cancelBtn = document.querySelector('.imessage-mode .tk-cancel') as HTMLElement
+      const cancelBtn = document.querySelector('#twikoo .tk-cancel') as HTMLElement
       if (cancelBtn) {
-          cancelBtn.click()
+          cancelBtn.click() // 触发原生取消，Twikoo 会重置界面
           setReplyingTo(null)
       }
   }
