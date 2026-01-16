@@ -105,27 +105,26 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
         }
 
         // 2. 抓取回复状态
-        // 逻辑：检查 .tk-submit 是否还是在最外层。如果它跑到了某个 .tk-replies 或 .tk-comment 里面，说明正在回复。
-        const submitEl = document.querySelector('.imessage-mode .tk-submit')
-        
-        if (submitEl && onReplyChange) {
-            // 查找最近的父级 .tk-comment
-            const parentComment = submitEl.closest('.tk-comment')
-            
-            if (parentComment) {
-                // 如果找到了，说明正在回复这条评论
-                const nickEl = parentComment.querySelector('.tk-nick')
-                const replyName = nickEl ? nickEl.textContent : 'Someone'
-                onReplyChange(replyName)
+        // 找到我们"隐藏"的幽灵输入框
+        const textarea = document.querySelector('.imessage-mode .el-textarea__inner')
+        if (textarea && onReplyChange) {
+            const placeholder = textarea.getAttribute('placeholder')
+            if (placeholder && placeholder.includes('@')) {
+                // 如果 placeholder 变成了 "回复 @xxx"，说明进入了回复模式
+                const match = placeholder.match(/@(.+)/)
+                if (match) {
+                    onReplyChange(match[1]) // 提取名字
+                } else {
+                    onReplyChange(placeholder)
+                }
             } else {
-                // 没找到父级评论，说明在根目录，即发新评论
-                onReplyChange(null)
+                onReplyChange(null) // 否则就是普通评论模式
             }
         }
     })
 
-    // 监听 body 的 subtree，因为 Twikoo 会移动 DOM 节点
-    observer.observe(document.body, { childList: true, subtree: true })
+    // 监听 body 的 subtree，因为 Twikoo 可能会把 input 移到很深的地方
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['placeholder'] })
 
     return () => observer.disconnect()
   }, [twikooLoaded, compact, onCountChange, onReplyChange])

@@ -6,7 +6,6 @@ import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
 
-// 设置弹窗
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const { t } = useI18n()
     const [nick, setNick] = useState('')
@@ -128,15 +127,14 @@ export const Messages = () => {
       }
   }
 
+  // 关键：点击取消回复时，模拟点击 Twikoo 原生的取消按钮（它现在被我们隐藏了，但存在于 DOM）
   const cancelReply = () => {
-      // 模拟点击 Twikoo 内部的取消按钮 (它现在不可见，但存在于 DOM 中)
       const cancelBtn = document.querySelector('.imessage-mode .tk-cancel') as HTMLElement
       if (cancelBtn) {
           cancelBtn.click()
       } else {
-          // 兜底方案：强制刷新组件
           setReplyingTo(null)
-          setReloadKey(k => k + 1)
+          setReloadKey(k => k + 1) // 兜底：强制刷新
       }
   }
 
@@ -195,8 +193,6 @@ export const Messages = () => {
         </div>
 
         <div className="shrink-0 px-4 pb-4 pt-2 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30">
-            
-            {/* 状态栏：显示评论数 或 正在回复的状态 */}
             <div className="flex items-center justify-between mb-2 ml-2 select-none h-4">
                 {replyingTo ? (
                     <div className="flex items-center gap-2 animate-in slide-in-from-bottom-2 fade-in">
