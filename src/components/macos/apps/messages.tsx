@@ -107,33 +107,30 @@ export const Messages = () => {
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
 
-  // 【核心】同步输入到隐藏的 Twikoo 输入框
+  // 【核心】实时查找并同步输入
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value
       setInputValue(val)
       
-      // 无论输入框是在根目录还是在评论下，类名都是 .el-textarea__inner
-      // 我们查找 .imessage-mode 下的那个文本域
+      // 动态查找：因为 Twikoo 会把输入框移来移去，所以每次输入都要重新找
       const twikooTextarea = document.querySelector('.imessage-mode .el-textarea__inner') as HTMLTextAreaElement
       if (twikooTextarea) {
           twikooTextarea.value = val
-          // 必须触发 input 事件，Vue 才能检测到变化
           twikooTextarea.dispatchEvent(new Event('input', { bubbles: true }))
       }
   }
 
-  // 【核心】代理发送点击
+  // 【核心】实时查找并触发发送
   const handleSend = () => {
       if (!inputValue.trim()) return
       const twikooSendBtn = document.querySelector('.imessage-mode .tk-send') as HTMLButtonElement
       if (twikooSendBtn) {
           twikooSendBtn.click()
           setInputValue('')
-          setTimeout(() => setReplyingTo(null), 800) // 延迟重置状态，等待发送完成
+          setTimeout(() => setReplyingTo(null), 800) // 等待发送完成再重置UI
       }
   }
 
-  // 【核心】代理取消回复
   const cancelReply = () => {
       const cancelBtn = document.querySelector('.imessage-mode .tk-cancel') as HTMLElement
       if (cancelBtn) {
@@ -198,7 +195,6 @@ export const Messages = () => {
 
         {/* 底部代理输入栏 */}
         <div className="shrink-0 px-4 pb-4 pt-2 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30">
-            {/* 状态栏：显示评论数 或 正在回复的状态 */}
             <div className="flex items-center justify-between mb-2 ml-2 select-none h-4">
                 {replyingTo ? (
                     <div className="flex items-center gap-2 animate-in slide-in-from-bottom-2 fade-in">
