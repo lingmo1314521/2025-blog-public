@@ -92,7 +92,7 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     document.body.appendChild(script)
   }
 
-  // --- 深度监听 Twikoo DOM 变化 ---
+  // --- 深度监听 Twikoo DOM 变化 (修复回复检测) ---
   useEffect(() => {
     if (!compact || !twikooLoaded || !twikooContainerRef.current) return;
 
@@ -105,30 +105,26 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
         }
 
         // 2. 抓取回复状态
-        // 核心逻辑：检查 .tk-submit 是否还在根容器下。
-        // 如果 Twikoo 处于回复模式，.tk-submit 会被移动到具体的 .tk-comment 内部
-        const submitEl = document.querySelector('.imessage-mode .tk-submit')
-        const rootComments = document.querySelector('.imessage-mode .tk-comments') // Twikoo 的根列表容器通常叫 .tk-comments
-        
-        if (submitEl && onReplyChange) {
-            // 如果 input 的父级不是根容器，说明它跑到了某条评论下面 -> 正在回复
-            // 注意：Twikoo 的层级结构较深，这里简单判断它是否被移动了
-            const parentComment = submitEl.closest('.tk-comment')
-            
-            if (parentComment) {
-                // 找到了父评论，说明正在回复
-                const nickEl = parentComment.querySelector('.tk-nick')
-                const replyName = nickEl ? nickEl.textContent : 'Someone'
-                onReplyChange(replyName)
+        // 核心修复：检测 .el-textarea__inner 的 placeholder 是否变化
+        const textarea = document.querySelector('.imessage-mode .el-textarea__inner')
+        if (textarea && onReplyChange) {
+            const placeholder = textarea.getAttribute('placeholder')
+            if (placeholder && placeholder.includes('@')) {
+                // 提取名字，通常格式为 "回复 @Nick"
+                const match = placeholder.match(/@(.+)/)
+                if (match) {
+                    onReplyChange(match[1])
+                } else {
+                    onReplyChange(placeholder)
+                }
             } else {
-                // 没有在评论内，说明是根回复
                 onReplyChange(null)
             }
         }
     })
 
-    // 监听整个 body 的子树变化，因为 Twikoo 会在大范围移动 DOM 节点
-    observer.observe(document.body, { childList: true, subtree: true })
+    // 监听属性变化 (placeholder) 和子节点变化
+    observer.observe(twikooContainerRef.current, { childList: true, subtree: true, attributes: true, attributeFilter: ['placeholder'] })
 
     return () => observer.disconnect()
   }, [twikooLoaded, compact, onCountChange, onReplyChange])
