@@ -9,7 +9,7 @@ interface CommentSystemProps {
   slug: string
   title?: string
   compact?: boolean
-  reloadKey?: number
+  reloadKey?: number 
 }
 
 export default function CommentSystem({ slug, title, compact = false, reloadKey = 0 }: CommentSystemProps) {
@@ -128,24 +128,30 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
   return (
     <div className={containerClass}>
       <div className={cardClass}>
+        
         {!compact && (
           <div className="mb-6 pb-4 border-b border-gray-200/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h3 className="text-xl font-semibold text-gray-800">💬 文章评论</h3>
               <p className="mt-1 text-sm text-gray-500">欢迎留下你的看法和见解</p>
             </div>
+            
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-500">评论系统：</span>
               <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
                 <button
                   onClick={() => handleSystemSwitch('giscus')}
-                  className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${currentSystem === 'giscus' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                  className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    currentSystem === 'giscus' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
                 >
                   Giscus {currentSystem === 'giscus' && !giscusLoaded && <span className="ml-1 h-1.5 w-1.5 animate-ping rounded-full bg-blue-500"></span>}
                 </button>
                 <button
                   onClick={() => handleSystemSwitch('twikoo')}
-                  className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${currentSystem === 'twikoo' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                  className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    currentSystem === 'twikoo' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
                 >
                   Twikoo {currentSystem === 'twikoo' && !twikooLoaded && <span className="ml-1 h-1.5 w-1.5 animate-ping rounded-full bg-blue-500"></span>}
                 </button>
