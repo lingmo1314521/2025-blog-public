@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
-import { Search, Edit, Settings, X, Save } from 'lucide-react'
+import { Search, Edit, Settings, X, Save, ArrowUp, MessageCircle, Reply } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
@@ -100,9 +100,50 @@ export const Messages = () => {
   const [search, setSearch] = useState('')
   const [showSettings, setShowSettings] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
+  const [inputValue, setInputValue] = useState('')
+  const [msgCount, setMsgCount] = useState(0)
+  const [replyingTo, setReplyingTo] = useState<string | null>(null)
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
+
+  // 核心：同步输入
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value
+      setInputValue(val)
+      
+      // 查找那个“隐身”的输入框
+      const twikooTextarea = document.querySelector('.imessage-mode .el-textarea__inner') as HTMLTextAreaElement
+      if (twikooTextarea) {
+          twikooTextarea.value = val
+          // 手动触发 input 事件，让 Twikoo (Vue) 知道值变了
+          twikooTextarea.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+  }
+
+  // 核心：发送
+  const handleSend = () => {
+      if (!inputValue.trim()) return
+      
+      const twikooSendBtn = document.querySelector('.imessage-mode .tk-send') as HTMLButtonElement
+      if (twikooSendBtn) {
+          twikooSendBtn.click()
+          setInputValue('')
+          setTimeout(() => setReplyingTo(null), 500)
+      }
+  }
+
+  // 核心：取消回复
+  const cancelReply = () => {
+      // 找到 Twikoo 隐身的 cancel 按钮
+      const cancelBtn = document.querySelector('.imessage-mode .tk-cancel') as HTMLElement
+      if (cancelBtn) {
+          cancelBtn.click()
+      } else {
+          // 兜底：如果找不到，就重置状态
+          setReplyingTo(null)
+      }
+  }
 
   return (
     <div className="flex h-full w-full bg-white dark:bg-[#1e1e1e] text-black dark:text-white font-sans overflow-hidden relative">
@@ -146,7 +187,6 @@ export const Messages = () => {
             <button onClick={() => setShowSettings(true)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all" title={t('msg_settings_title')}><Settings size={16} /></button>
         </div>
 
-        {/* 聊天区域 - 占据全部空间 */}
         <div className="flex-1 overflow-hidden relative flex flex-col">
             <CommentSystem 
                 key={`${activeContact.slug}-${reloadKey}`} 
@@ -154,7 +194,46 @@ export const Messages = () => {
                 title={activeContact.name}
                 compact={true} 
                 reloadKey={reloadKey}
+                onCountChange={setMsgCount}
+                onReplyChange={setReplyingTo} 
             />
+        </div>
+
+        {/* 底部代理输入区 */}
+        <div className="shrink-0 px-4 pb-4 pt-2 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30">
+            
+            {/* 状态指示器 */}
+            <div className="flex items-center justify-between mb-2 ml-2 select-none h-4">
+                {replyingTo ? (
+                    <div className="flex items-center gap-2 animate-in slide-in-from-bottom-2 fade-in">
+                        <span className="text-[10px] font-bold text-blue-500 flex items-center gap-1">
+                            <Reply size={10} /> Reply to {replyingTo}
+                        </span>
+                        <button onClick={cancelReply} className="bg-gray-200 dark:bg-white/10 hover:bg-gray-300 rounded-full p-0.5 text-gray-500 cursor-pointer">
+                            <X size={8} />
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-1 text-[10px] text-gray-400 font-medium">
+                        <MessageCircle size={10} />
+                        <span>{msgCount} Messages</span>
+                    </div>
+                )}
+            </div>
+
+            <div className="relative">
+                <input
+                    type="text"
+                    value={inputValue}
+                    onChange={handleInputChange}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                    placeholder={replyingTo ? `@${replyingTo}` : t('msg_imessage')}
+                    className="w-full bg-white dark:bg-[#2c2c2c] border border-gray-300 dark:border-white/10 rounded-full py-2 pl-4 pr-10 text-sm outline-none focus:border-blue-500 transition-all text-black dark:text-white"
+                />
+                <button onClick={handleSend} disabled={!inputValue.trim()} className={`absolute right-1 top-1 w-7 h-7 rounded-full flex items-center justify-center transition-all ${inputValue.trim() ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-300 dark:bg-gray-600 text-gray-500 cursor-not-allowed'}`}>
+                    <ArrowUp size={16} strokeWidth={3} />
+                </button>
+            </div>
         </div>
       </div>
     </div>
