@@ -5,9 +5,9 @@ import { Search, Edit, Settings, X, Save, ArrowUp, RefreshCw } from 'lucide-reac
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
-import { toast } from 'sonner' // 假设你使用了 sonner 或其他 toast 库
+import { toast } from 'sonner' 
 
-// 设置弹窗 (保持不变，用于设置 Twikoo 昵称等)
+// SettingsModal 保持不变
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const { t } = useI18n()
     const [nick, setNick] = useState('')
@@ -33,7 +33,7 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
             data.nick = nick; data.mail = mail; data.link = link
             localStorage.setItem('twikoo', JSON.stringify(data))
             
-            // 尝试同步到当前页面上的 Twikoo 实例（如果有输入框）
+            // 同步设置到 DOM
             const twikooNameInput = document.querySelector('.imessage-mode input[name="nick"]') as HTMLInputElement
             const twikooMailInput = document.querySelector('.imessage-mode input[name="mail"]') as HTMLInputElement
             if(twikooNameInput) { twikooNameInput.value = nick; twikooNameInput.dispatchEvent(new Event('input')); }
@@ -111,105 +111,106 @@ export const Messages = () => {
   const [showSettings, setShowSettings] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [inputValue, setInputValue] = useState('')
-  const [isReplying, setIsReplying] = useState(false) // 是否处于回复特定评论的状态
-
-  const containerRef = useRef<HTMLDivElement>(null)
+  const [isReplying, setIsReplying] = useState(false)
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
 
-  // --- 核心逻辑：React 到 Twikoo DOM 的桥接 ---
+  // --- 核心逻辑修复区 ---
 
-  // 1. 查找当前的 Twikoo 输入框 (可能是底部的，也可能是回复某条评论时产生的临时框)
-  const getTwikooInput = () => {
-      // 优先找活跃的输入框
-      const el = document.querySelector('.imessage-mode .el-textarea__inner') as HTMLTextAreaElement
-      return el
+  // 获取 Twikoo 的“根”容器 (即包含输入框和发送按钮的那个 div)
+  const getTwikooSubmitArea = () => {
+      // 必须加上 .imessage-mode 范围限制，防止选中页面其他部分的组件（虽然一般只有一个）
+      return document.querySelector('.imessage-mode .tk-submit') as HTMLElement
   }
 
-  // 2. 查找发送按钮
-  const getTwikooBtn = () => {
-      return document.querySelector('.imessage-mode .tk-send') as HTMLButtonElement
-  }
-
-  // 3. 查找取消回复按钮 (检测是否在回复模式)
-  const getCancelBtn = () => {
-      return document.querySelector('.imessage-mode .tk-cancel') as HTMLButtonElement
-  }
-
-  // 监听 DOM 变化，判断是否处于 "回复模式"
+  // 检测是否处于回复模式
   useEffect(() => {
     const observer = new MutationObserver(() => {
-        const cancelBtn = getCancelBtn()
-        const hasCancel = !!(cancelBtn && cancelBtn.offsetParent !== null) // 检查是否可见
-        setIsReplying(hasCancel)
+        const submitArea = getTwikooSubmitArea()
+        if (!submitArea) return
+
+        // 查找“取消回复”按钮，如果存在，说明当前正处于回复状态
+        // Twikoo 的取消按钮类名为 .tk-cancel
+        const cancelBtn = submitArea.querySelector('.tk-cancel')
         
-        // 如果处于回复模式，可能需要聚焦我们的 React 输入框，或者同步 placeholder
-        if(hasCancel) {
-            // 可选：获取被回复人的名字更新 placeholder
-        }
+        // 只有当 cancelBtn 存在且不是 hidden 时，才算回复模式
+        const isReplyingState = !!(cancelBtn && getComputedStyle(cancelBtn).display !== 'none')
+        setIsReplying(isReplyingState)
     })
 
-    // 观察整个文档 body，因为 Twikoo 可能会在不同位置插入元素
     observer.observe(document.body, { childList: true, subtree: true })
     return () => observer.disconnect()
   }, [])
 
-  // 同步输入
+  // 强力同步函数：模拟 Vue 需要的所有事件
+  const syncToTwikoo = (value: string) => {
+      const submitArea = getTwikooSubmitArea()
+      if (!submitArea) return
+
+      const textarea = submitArea.querySelector('.el-textarea__inner') as HTMLTextAreaElement
+      if (textarea) {
+          textarea.value = value
+          // 触发 Vue 的双向绑定
+          textarea.dispatchEvent(new Event('input', { bubbles: true }))
+          textarea.dispatchEvent(new Event('change', { bubbles: true }))
+      }
+  }
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value
       setInputValue(val)
-      
-      const twikooTextarea = getTwikooInput()
-      if (twikooTextarea) {
-          twikooTextarea.value = val
-          // 触发 Vue 的绑定更新
-          twikooTextarea.dispatchEvent(new Event('input', { bubbles: true }))
-          twikooTextarea.dispatchEvent(new Event('change', { bubbles: true }))
-      }
+      syncToTwikoo(val)
   }
 
-  // 发送消息
   const handleSend = () => {
       if (!inputValue.trim()) return
-      
-      const twikooTextarea = getTwikooInput()
-      // 再次确保值已同步
-      if(twikooTextarea) {
-        twikooTextarea.value = inputValue
-        twikooTextarea.dispatchEvent(new Event('input', { bubbles: true }))
+
+      const submitArea = getTwikooSubmitArea()
+      if (!submitArea) {
+          toast.error("Message system not ready")
+          return
       }
 
-      setTimeout(() => {
-        const btn = getTwikooBtn()
-        if (btn) {
-            btn.click()
-            setInputValue('')
-            // 乐观 UI 更新：稍微滚动到底部
-            setTimeout(() => {
-                const scrollContainer = document.querySelector('.imessage-mode .tk-comments-container')
-                if(scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight
-            }, 500)
-        } else {
-            toast.error("Could not find send button")
-        }
-      }, 50)
+      // 1. 再次强制同步（防止最后一次输入没被捕获）
+      syncToTwikoo(inputValue)
+
+      // 2. 在当前活跃的区域内查找发送按钮
+      // 这修复了“回复变成新消息”的 Bug，因为我们在正确的上下文点击了按钮
+      const sendBtn = submitArea.querySelector('.tk-send') as HTMLButtonElement
+      
+      if (sendBtn) {
+          sendBtn.click()
+          setInputValue('')
+          
+          // 3. UI 反馈：清空后稍微滚动到底部
+          setTimeout(() => {
+              const scrollContainer = document.querySelector('.imessage-mode .tk-comments-container')
+              if(scrollContainer) {
+                  scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: 'smooth' })
+              }
+          }, 300)
+      } else {
+          toast.error("Could not find send button")
+      }
   }
 
-  // 取消回复状态
   const handleCancelReply = () => {
-      const btn = getCancelBtn()
-      if(btn) btn.click()
+      const submitArea = getTwikooSubmitArea()
+      if (submitArea) {
+          const cancelBtn = submitArea.querySelector('.tk-cancel') as HTMLButtonElement
+          if(cancelBtn) cancelBtn.click()
+      }
       setIsReplying(false)
       setInputValue('')
   }
 
   return (
-    <div className="flex h-full w-full bg-white dark:bg-[#1e1e1e] text-black dark:text-white font-sans overflow-hidden relative" ref={containerRef}>
+    <div className="flex h-full w-full bg-white dark:bg-[#1e1e1e] text-black dark:text-white font-sans overflow-hidden relative">
       
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onSave={() => setReloadKey(k => k + 1)} />}
 
-      {/* 左侧边栏 (联系人列表) */}
+      {/* 侧边栏 */}
       <div className="w-[280px] flex flex-col border-r border-gray-200 dark:border-white/10 bg-[#f5f5f5]/90 dark:bg-[#252525]/90 backdrop-blur-xl z-20">
         <div className="h-12 flex items-center justify-between px-3 shrink-0 pt-2 mb-2">
            <div className="relative flex-1 mr-2">
@@ -234,9 +235,8 @@ export const Messages = () => {
         </div>
       </div>
 
-      {/* 右侧主内容 */}
+      {/* 主内容区 */}
       <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#1e1e1e] relative z-0">
-        {/* 顶部导航栏 */}
         <div className="h-12 border-b border-gray-200/50 dark:border-white/10 flex items-center justify-between px-4 bg-white/80 dark:bg-[#1e1e1e]/80 backdrop-blur-md shrink-0 z-20 sticky top-0">
             <div className="flex items-center gap-3">
                 <span className="text-xs text-gray-400">{t('msg_to')}</span>
@@ -250,7 +250,6 @@ export const Messages = () => {
             </div>
         </div>
 
-        {/* 消息流区域 */}
         <div className="flex-1 overflow-hidden relative flex flex-col w-full">
             <CommentSystem 
                 key={`${activeContact.slug}-${reloadKey}`} 
@@ -261,15 +260,14 @@ export const Messages = () => {
             />
         </div>
 
-        {/* 底部输入框区域 */}
+        {/* 底部输入区 */}
         <div className="shrink-0 p-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30">
             <div className="relative max-w-4xl mx-auto w-full">
-                
-                {/* 如果正在回复某人，显示取消按钮 */}
+                {/* 回复状态提示栏 */}
                 {isReplying && (
-                    <div className="absolute -top-8 left-0 flex items-center gap-2 bg-gray-200 dark:bg-gray-700 px-3 py-1 rounded-t-lg text-xs text-gray-600 dark:text-gray-300">
-                        <span>Replying...</span>
-                        <button onClick={handleCancelReply} className="hover:text-red-500 cursor-pointer"><X size={12}/></button>
+                    <div className="absolute -top-8 left-0 flex items-center gap-2 bg-gray-200 dark:bg-gray-700 px-3 py-1 rounded-t-lg text-xs text-gray-600 dark:text-gray-300 animate-in slide-in-from-bottom-2 fade-in duration-200">
+                        <span className="font-bold text-blue-500">Replying...</span>
+                        <button onClick={handleCancelReply} className="hover:text-red-500 cursor-pointer ml-2 bg-white/50 rounded-full p-0.5"><X size={10}/></button>
                     </div>
                 )}
 
@@ -278,10 +276,10 @@ export const Messages = () => {
                     value={inputValue}
                     onChange={handleInputChange}
                     onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                    placeholder={isReplying ? "Reply to message..." : t('msg_imessage')}
+                    placeholder={isReplying ? "Reply to this message..." : t('msg_imessage')}
                     className={clsx(
                         "w-full bg-white dark:bg-[#2c2c2c] border border-gray-300 dark:border-white/10 rounded-full py-2 pl-4 pr-10 text-sm outline-none focus:border-blue-500 transition-all text-black dark:text-white",
-                        isReplying && "rounded-tl-none border-l-4 border-l-blue-500" // 视觉提示正在回复
+                        isReplying && "rounded-tl-none border-l-4 border-l-blue-500 shadow-md"
                     )}
                 />
                 <button 
