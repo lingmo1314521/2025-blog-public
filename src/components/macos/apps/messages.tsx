@@ -10,7 +10,6 @@ import { toast } from 'sonner'
 
 // ==================================================================================
 // 1. 独立的 Twikoo 后台宿主组件
-//    功能：将 Twikoo 生成的 DOM 节点搬运到这个新窗口中
 // ==================================================================================
 const TwikooAdminHost = () => {
     const containerRef = useRef<HTMLDivElement>(null)
@@ -20,33 +19,28 @@ const TwikooAdminHost = () => {
         const adminEl = document.querySelector('.tk-admin-container') as HTMLElement
         
         if (adminEl && containerRef.current) {
-            // 1. 搬运节点到当前窗口
+            // 搬运节点到当前窗口
             containerRef.current.appendChild(adminEl)
             
-            // 2. 强制覆盖样式，确保在窗口内可见且布局正确
+            // 强制覆盖样式，确保在窗口内可见
             adminEl.style.display = 'block'
             adminEl.style.visibility = 'visible'
             adminEl.style.opacity = '1'
-            adminEl.style.position = 'static' // 移除绝对定位，使其填满窗口
+            adminEl.style.position = 'static'
             adminEl.style.width = '100%'
-            adminEl.style.height = 'auto'
             adminEl.style.zIndex = '1'
-            adminEl.style.boxShadow = 'none'
             adminEl.style.pointerEvents = 'auto'
             
-            // 3. 处理内部的关闭按钮，使其关闭整个窗口而不是只隐藏元素
+            // 隐藏内部关闭按钮 (使用窗口的红灯关闭)
             const closeBtn = adminEl.querySelector('.tk-admin-close') as HTMLElement
-            if (closeBtn) {
-                // 隐藏原生的关闭按钮，使用 macOS 窗口的红灯关闭
-                closeBtn.style.display = 'none' 
-            }
+            if (closeBtn) closeBtn.style.display = 'none' 
         }
 
         return () => {
-            // 卸载时：将节点还给 body 并隐藏，防止 Twikoo 报错
+            // 窗口关闭时：将节点还给 body 并隐藏
             if (adminEl) {
                 document.body.appendChild(adminEl)
-                adminEl.style.display = 'none'
+                adminEl.style.display = 'none' // 关键：还回去时必须隐藏
             }
         }
     }, [])
@@ -56,9 +50,7 @@ const TwikooAdminHost = () => {
             ref={containerRef} 
             className="w-full h-full bg-white dark:bg-[#1e1e1e] overflow-y-auto p-4 select-text"
         >
-            {/* Twikoo Admin 面板将被挂载到这里 */}
             <style jsx global>{`
-                /* 强制覆盖 Admin 面板内部样式以适应窗口 */
                 .tk-admin-container .tk-admin {
                     position: static !important;
                     box-shadow: none !important;
@@ -76,7 +68,7 @@ const TwikooAdminHost = () => {
 }
 
 // ==================================================================================
-// 2. 设置弹窗 (保留原有的个人信息设置)
+// 2. 设置弹窗
 // ==================================================================================
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const { t } = useI18n()
@@ -103,7 +95,6 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
             data.nick = nick; data.mail = mail; data.link = link
             localStorage.setItem('twikoo', JSON.stringify(data))
             
-            // 同步更新隐藏的 Twikoo 输入框
             const inputs = document.querySelectorAll('.imessage-mode input')
             inputs.forEach((input: any) => {
                 if(input.name === 'nick') { input.value = nick; input.dispatchEvent(new Event('input')); }
@@ -119,7 +110,7 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
 
     return (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-            <div className="w-80 bg-[#f5f5f5] dark:bg-[#2c2c2c] rounded-xl shadow-2xl border border-white/20 p-5 animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
+            <div className="w-80 bg-[#f5f5f5] dark:bg-[#2c2c2c] rounded-xl shadow-2xl border border-white/20 p-5" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="font-bold text-sm dark:text-white">{t('msg_settings_title')}</h3>
                     <button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full cursor-pointer"><X size={14}/></button>
@@ -153,7 +144,7 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
 // ==================================================================================
 export const Messages = () => {
   const { t } = useI18n()
-  const { launchApp, windows, focusWindow } = useOs() // 获取 OS 上下文
+  const { launchApp, windows } = useOs()
   
   const CONTACTS = useMemo(() => [
     { id: 'guestbook', name: t('msg_guestbook'), slug: 'messages-guestbook', avatar: '🌍', desc: t('msg_guestbook_desc'), time: t('msg_now') },
@@ -173,14 +164,12 @@ export const Messages = () => {
   const headerIconsRef = useRef<HTMLDivElement>(null)
   const observerRef = useRef<MutationObserver | null>(null)
   const isProcessingRef = useRef(false)
-  
-  // 记录是否已经打开了 Admin 窗口，防止重复打开
+  const timerRef = useRef<NodeJS.Timeout | null>(null) // 用于防抖
   const isAdminOpenRef = useRef(false)
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
 
-  // --- 获取 Twikoo 元素 ---
   const getTwikooElements = useCallback(() => {
       const cancelBtn = document.querySelector('.imessage-mode .tk-cancel') as HTMLButtonElement
       if (cancelBtn) {
@@ -206,55 +195,56 @@ export const Messages = () => {
       return { input: mainInput, btn: mainBtn, cancelBtn: null, isReplyMode: false }
   }, [])
 
-  // --- 处理 DOM 变化 (搬运元素 + 检测 Admin 弹窗) ---
+  // --- 核心 DOM 操作 ---
   const processDomChanges = useCallback(() => {
+      // 这里的锁很重要，防止递归调用
       if (isProcessingRef.current) return;
       isProcessingRef.current = true;
 
       try {
-        // ----------------------------------------------------------------
-        // 1. [核心逻辑] 检测并弹窗 Twikoo Admin
-        // ----------------------------------------------------------------
+        // --- 1. Admin 弹窗逻辑 ---
         const adminContainer = document.querySelector('.tk-admin-container') as HTMLElement;
         const isAdminWindowOpen = windows.some(w => w.id === 'twikoo-admin');
 
-        // 如果检测到 admin 容器，且当前没有打开 admin 窗口
+        // 关键修复：
+        // 1. 检查 container 是否存在
+        // 2. 检查内部是否有 .tk-admin 元素 (说明已加载内容)
+        // 3. 检查是否未显示 (display !== none)
         if (adminContainer && !isAdminWindowOpen && !isAdminOpenRef.current) {
-            // 先隐藏它，防止在聊天界面闪烁
-            adminContainer.style.display = 'none';
-            
-            // 标记已打开
-            isAdminOpenRef.current = true;
-            
-            // 调用 OS 打开新窗口
-            launchApp({
-                id: 'twikoo-admin',
-                title: 'Comment Admin',
-                icon: <Shield className="text-green-500" />, // 盾牌图标
-                width: 400,
-                height: 500,
-                component: <TwikooAdminHost />, // 使用我们的宿主组件
-                resizable: true,
-            });
+             const adminInner = adminContainer.querySelector('.tk-admin');
+             const style = window.getComputedStyle(adminContainer);
+             
+             // 只有当内部有内容，且容器不是隐藏状态时，才弹窗
+             if (adminInner && style.display !== 'none' && style.visibility !== 'hidden') {
+                
+                // 立即隐藏原 DOM 防止闪烁
+                adminContainer.style.display = 'none';
+                isAdminOpenRef.current = true;
+                
+                launchApp({
+                    id: 'twikoo-admin',
+                    title: 'Comment Admin',
+                    icon: <Shield className="text-green-500" />,
+                    width: 400,
+                    height: 500,
+                    component: <TwikooAdminHost />,
+                    resizable: true,
+                });
+             }
         }
         
-        // 如果窗口被关闭了，重置 ref
         if (!isAdminWindowOpen) {
             isAdminOpenRef.current = false;
         }
 
-        // ----------------------------------------------------------------
-        // 2. 搬运评论数和图标到 Header
-        // ----------------------------------------------------------------
+        // --- 2. 搬运 Header ---
         const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
         if (originalHeader) {
-            // 搬运数量
             const countEl = originalHeader.querySelector('.tk-comments-count');
             if (countEl && headerCountRef.current && !headerCountRef.current.contains(countEl)) {
                 headerCountRef.current.innerHTML = ''; 
                 headerCountRef.current.appendChild(countEl);
             }
-            // 搬运图标 (齿轮等)
             const iconWrappers = originalHeader.querySelectorAll('.tk-icon');
             if (iconWrappers.length > 0 && headerIconsRef.current) {
                 const siblings = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
@@ -266,93 +256,119 @@ export const Messages = () => {
             }
         }
 
-        // ----------------------------------------------------------------
-        // 3. 处理嵌套回复和排序
-        // ----------------------------------------------------------------
+        // --- 3. 评论排序和嵌套 ---
         const container = document.querySelector('.imessage-mode .tk-comments-container');
         if (container) {
+            // 嵌套处理 (DOM操作)
             const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment'));
-            nestedReplies.forEach(reply => {
-                const contentBox = reply.querySelector('.tk-content');
-                if (contentBox && !contentBox.querySelector('.imessage-quote')) {
-                    const replyList = reply.closest('.tk-replies');
-                    const parentComment = replyList?.closest('.tk-comment') as HTMLElement;
-                    if (parentComment) {
-                        const parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'User';
-                        const parentContentElem = parentComment.querySelector('.tk-main > .tk-content');
-                        let parentText = parentContentElem?.textContent?.replace(/\s+/g, ' ').trim() || '';
-                        if (parentText.length > 30) parentText = parentText.slice(0, 30) + '...';
+            if (nestedReplies.length > 0) {
+                // 暂时断开观察，避免 appendChild 触发循环
+                observerRef.current?.disconnect();
+                
+                nestedReplies.forEach(reply => {
+                    const contentBox = reply.querySelector('.tk-content');
+                    if (contentBox && !contentBox.querySelector('.imessage-quote')) {
+                        const replyList = reply.closest('.tk-replies');
+                        const parentComment = replyList?.closest('.tk-comment') as HTMLElement;
+                        if (parentComment) {
+                            const parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'User';
+                            const parentContentElem = parentComment.querySelector('.tk-main > .tk-content');
+                            let parentText = parentContentElem?.textContent?.replace(/\s+/g, ' ').trim() || '';
+                            if (parentText.length > 30) parentText = parentText.slice(0, 30) + '...';
 
-                        const quoteDiv = document.createElement('div');
-                        quoteDiv.className = 'imessage-quote';
-                        quoteDiv.innerHTML = `<span class="imessage-quote-name">${parentNick}:</span> ${parentText}`;
-                        contentBox.insertBefore(quoteDiv, contentBox.firstChild);
+                            const quoteDiv = document.createElement('div');
+                            quoteDiv.className = 'imessage-quote';
+                            quoteDiv.innerHTML = `<span class="imessage-quote-name">${parentNick}:</span> ${parentText}`;
+                            contentBox.insertBefore(quoteDiv, contentBox.firstChild);
+                        }
                     }
-                }
-                container.appendChild(reply);
-            });
+                    container.appendChild(reply);
+                });
+            }
 
-            // 排序
+            // 排序 (只有在顺序不对时才操作)
             const comments = Array.from(container.children).filter(child => child.classList.contains('tk-comment'));
             if (comments.length > 1) {
-                // 简单的防抖，防止频繁排序卡顿
-                 const sorted = comments.sort((a, b) => {
-                    const tA = a.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
-                    const tB = b.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
-                    return new Date(tA).getTime() - new Date(tB).getTime(); 
+                const needsSort = comments.some((c, i, arr) => {
+                    if (i === 0) return false;
+                    const prevT = new Date(arr[i-1].querySelector('time')?.getAttribute('datetime') || 0).getTime();
+                    const currT = new Date(c.querySelector('time')?.getAttribute('datetime') || 0).getTime();
+                    return prevT > currT;
                 });
-                // 只有当顺序确实不对时才重新 append，优化 DOM 操作
-                if (sorted[sorted.length-1] !== container.lastElementChild) {
+
+                if (needsSort) {
+                    // 暂时断开观察
+                    if (observerRef.current) observerRef.current.disconnect(); 
+                    
+                    const sorted = comments.sort((a, b) => {
+                        const tA = a.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
+                        const tB = b.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
+                        return new Date(tA).getTime() - new Date(tB).getTime(); 
+                    });
+                    
                     sorted.forEach(c => container.appendChild(c));
                 }
             }
         }
 
       } catch (e) {
-          console.error("DOM Processing Error:", e);
+          console.error(e);
       } finally {
           isProcessingRef.current = false;
+          // 必须重新连接观察，否则后续变化无法捕获
+          if (observerRef.current) {
+              observerRef.current.observe(document.body, { childList: true, subtree: true });
+          }
       }
   }, [launchApp, windows])
 
+  // --- 防抖调用 ---
+  const debouncedProcess = useCallback(() => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+          processDomChanges();
+      }, 50); // 50ms 防抖，大幅减少调用次数
+  }, [processDomChanges]);
+
   useEffect(() => {
-    const handleMutation = () => {
-        // 断开观察，防止 DOM 操作触发无限循环
-        if (observerRef.current) observerRef.current.disconnect();
+    observerRef.current = new MutationObserver(() => {
+        debouncedProcess(); // 使用防抖函数
+    });
+    
+    // 初始化时先执行一次
+    const timer = setTimeout(processDomChanges, 500);
 
-        try {
-            const { isReplyMode, cancelBtn } = getTwikooElements()
-            if (isReplyMode !== isReplying) setIsReplying(isReplyMode)
-            
-            if (isReplyMode && cancelBtn) {
-                const form = cancelBtn.closest('.tk-submit')
-                if(form) {
-                    const parentContainer = form.parentElement?.closest('.tk-comment')
-                    if (parentContainer) {
-                        const nick = parentContainer.querySelector('.tk-nick')?.textContent
-                        const newText = nick ? `Replying to ${nick}` : 'Replying...';
-                        if (newText !== replyTargetText) setReplyTargetText(newText);
-                    }
-                }
-            } else {
-                setReplyTargetText('')
-            }
-            processDomChanges();
-        } finally {
-            // 重新连接观察
-            if (observerRef.current) {
-                observerRef.current.observe(document.body, { childList: true, subtree: true });
-            }
-        }
-    };
-
-    observerRef.current = new MutationObserver(handleMutation);
     observerRef.current.observe(document.body, { childList: true, subtree: true });
 
     return () => {
         if (observerRef.current) observerRef.current.disconnect();
+        if (timerRef.current) clearTimeout(timerRef.current);
+        clearTimeout(timer);
     }
-  }, [isReplying, replyTargetText, getTwikooElements, processDomChanges])
+  }, [debouncedProcess, processDomChanges]);
+
+  // 更新 Reply 状态 (这个不需要防抖，需要实时响应 UI)
+  useEffect(() => {
+      const interval = setInterval(() => {
+        const { isReplyMode, cancelBtn } = getTwikooElements()
+        if (isReplyMode !== isReplying) setIsReplying(isReplyMode)
+        
+        if (isReplyMode && cancelBtn) {
+            const form = cancelBtn.closest('.tk-submit')
+            if(form) {
+                const parentContainer = form.parentElement?.closest('.tk-comment')
+                if (parentContainer) {
+                    const nick = parentContainer.querySelector('.tk-nick')?.textContent
+                    const newText = nick ? `Replying to ${nick}` : 'Replying...';
+                    if (newText !== replyTargetText) setReplyTargetText(newText);
+                }
+            }
+        } else {
+            setReplyTargetText('')
+        }
+      }, 200); // 降低检测频率
+      return () => clearInterval(interval);
+  }, [isReplying, replyTargetText, getTwikooElements])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value
@@ -397,13 +413,10 @@ export const Messages = () => {
       
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onSave={() => setReloadKey(k => k + 1)} />}
       
-      {/* 全局样式注入：隐藏原生的 admin container，直到它被搬运 */}
+      {/* 隐藏初始状态的 admin，防止闪烁 */}
       <style jsx global>{`
-         /* 默认在聊天流中隐藏 Admin，防止闪烁 */
          .imessage-mode .tk-admin-container {
              display: none; 
-             opacity: 0;
-             pointer-events: none;
          }
       `}</style>
 
@@ -448,7 +461,7 @@ export const Messages = () => {
             </div>
         </div>
 
-        {/* 消息区域 (增加 select-text 以允许复制) */}
+        {/* 消息区域 - 添加 select-text 以允许复制 */}
         <div className="flex-1 overflow-hidden relative flex flex-col w-full select-text">
             <CommentSystem 
                 key={`${activeContact.slug}-${reloadKey}`} 
@@ -462,7 +475,6 @@ export const Messages = () => {
         {/* 底部输入框区域 */}
         <div className="shrink-0 p-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30 relative group select-none">
             
-            {/* 搬运后的元素占位符 */}
             <div id="twikoo-moved-count" ref={headerCountRef} className="absolute top-2 left-6 z-40 select-none pointer-events-none"></div>
             <div id="twikoo-moved-icons" ref={headerIconsRef} className="absolute top-2 right-6 z-40 flex items-center gap-2"></div>
 
