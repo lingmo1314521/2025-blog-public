@@ -105,6 +105,7 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
         }
 
         // 2. 抓取回复状态
+        // 逻辑：Twikoo 在回复时会修改 textarea 的 placeholder
         const textarea = document.querySelector('.imessage-mode .el-textarea__inner')
         if (textarea && onReplyChange) {
             const placeholder = textarea.getAttribute('placeholder')
@@ -122,7 +123,8 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
         }
     })
 
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['placeholder', 'class'] })
+    // 监听 body 的子树变化，包括属性变化 (placeholder)
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['placeholder'] })
 
     return () => observer.disconnect()
   }, [twikooLoaded, compact, onCountChange, onReplyChange])
