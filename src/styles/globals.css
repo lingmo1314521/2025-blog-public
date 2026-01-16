@@ -210,21 +210,25 @@
 }
 
 /* =========================================
-   Messages 应用特定样式 (iMessage 极致复刻)
+   Messages 应用特定样式 (修复版)
    ========================================= */
 
-/* 1. 核心隐藏 */
-.imessage-mode .tk-submit,          /* 原生输入框 */
-.imessage-mode .tk-meta-input,      /* 昵称输入框 */
-.imessage-mode .tk-comments-title,  /* 原生标题统计 */
-.imessage-mode .tk-footer,          /* 页脚 */
-.imessage-mode .tk-extras,          /* 额外信息 */
-.imessage-mode .tk-action           /* 【关键】隐藏回复/点赞栏，解决重叠和功能失效问题 */
-{
+/* 1. 隐藏 Twikoo 原生的输入框整体区域 */
+.imessage-mode .tk-submit {
     display: none !important;
 }
 
-/* 2. 布局框架 */
+/* 2. 隐藏 Twikoo 内部的元信息输入框 */
+.imessage-mode .tk-meta-input {
+    display: none !important;
+}
+
+/* 3. 隐藏 Twikoo 原生的标题 */
+.imessage-mode .tk-comments-title {
+    display: none !important;
+}
+
+/* 4. 布局调整 */
 .imessage-mode .tk-main {
     display: flex !important;
     flex-direction: column !important;
@@ -235,36 +239,39 @@
     flex: 1 !important;
     height: 100% !important;
     overflow-y: auto !important;
-    padding: 20px 15px !important;
+    padding: 20px 20px !important; /* 增加内边距 */
     margin: 0 !important;
     scroll-behavior: smooth;
-    display: flex !important;
-    flex-direction: column !important;
 }
 
-/* 3. 评论条目容器 */
+/* 5. 隐藏页脚 */
+.imessage-mode .tk-footer, 
+.imessage-mode .tk-extras {
+    display: none !important;
+}
+
+/* 6. 评论容器改造 */
 .imessage-mode .tk-comment {
-    margin-bottom: 16px !important;
+    margin-bottom: 24px !important; /* 增加评论间距 */
     display: flex !important;
     flex-direction: row !important;
-    align-items: flex-end !important; /* 头像沉底 */
+    align-items: flex-start !important; /* 头像顶对齐 */
     border: none !important;
     background: transparent !important;
     padding: 0 !important;
     width: 100% !important;
 }
 
-/* --- 头像美化 --- */
+/* --- 头像 --- */
 .imessage-mode .tk-avatar {
     display: block !important;
-    width: 32px !important;
-    height: 32px !important;
+    width: 36px !important; /* 稍微大一点 */
+    height: 36px !important;
     border-radius: 50% !important;
-    margin-right: 8px !important;
+    margin-right: 10px !important;
     overflow: hidden !important;
     border: 1px solid rgba(0,0,0,0.05) !important;
     flex-shrink: 0;
-    background: #fff;
 }
 .imessage-mode .tk-avatar img {
     width: 100% !important;
@@ -272,82 +279,153 @@
     object-fit: cover !important;
 }
 
-/* --- 气泡内容包裹 --- */
+/* --- 气泡与信息容器 --- */
 .imessage-mode .tk-main {
-    max-width: 70% !important;
+    max-width: 80% !important;
     display: flex !important;
-    flex-direction: column !important; /* 上昵称 下气泡 */
+    flex-direction: column !important;
     position: relative !important;
 }
 
-/* --- 元信息行 (昵称) --- */
+/* --- 元信息行 (昵称、时间、操作) --- */
 .imessage-mode .tk-row {
     display: flex !important;
-    flex-direction: row !important;
-    margin-bottom: 2px !important;
-    padding-left: 12px !important; /* 对齐气泡圆角 */
-    width: auto !important;
+    align-items: baseline !important; /* 基线对齐 */
+    justify-content: flex-start !important;
+    margin-bottom: 4px !important; /* 昵称和气泡的间距 */
+    padding-left: 2px !important;
+    width: 100% !important;
+    flex-wrap: wrap !important;
 }
 
+/* 昵称 */
 .imessage-mode .tk-nick {
-    font-size: 11px !important;
-    color: #8e8e93 !important; /* iOS 灰色 */
-    font-weight: 500 !important;
-    line-height: 1 !important;
+    font-size: 13px !important;
+    color: #333 !important;
+    font-weight: 600 !important;
+    margin-right: 8px !important;
+}
+.dark .imessage-mode .tk-nick {
+    color: #eee !important;
 }
 
+/* 时间 */
 .imessage-mode .tk-time {
-    display: none !important; /* 默认隐藏时间，保持极简 */
+    font-size: 11px !important;
+    color: #999 !important;
+    font-weight: normal !important;
 }
 
-/* --- 对方气泡 (左侧) --- */
+/* 操作栏 (回复/点赞) - 恢复显示 */
+.imessage-mode .tk-action {
+    display: flex !important;
+    align-items: center !important;
+    margin-left: auto !important; /* 靠右显示 */
+    opacity: 0; /* 默认隐藏 */
+    transition: opacity 0.2s;
+}
+.imessage-mode .tk-comment:hover .tk-action {
+    opacity: 1; /* 悬停显示 */
+}
+
+/* 操作图标样式 */
+.imessage-mode .tk-action-link {
+    display: inline-flex !important;
+    align-items: center !important;
+    margin-left: 8px !important;
+    color: #999 !important;
+    cursor: pointer !important;
+}
+.imessage-mode .tk-action-icon svg {
+    width: 14px !important;
+    height: 14px !important;
+    fill: currentColor !important;
+}
+.imessage-mode .tk-action-count {
+    font-size: 10px !important;
+    margin-left: 2px !important;
+}
+
+/* --- 气泡本体 --- */
 .imessage-mode .tk-content {
-    background: #E9E9EB !important; /* 经典浅灰 */
+    background: #f0f0f0 !important; /* 浅灰 */
     color: #000 !important;
-    padding: 8px 14px !important;
-    border-radius: 18px !important;
-    border-bottom-left-radius: 4px !important; /* 尾巴 */
+    padding: 10px 14px !important;
+    border-radius: 12px !important;
+    border-top-left-radius: 2px !important; /* 左上角直角，指向头像 */
     font-size: 14px !important;
-    line-height: 1.4 !important;
+    line-height: 1.5 !important;
     position: relative;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
     width: fit-content !important;
-    box-shadow: 0 1px 1px rgba(0,0,0,0.02) !important;
 }
 .dark .imessage-mode .tk-content {
-    background: #262628 !important;
+    background: #2c2c2e !important;
     color: #fff !important;
 }
+/* 去除气泡内 p 标签的默认边距 */
 .imessage-mode .tk-content p {
     margin: 0 !important;
 }
 
-/* --- 我方/管理员气泡 (右侧) --- */
+/* --- 管理员/自己 (右侧布局) --- */
+/* Twikoo 会给管理员加 .tk-master 类，如果没有，所有评论都在左边也行 */
 .imessage-mode .tk-master {
     flex-direction: row-reverse !important;
 }
 .imessage-mode .tk-master .tk-avatar {
-    display: none !important; /* iMessage 风格：自己不显示头像 */
+    margin-right: 0 !important;
+    margin-left: 10px !important;
+    /* 既然你说用户姓名不明显，这里我们显示自己的头像，不再隐藏 */
+    display: block !important; 
 }
+
+/* 管理员的元信息行反转 */
 .imessage-mode .tk-master .tk-row {
     flex-direction: row-reverse !important;
-    padding-left: 0 !important;
-    padding-right: 12px !important;
+    justify-content: flex-start !important;
 }
+.imessage-mode .tk-master .tk-nick {
+    margin-right: 0 !important;
+    margin-left: 8px !important;
+    text-align: right !important;
+}
+.imessage-mode .tk-master .tk-action {
+    margin-left: 0 !important;
+    margin-right: auto !important; /* 操作栏靠左 */
+}
+
+/* 管理员气泡 (蓝色) */
 .imessage-mode .tk-master .tk-content {
-    background: #007AFF !important; /* iMessage 蓝 */
+    background: #007AFF !important;
     color: #fff !important;
-    border-bottom-left-radius: 18px !important;
-    border-bottom-right-radius: 4px !important; /* 尾巴 */
-    margin-left: auto !important; /* 靠右挤压 */
+    border-radius: 12px !important;
+    border-top-right-radius: 2px !important; /* 右上角直角 */
+    border-top-left-radius: 12px !important;
+    margin-left: auto !important; /* 靠右 */
 }
 .imessage-mode .tk-master .tk-content a {
     color: white !important;
     text-decoration: underline !important;
 }
 
-/* 隐藏回复嵌套层级线，强制扁平化 */
+/* --- 回复框 (当点击回复时弹出) --- */
+/* Twikoo 点击回复后会在该评论下方插入一个新的 .tk-submit */
+/* 我们需要把这个“内嵌回复框”显示出来，但样式要调整 */
+.imessage-mode .tk-comment .tk-submit {
+    display: block !important; /* 恢复显示内嵌回复框 */
+    margin-top: 10px !important;
+    background: transparent !important;
+    border: 1px solid rgba(0,0,0,0.1) !important;
+    border-radius: 8px !important;
+    padding: 10px !important;
+}
+.imessage-mode .tk-comment .tk-submit .tk-meta-input {
+    display: flex !important; /* 回复时允许输入昵称 */
+}
 .imessage-mode .tk-replies {
-    margin-left: 0 !important;
-    border-left: none !important;
-    width: 100% !important;
+    margin-left: 20px !important;
+    border-left: 2px solid rgba(0,0,0,0.05) !important;
+    padding-left: 10px !important;
+    margin-top: 10px !important;
 }
