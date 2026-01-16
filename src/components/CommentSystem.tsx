@@ -9,9 +9,11 @@ interface CommentSystemProps {
   slug: string
   title?: string
   compact?: boolean
+  // 新增：用于强制重载的 key
+  reloadKey?: number 
 }
 
-export default function CommentSystem({ slug, title, compact = false }: CommentSystemProps) {
+export default function CommentSystem({ slug, title, compact = false, reloadKey = 0 }: CommentSystemProps) {
   const [currentSystem, setCurrentSystem] = useState<CommentSystemType>('twikoo')
   const [giscusLoaded, setGiscusLoaded] = useState(false)
   const [twikooLoaded, setTwikooLoaded] = useState(false)
@@ -62,9 +64,11 @@ export default function CommentSystem({ slug, title, compact = false }: CommentS
     const envId = process.env.NEXT_PUBLIC_TWIKOO_ENV_ID
     if (!envId) return 
 
+    // 移除旧脚本，确保可以重载
     const oldScripts = document.querySelectorAll('script[src*="twikoo"]')
     oldScripts.forEach(script => script.remove())
     
+    // 清空容器
     if (twikooContainerRef.current) {
         twikooContainerRef.current.innerHTML = ''
     }
@@ -104,20 +108,22 @@ export default function CommentSystem({ slug, title, compact = false }: CommentS
     } catch (e) {}
   }, [])
   
+  // 监听 reloadKey，变化时重新初始化
   useEffect(() => {
     setTwikooLoaded(false)
     setGiscusLoaded(false)
     
     if (currentSystem === 'giscus') setTimeout(() => initGiscus(), 100)
     else setTimeout(() => initTwikoo(), 100)
-  }, [currentSystem, slug])
+  }, [currentSystem, slug, reloadKey])
 
   declare global {
     interface Window { twikoo?: any }
   }
 
+  // 修改：如果 compact 为 true，添加 imessage-mode 类名，这会触发 globals.css 中的隐藏样式
   const containerClass = compact 
-    ? "w-full h-full flex flex-col bg-white dark:bg-[#1e1e1e]" // 移除 imessage-mode 类，不再进行魔改
+    ? "w-full h-full flex flex-col bg-white dark:bg-[#1e1e1e] imessage-mode" 
     : "mx-auto w-full max-w-[1140px] px-6 pb-12 max-sm:px-0"
 
   const cardClass = compact

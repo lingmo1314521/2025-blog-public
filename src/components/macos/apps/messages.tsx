@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
-import { Search, Edit } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Search, Edit, Settings, X, Save } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 
@@ -32,16 +32,95 @@ const CONTACTS = [
   }
 ]
 
+// --- 新增：用户信息设置弹窗 ---
+const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
+    const [nick, setNick] = useState('')
+    const [mail, setMail] = useState('')
+    const [link, setLink] = useState('')
+
+    useEffect(() => {
+        // Twikoo 默认使用这些 localStorage key 来存储用户信息
+        setNick(localStorage.getItem('twikoo-nick') || '')
+        setMail(localStorage.getItem('twikoo-mail') || '')
+        setLink(localStorage.getItem('twikoo-link') || '')
+    }, [])
+
+    const handleSave = () => {
+        localStorage.setItem('twikoo-nick', nick)
+        localStorage.setItem('twikoo-mail', mail)
+        localStorage.setItem('twikoo-link', link)
+        onSave() // 触发刷新
+        onClose()
+    }
+
+    return (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="w-80 bg-[#f5f5f5] dark:bg-[#2c2c2c] rounded-xl shadow-2xl border border-white/20 p-5 animate-in fade-in zoom-in duration-200">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-sm dark:text-white">Profile Settings</h3>
+                    <button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full"><X size={14}/></button>
+                </div>
+                
+                <div className="space-y-3">
+                    <div>
+                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Nickname</label>
+                        <input 
+                            value={nick} 
+                            onChange={e=>setNick(e.target.value)} 
+                            className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" 
+                            placeholder="Your Name"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Email (Optional)</label>
+                        <input 
+                            value={mail} 
+                            onChange={e=>setMail(e.target.value)} 
+                            className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" 
+                            placeholder="For Gravatar"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Website (Optional)</label>
+                        <input 
+                            value={link} 
+                            onChange={e=>setLink(e.target.value)} 
+                            className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" 
+                            placeholder="https://..."
+                        />
+                    </div>
+                </div>
+
+                <div className="mt-5 flex justify-end">
+                    <button onClick={handleSave} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1">
+                        <Save size={12}/> Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
 export const Messages = () => {
   const [activeContactId, setActiveContactId] = useState(CONTACTS[0].id)
   const [search, setSearch] = useState('')
+  const [showSettings, setShowSettings] = useState(false) // 控制弹窗显示
+  const [reloadKey, setReloadKey] = useState(0) // 用于强制刷新
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
 
   return (
-    <div className="flex h-full w-full bg-white dark:bg-[#1e1e1e] text-black dark:text-white font-sans overflow-hidden">
+    <div className="flex h-full w-full bg-white dark:bg-[#1e1e1e] text-black dark:text-white font-sans overflow-hidden relative">
       
+      {/* 弹窗 */}
+      {showSettings && (
+          <SettingsModal 
+            onClose={() => setShowSettings(false)} 
+            onSave={() => setReloadKey(k => k + 1)} 
+          />
+      )}
+
       {/* 左侧边栏 */}
       <div className="w-[280px] flex flex-col border-r border-gray-200 dark:border-white/10 bg-[#f5f5f5]/90 dark:bg-[#252525]/90 backdrop-blur-xl">
         <div className="h-12 flex items-center justify-between px-3 shrink-0 pt-2 mb-2">
@@ -107,15 +186,25 @@ export const Messages = () => {
                     <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{activeContact.name}</span>
                 </div>
             </div>
+            
+            {/* 设置按钮：点击打开用户信息设置弹窗 */}
+            <button 
+                onClick={() => setShowSettings(true)}
+                className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all"
+                title="Profile Settings"
+            >
+                <Settings size={16} />
+            </button>
         </div>
 
         {/* 聊天区域容器 */}
         <div className="flex-1 overflow-hidden relative flex flex-col">
             <CommentSystem 
-                key={activeContact.slug} 
+                key={`${activeContact.slug}-${reloadKey}`} 
                 slug={activeContact.slug} 
                 title={activeContact.name}
                 compact={true} 
+                reloadKey={reloadKey}
             />
         </div>
       </div>

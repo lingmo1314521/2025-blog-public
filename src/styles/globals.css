@@ -177,9 +177,8 @@
 }
 
 /* =========================================
-   macOS 嵌入模式样式修正 (保持原有逻辑)
+   macOS 嵌入模式样式修正
    ========================================= */
-
 #app-embedded header, 
 #app-embedded footer,
 #app-embedded nav {
@@ -208,4 +207,22 @@
 
 .embedded-write .pt-24 {
     padding-top: 1rem !important;
+}
+
+/* =========================================
+   Messages (Twikoo) 特定样式
+   ========================================= */
+
+/* 1. 隐藏 Twikoo 原本的【昵称、邮箱、网址】输入框区域 */
+/* 这是你要“弄到一个设置界面去”的关键样式。
+   .tk-meta-input 是 Twikoo 默认包裹那三个输入框的 class。
+*/
+.imessage-mode .tk-meta-input {
+    display: none !important;
+}
+
+/* 2. 隐藏页脚和多余信息，让界面更像聊天 */
+.imessage-mode .tk-footer, 
+.imessage-mode .tk-row-actions-start {
+    display: none !important;
 }
