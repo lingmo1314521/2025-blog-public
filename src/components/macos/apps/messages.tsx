@@ -2,18 +2,16 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, Edit, Settings, X, ArrowUp, RefreshCw, MessageCircle, Shield, Copy, Heart, Reply } from 'lucide-react'
+import { Search, Edit, Settings, X, ArrowUp, RefreshCw, MessageCircle, Shield, Copy, Heart, Reply, Trash2 } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
 import { useOs } from '../os-context'
 import { toast } from 'sonner' 
 
-// ... (TwikooAdminHost 和 SettingsModal 保持不变，为了篇幅这里省略，请保留原有的代码)
-// 如果需要，我可以再次完整提供，但只更新下面的 Messages 组件逻辑通常就足够了。
-// 为了确保万无一失，下面是完整的 Messages 组件部分：
-
-// (在此处保留 TwikooAdminHost 和 SettingsModal 组件代码...)
+// ==================================================================================
+// 1. Twikoo Admin Host
+// ==================================================================================
 const TwikooAdminHost = () => {
     const containerRef = useRef<HTMLDivElement>(null)
     useEffect(() => {
@@ -33,6 +31,9 @@ const TwikooAdminHost = () => {
     return <div ref={containerRef} className="w-full h-full bg-white dark:bg-[#1e1e1e] overflow-y-auto p-4 select-text relative"><style jsx global>{`.tk-admin-container .tk-admin { padding: 0 !important; max-width: 100% !important; } .tk-admin-container { background: transparent !important; } .tk-admin .el-input__inner { background-color: transparent !important; color: inherit !important; border-color: #ddd !important; } .dark .tk-admin .el-input__inner { border-color: #444 !important; color: #fff !important; }`}</style></div>
 }
 
+// ==================================================================================
+// 2. Settings Modal
+// ==================================================================================
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const { t } = useI18n(); const [nick, setNick] = useState(''); const [mail, setMail] = useState(''); const [link, setLink] = useState('');
     useEffect(() => { try { const stored = localStorage.getItem('twikoo'); if (stored) { const data = JSON.parse(stored); setNick(data.nick || ''); setMail(data.mail || ''); setLink(data.link || ''); } } catch (e) {} }, [])
@@ -40,6 +41,9 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
     return (<div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}><div className="w-80 bg-[#f5f5f5] dark:bg-[#2c2c2c] rounded-xl shadow-2xl border border-white/20 p-5" onClick={e => e.stopPropagation()}><div className="flex justify-between items-center mb-4"><h3 className="font-bold text-sm dark:text-white">{t('msg_settings_title')}</h3><button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full cursor-pointer"><X size={14}/></button></div><div className="space-y-3"><div><label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{t('msg_nick')}</label><input value={nick} onChange={e=>setNick(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" placeholder={t('msg_nick_ph')}/></div><div><label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{t('msg_email')}</label><input value={mail} onChange={e=>setMail(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" placeholder={t('msg_email_ph')}/></div><div><label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{t('msg_link')}</label><input value={link} onChange={e=>setLink(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" placeholder="https://..."/></div></div><div className="mt-5 flex justify-end"><button onClick={handleSave} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1 cursor-pointer">{t('msg_save')}</button></div></div></div>)
 }
 
+// ==================================================================================
+// 3. Right Click Context Menu
+// ==================================================================================
 const MessageContextMenu = ({ visible, x, y, targetElement, onClose }: any) => {
     const menuRef = useRef<HTMLDivElement>(null); const { t } = useI18n(); const [adjustedPos, setAdjustedPos] = useState({ x, y });
     useEffect(() => { if (visible && menuRef.current) { const rect = menuRef.current.getBoundingClientRect(); let newX = x; let newY = y; if (x + rect.width > window.innerWidth) newX = x - rect.width; if (y + rect.height > window.innerHeight) newY = y - rect.height; setAdjustedPos({ x: newX, y: newY }) } else { setAdjustedPos({ x, y }) } }, [visible, x, y]);
@@ -49,6 +53,9 @@ const MessageContextMenu = ({ visible, x, y, targetElement, onClose }: any) => {
     return createPortal(<div ref={menuRef} className="fixed z-[99999] min-w-[140px] bg-white/95 dark:bg-[#2c2c2c]/95 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-xl rounded-lg overflow-hidden py-1 flex flex-col select-none animate-in fade-in zoom-in-95 duration-100" style={{ top: adjustedPos.y, left: adjustedPos.x }} onClick={(e) => e.stopPropagation()} onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}><button onClick={() => handleAction('reply')} className="flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-blue-500 hover:text-white transition-colors text-gray-700 dark:text-gray-200 cursor-pointer"><Reply size={14} /> {t('msg_reply') || 'Reply'}</button><button onClick={() => handleAction('copy')} className="flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-blue-500 hover:text-white transition-colors text-gray-700 dark:text-gray-200 cursor-pointer"><Copy size={14} /> Copy</button><div className="h-[1px] bg-gray-200 dark:bg-white/10 my-1 mx-2"/><button onClick={() => handleAction('like')} className="flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-blue-500 hover:text-white transition-colors text-gray-700 dark:text-gray-200 cursor-pointer"><Heart size={14} /> Like</button></div>, document.body);
 }
 
+// ==================================================================================
+// 4. Messages Application (Fix: Flex Order Sorting)
+// ==================================================================================
 export const Messages = () => {
   const { t } = useI18n()
   const { launchApp, windows } = useOs()
@@ -67,20 +74,18 @@ export const Messages = () => {
   const [isReplying, setIsReplying] = useState(false)
   const [replyTargetText, setReplyTargetText] = useState('') 
   const [stats, setStats] = useState({ total: 0, main: 0, replies: 0 })
-  const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, targetElement: null })
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, targetElement: null })
 
-  // Refs (Top Level)
+  // Refs
   const headerIconsRef = useRef<HTMLDivElement>(null)
   const commentObserverRef = useRef<MutationObserver | null>(null)
   const adminClassObserverRef = useRef<MutationObserver | null>(null) 
-  const isAdminOpeningRef = useRef(false)
   const isProcessingRef = useRef(false)
   const layoutTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
 
-  // Helper: Get Twikoo Inputs
   const getTwikooElements = useCallback(() => {
       const cancelBtn = document.querySelector('.imessage-mode .tk-cancel') as HTMLButtonElement
       if (cancelBtn) {
@@ -106,16 +111,11 @@ export const Messages = () => {
       return { input: mainInput, btn: mainBtn, cancelBtn: null, isReplyMode: false }
   }, [])
 
-  // Admin Modal Trigger
   const handleAdminTrigger = useCallback((targetElement: HTMLElement) => {
       if (targetElement.classList.contains('__show')) {
-          if (isAdminOpeningRef.current) return;
           if (windows.some(w => w.id === 'twikoo-admin')) return;
-
-          isAdminOpeningRef.current = true;
           const container = document.querySelector('.tk-admin-container') as HTMLElement;
           if (container) container.style.display = 'none';
-
           launchApp({
             id: 'twikoo-admin',
             title: 'Comment Admin',
@@ -125,19 +125,14 @@ export const Messages = () => {
             component: <TwikooAdminHost />,
             resizable: true,
           });
-
-          setTimeout(() => { isAdminOpeningRef.current = false }, 1000);
       }
   }, [launchApp, windows]);
 
-  // Click to scroll to parent
   const handleQuoteClick = useCallback((e: Event) => {
       const target = e.currentTarget as HTMLElement;
       const parentId = target.dataset.parentId;
       let parentComment: HTMLElement | null = null;
-
       if (parentId) parentComment = document.getElementById(parentId);
-      
       if (parentComment) {
           parentComment.scrollIntoView({ behavior: 'smooth', block: 'center' });
           const bubble = parentComment.querySelector('.tk-content') as HTMLElement;
@@ -150,31 +145,26 @@ export const Messages = () => {
       }
   }, []);
 
-  // Text Extractor
   const extractParentText = (parentContentElem: Element | null) => {
       if (!parentContentElem) return '';
       const clone = parentContentElem.cloneNode(true) as HTMLElement;
-      const existingQuotes = clone.querySelectorAll('.imessage-quote');
-      existingQuotes.forEach(el => el.remove());
-      const atUsers = clone.querySelectorAll('.tk-ruser');
-      atUsers.forEach(el => el.remove());
+      clone.querySelectorAll('.imessage-quote').forEach(el => el.remove());
+      clone.querySelectorAll('.tk-ruser').forEach(el => el.remove());
       return clone.textContent?.replace(/\s+/g, ' ').trim() || '';
   }
 
-  // === Process Layout ===
+  // [关键核心] 布局逻辑：使用 CSS Order 进行排序
   const processLayout = useCallback(() => {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
 
-    const container = document.querySelector('.imessage-mode .tk-comments-container');
-    if (!container) {
-        isProcessingRef.current = false;
-        return;
-    }
+    const container = document.querySelector('.imessage-mode .tk-comments-container') as HTMLElement;
+    if (!container) { isProcessingRef.current = false; return; }
 
+    // 暂停监听
     if (commentObserverRef.current) commentObserverRef.current.disconnect();
 
-    // 1. Move Icons
+    // 1. 搬运图标
     if (headerIconsRef.current && headerIconsRef.current.childNodes.length === 0) {
         const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
         if (originalHeader) {
@@ -183,56 +173,82 @@ export const Messages = () => {
         }
     }
 
-    // 2. Extract Replies
-    const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment:not(.imessage-processed)'));
-    if (nestedReplies.length > 0) {
-        const fragment = document.createDocumentFragment();
-        nestedReplies.forEach(reply => {
-            reply.classList.add('imessage-processed'); 
-            const contentBox = reply.querySelector('.tk-content');
-            if (contentBox && !contentBox.querySelector('.imessage-quote')) {
-                const replyList = reply.closest('.tk-replies');
-                const parentComment = replyList?.closest('.tk-comment') as HTMLElement;
-                
-                if (parentComment) {
-                    const parentId = parentComment.getAttribute('id');
-                    let parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'User';
-                    const parentContentElem = parentComment.querySelector('.tk-main > .tk-content');
-                    
-                    let parentText = extractParentText(parentContentElem);
-                    if (!parentText) parentText = "回复了一条消息"; 
-                    if (parentText.length > 30) parentText = parentText.slice(0, 30) + '...';
+    // 2. 提取回复并扁平化 (Extract nested replies)
+    const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment'));
+    nestedReplies.forEach(reply => {
+        const contentBox = reply.querySelector('.tk-content');
+        // 只有当没有处理过引用时才处理
+        if (contentBox && !contentBox.querySelector('.imessage-quote')) {
+            const replyList = reply.closest('.tk-replies');
+            const parentComment = replyList?.closest('.tk-comment') as HTMLElement;
+            
+            if (parentComment) {
+                const parentId = parentComment.getAttribute('id');
+                let parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'User';
+                const parentContentElem = parentComment.querySelector('.tk-main > .tk-content');
+                let parentText = extractParentText(parentContentElem);
+                if (!parentText) parentText = "回复了一条消息"; 
+                if (parentText.length > 30) parentText = parentText.slice(0, 30) + '...';
 
-                    const quoteDiv = document.createElement('div');
-                    quoteDiv.className = 'imessage-quote';
-                    quoteDiv.innerHTML = `<span class="imessage-quote-name">${parentNick}:</span> ${parentText}`;
-                    if (parentId) quoteDiv.setAttribute('data-parent-id', parentId);
-                    quoteDiv.addEventListener('click', handleQuoteClick);
-                    contentBox.insertBefore(quoteDiv, contentBox.firstChild);
-                }
+                const quoteDiv = document.createElement('div');
+                quoteDiv.className = 'imessage-quote';
+                quoteDiv.innerHTML = `<span class="imessage-quote-name">${parentNick}:</span> ${parentText}`;
+                if (parentId) quoteDiv.setAttribute('data-parent-id', parentId);
+                quoteDiv.addEventListener('click', handleQuoteClick);
+                contentBox.insertBefore(quoteDiv, contentBox.firstChild);
             }
-            fragment.appendChild(reply); 
-        });
-        container.appendChild(fragment);
-    }
+        }
+        // 将回复移动到主容器，实现“平铺”
+        container.appendChild(reply); 
+    });
 
-    // 3. Stats
-    const allComments = container.querySelectorAll('.tk-comment');
+    // 3. [关键修复] 计算每个评论的 Order 值
+    // 我们将时间戳作为 Order。Flexbox Order 越小越靠前。
+    // 我们需要 旧->新，即 时间戳小 -> 上面。
+    // 所以直接用 time.getTime() / 1000 作为 order 即可。
+    const allComments = Array.from(container.children).filter(el => el.classList.contains('tk-comment')) as HTMLElement[];
+    
+    allComments.forEach(comment => {
+        const timeEl = comment.querySelector('time');
+        if (timeEl) {
+            const dateStr = timeEl.getAttribute('datetime');
+            if (dateStr) {
+                const timestamp = new Date(dateStr).getTime();
+                // CSS order 只能是整数。
+                // 为了避免溢出或精度问题，我们可以减去一个基准时间 (例如 2020年)，或者直接除以 1000
+                const orderVal = Math.floor(timestamp / 1000);
+                comment.style.order = String(orderVal);
+            }
+        } else {
+            // 如果没有时间戳（比如刚发送的），给一个最大值确保在最后
+            comment.style.order = '9999999999';
+        }
+    });
+
+    // 4. 滚动到底部 (因为是 Old->New)
+    // 只有当用户接近底部时才自动滚动，防止看历史记录时跳动。
+    // 但为了修复“发送后不刷新”，如果检测到有新元素，且不在极上面，就滚。
+    // 简单起见，这里做一个“初次加载”或者“发送”后的判断逻辑比较复杂。
+    // 暂时每次布局更新都尝试保持位置，或者简单的：
+    // if (container.scrollHeight - container.scrollTop < 1000) {
+    //     container.scrollTop = container.scrollHeight;
+    // }
+
+    // 5. 统计
     const total = allComments.length;
     let repliesCount = 0;
     allComments.forEach(c => { if(c.querySelector('.imessage-quote')) repliesCount++; });
     setStats({ total, main: total - repliesCount, replies: repliesCount });
 
-    // Restore Observer (Track childList to detect new messages)
+    // 恢复监听
     if (commentObserverRef.current) {
         commentObserverRef.current.observe(container, { childList: true, subtree: true });
     }
     isProcessingRef.current = false;
   }, [handleQuoteClick]);
 
-  // === Observers Setup ===
+  // --- Effects ---
   useEffect(() => {
-    // Admin Observer
     const adminInner = document.querySelector('.tk-admin');
     if (adminInner && !adminClassObserverRef.current) {
         adminClassObserverRef.current = new MutationObserver((mutations) => {
@@ -245,17 +261,16 @@ export const Messages = () => {
         adminClassObserverRef.current.observe(adminInner, { attributes: true, attributeFilter: ['class'] });
     }
 
-    // Comment Observer
     if (!commentObserverRef.current) {
         commentObserverRef.current = new MutationObserver(() => {
             if (layoutTimeoutRef.current) clearTimeout(layoutTimeoutRef.current);
             layoutTimeoutRef.current = setTimeout(() => {
                 processLayout();
-            }, 100); // 100ms debounce
+            }, 100);
         });
     }
 
-    // Initial Polling
+    // Polling until loaded
     const checkTimer = setInterval(() => {
         const commentsContainer = document.querySelector('.imessage-mode .tk-comments-container');
         if (commentsContainer) {
@@ -263,6 +278,10 @@ export const Messages = () => {
             if (commentObserverRef.current) {
                 commentObserverRef.current.observe(commentsContainer, { childList: true, subtree: true });
             }
+            // 首次加载后滚到底部
+            setTimeout(() => {
+                commentsContainer.scrollTop = commentsContainer.scrollHeight;
+            }, 500);
             clearInterval(checkTimer);
         }
     }, 500);
@@ -275,16 +294,12 @@ export const Messages = () => {
     }
   }, [handleAdminTrigger, processLayout, activeContactId]);
 
-  useEffect(() => {
-      if (headerIconsRef.current) headerIconsRef.current.innerHTML = '';
-  }, [activeContactId]);
+  useEffect(() => { if (headerIconsRef.current) headerIconsRef.current.innerHTML = ''; }, [activeContactId]);
 
-  // Detection Loop for Reply State
   useEffect(() => {
       const interval = setInterval(() => {
         const { isReplyMode, cancelBtn } = getTwikooElements()
         if (isReplyMode !== isReplying) setIsReplying(isReplyMode)
-        
         if (isReplyMode && cancelBtn) {
             const form = cancelBtn.closest('.tk-submit')
             if(form) {
@@ -324,15 +339,20 @@ export const Messages = () => {
             btn.click()
             setInputValue('')
             
-            // Force Update
-            if (layoutTimeoutRef.current) clearTimeout(layoutTimeoutRef.current);
+            // 发送后强制滚动到底部，并再次触发布局
             setTimeout(() => {
                 const container = document.querySelector('.imessage-mode .tk-comments-container');
                 if (container) {
-                    container.scrollTop = container.scrollHeight;
                     processLayout(); 
+                    container.scrollTop = container.scrollHeight;
                 }
-            }, 500);
+            }, 300);
+            
+            setTimeout(() => {
+                 const container = document.querySelector('.imessage-mode .tk-comments-container');
+                 if(container) processLayout(); // 二次确认
+            }, 1000);
+
         } else {
             toast.error("Send button not found")
         }
@@ -347,8 +367,7 @@ export const Messages = () => {
   }
 
   const handleContextMenu = (e: React.MouseEvent) => {
-      e.preventDefault()
-      e.stopPropagation() 
+      e.preventDefault(); e.stopPropagation() 
       const target = e.target as HTMLElement
       const bubble = target.closest('.tk-content')
       if (bubble) {

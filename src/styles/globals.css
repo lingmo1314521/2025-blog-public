@@ -33,10 +33,10 @@
 }
 
 /* =========================================
-   Twikoo iMessage 终极形态 (排序与布局修复版)
+   Twikoo iMessage 终极形态 (Flex Order 排序版)
    ========================================= */
 
-/* 1. 全局容器设置 */
+/* 1. 全局容器与隐藏元素 */
 .imessage-mode .tk-main {
     display: flex !important;
     flex-direction: column !important;
@@ -60,21 +60,21 @@
     z-index: -1 !important;
 }
 
-/* 隐藏原标题栏背景 */
+/* 隐藏原标题栏 */
 .imessage-mode .tk-comments-title {
     display: none !important; 
 }
 
 /* -------------------------------------------
-   消息流布局 (关键：确保从上到下排列)
+   消息流布局
    ------------------------------------------- */
 .imessage-mode .tk-comments-container {
     padding: 20px 16px !important;
     display: flex !important;
-    flex-direction: column !important; /* 强制从上到下 */
-    justify-content: flex-start !important; /* 内容从顶部开始，如果想底部对齐改为 flex-end */
+    flex-direction: column !important;
+    justify-content: flex-start !important; /* 从顶部开始排列 */
     min-height: 100% !important;
-    gap: 16px !important; /* 消息间距 */
+    gap: 16px !important; 
 }
 
 /* -------------------------------------------
@@ -89,6 +89,7 @@
     border: none !important;
     position: relative !important;
     flex-shrink: 0 !important;
+    /* 关键：默认 order 为 0，脚本会动态修改这个值来实现排序 */
 }
 
 /* 头像 */
@@ -117,19 +118,16 @@
     max-width: 100% !important;
 }
 
-/* -------------------------------------------
-   Header: 昵称、时间、图标 (修复位置)
-   ------------------------------------------- */
+/* Header */
 .imessage-mode .tk-row {
     margin-bottom: 4px !important;
     display: flex !important;
-    justify-content: flex-start !important; /* 强制左对齐 */
+    justify-content: flex-start !important;
     align-items: center !important;
     width: 100% !important;
-    pointer-events: none !important; /* 防止遮挡 */
+    pointer-events: none !important;
 }
 
-/* Meta 信息区 */
 .imessage-mode .tk-meta {
     display: flex !important;
     align-items: center !important;
@@ -148,13 +146,13 @@
     line-height: 1 !important;
 }
 
-/* 操作图标区 (默认隐藏，悬浮显示，紧跟 Meta) */
+/* 操作图标 (默认隐藏，悬浮显示) */
 .imessage-mode .tk-action {
     display: flex !important;
     gap: 10px !important;
-    opacity: 0 !important; /* 默认隐藏 */
-    margin-left: 10px !important; /* 距离时间一点距离 */
-    pointer-events: auto !important; /* 恢复点击 */
+    opacity: 0 !important;
+    margin-left: 10px !important;
+    pointer-events: auto !important;
     transition: opacity 0.2s ease !important;
 }
 .imessage-mode .tk-comment:hover .tk-action {
@@ -174,7 +172,6 @@
     height: 13px !important; 
     fill: currentColor !important; 
 }
-/* 隐藏图标旁的文字计数，保持极简 */
 .imessage-mode .tk-action-count {
     display: none !important;
 }
@@ -214,19 +211,18 @@
 .imessage-mode .tk-master .tk-avatar { 
     margin-right: 0 !important; 
     margin-left: 10px !important; 
-    display: none !important; /* 可选：隐藏自己的头像 */
+    display: none !important; 
 }
 .imessage-mode .tk-master .tk-main { 
     align-items: flex-end !important; 
 }
 .imessage-mode .tk-master .tk-row { 
     flex-direction: row-reverse !important; 
-    justify-content: flex-start !important; /* 反向后依然是起始对齐(即右对齐) */
+    justify-content: flex-start !important; 
 }
 .imessage-mode .tk-master .tk-meta {
     flex-direction: row-reverse !important;
 }
-/* Master 模式下操作图标在左侧 */
 .imessage-mode .tk-master .tk-action {
     flex-direction: row-reverse !important;
     margin-left: 0 !important;
@@ -242,10 +238,10 @@
 }
 .imessage-mode .tk-master .tk-content a { color: white !important; text-decoration: underline !important; }
 
-/* 隐藏空回复容器 (我们已经手动提取了) */
+/* 隐藏空回复容器 */
 .imessage-mode .tk-replies { display: none !important; }
 
-/* 引用样式 (手动生成的) */
+/* 引用样式 */
 .imessage-mode .tk-content > span:has(.tk-ruser) { display: none !important; }
 .imessage-quote {
     display: block;
@@ -267,7 +263,7 @@
 .imessage-quote-name { font-weight: 700; margin-right: 4px; }
 
 /* -------------------------------------------
-   Twikoo 搬运后的元素样式 (Header Elements)
+   搬运后的元素样式
    ------------------------------------------- */
 #twikoo-moved-count .tk-comments-count {
     font-size: 10px !important;
