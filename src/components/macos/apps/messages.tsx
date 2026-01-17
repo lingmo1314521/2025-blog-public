@@ -15,19 +15,67 @@ import { toast } from 'sonner'
 const TwikooAdminHost = () => {
     const containerRef = useRef<HTMLDivElement>(null)
     useEffect(() => {
+        // 1. 挂载逻辑：把 Twikoo 管理面板移动到我们的窗口中
         const adminContainer = document.querySelector('.tk-admin-container') as HTMLElement
         if (adminContainer && containerRef.current) {
             containerRef.current.appendChild(adminContainer)
-            adminContainer.style.display = 'block'; adminContainer.style.position = 'static'; adminContainer.style.width = '100%'; adminContainer.style.height = '100%'; adminContainer.style.zIndex = '1'; adminContainer.style.opacity = '1'; adminContainer.style.pointerEvents = 'auto';
+            adminContainer.style.display = 'block'; 
+            adminContainer.style.position = 'static'; 
+            adminContainer.style.width = '100%'; 
+            adminContainer.style.height = '100%'; 
+            adminContainer.style.zIndex = '1'; 
+            adminContainer.style.opacity = '1'; 
+            adminContainer.style.pointerEvents = 'auto';
+            
             const adminInner = adminContainer.querySelector('.tk-admin') as HTMLElement
-            if (adminInner) { adminInner.style.position = 'static'; adminInner.style.boxShadow = 'none'; adminInner.style.transform = 'none'; adminInner.style.width = '100%'; adminInner.style.maxWidth = '100%'; }
+            if (adminInner) { 
+                adminInner.style.position = 'static'; 
+                adminInner.style.boxShadow = 'none'; 
+                adminInner.style.transform = 'none'; 
+                adminInner.style.width = '100%'; 
+                adminInner.style.maxWidth = '100%'; 
+            }
+            
+            // 隐藏原生的关闭按钮（因为我们要用 macOS 窗口的红灯来控制）
             const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement
             if (closeBtn) closeBtn.style.display = 'none' 
         }
-        const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Enter') { const target = e.target as HTMLElement; if (target.tagName === 'INPUT' && target.getAttribute('type') === 'password') { e.preventDefault(); e.stopPropagation(); const loginBtn = containerRef.current?.querySelector('.tk-login button') as HTMLElement; if (loginBtn) loginBtn.click(); } } };
+
+        // 修复：在输入框回车无法登录的问题
+        const handleKeyDown = (e: KeyboardEvent) => { 
+            if (e.key === 'Enter') { 
+                const target = e.target as HTMLElement; 
+                if (target.tagName === 'INPUT' && target.getAttribute('type') === 'password') { 
+                    e.preventDefault(); 
+                    e.stopPropagation(); 
+                    const loginBtn = containerRef.current?.querySelector('.tk-login button') as HTMLElement; 
+                    if (loginBtn) loginBtn.click(); 
+                } 
+            } 
+        };
         containerRef.current?.addEventListener('keydown', handleKeyDown, true);
-        return () => { containerRef.current?.removeEventListener('keydown', handleKeyDown, true); if (adminContainer) { const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement; if (closeBtn) closeBtn.click(); document.body.appendChild(adminContainer); adminContainer.style.display = 'none'; const adminInner = adminContainer.querySelector('.tk-admin'); if (adminInner) adminInner.classList.remove('__show'); } }
+
+        // 2. [核心功能] 卸载逻辑：当组件销毁（窗口关闭）时执行
+        return () => { 
+            containerRef.current?.removeEventListener('keydown', handleKeyDown, true); 
+            if (adminContainer) { 
+                // >>> 联动逻辑在此 <<<
+                // 当你点击窗口左上角的红色关闭按钮时，React 会运行这里的代码。
+                // 我们手动触发 Twikoo 原生关闭按钮的点击事件，以确保 Twikoo 内部状态重置。
+                const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement; 
+                if (closeBtn) {
+                    closeBtn.click(); 
+                }
+
+                // 将 DOM 放回原位并隐藏
+                document.body.appendChild(adminContainer); 
+                adminContainer.style.display = 'none'; 
+                const adminInner = adminContainer.querySelector('.tk-admin'); 
+                if (adminInner) adminInner.classList.remove('__show'); 
+            } 
+        }
     }, [])
+
     return <div ref={containerRef} className="w-full h-full bg-white dark:bg-[#1e1e1e] overflow-y-auto p-4 select-text relative"><style jsx global>{`.tk-admin-container .tk-admin { padding: 0 !important; max-width: 100% !important; } .tk-admin-container { background: transparent !important; } .tk-admin .el-input__inner { background-color: transparent !important; color: inherit !important; border-color: #ddd !important; } .dark .tk-admin .el-input__inner { border-color: #444 !important; color: #fff !important; }`}</style></div>
 }
 
@@ -191,18 +239,15 @@ export const Messages = () => {
 
     if (commentObserverRef.current) commentObserverRef.current.disconnect();
 
-    // [关键修复] 动态检测原位置的图标并重新搬运
-    const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
-    if (originalHeader) {
-        const sourceIcons = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
-        // 如果原位置有图标，说明 Twikoo 重绘了，我们需要把它们拿过来
-        if (sourceIcons.length > 0 && headerIconsRef.current) {
-            headerIconsRef.current.innerHTML = ''; // 清空我们这边的容器
-            sourceIcons.forEach(icon => {
-                headerIconsRef.current?.appendChild(icon); // 移动节点 (保持事件绑定)
-                // 强制修正样式，防止无法点击
-                (icon as HTMLElement).style.pointerEvents = 'auto';
-                (icon as HTMLElement).style.cursor = 'pointer';
+    if (headerIconsRef.current && headerIconsRef.current.childNodes.length === 0) {
+        const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
+        if (originalHeader) {
+            const siblings = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
+            siblings.forEach(sibling => { 
+                headerIconsRef.current?.appendChild(sibling); 
+                // 确保搬运后的图标可点击
+                (sibling as HTMLElement).style.pointerEvents = 'auto';
+                (sibling as HTMLElement).style.cursor = 'pointer';
             });
         }
     }
