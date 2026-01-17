@@ -8,6 +8,7 @@ import { useI18n } from '../i18n-context'
 import { useOs } from '../os-context'
 import { toast } from 'sonner' 
 
+// ... (TwikooAdminHost 和 SettingsModal 保持不变，为了节省篇幅，这里省略，请保留原有的代码)
 // ==================================================================================
 // 1. 独立的 Twikoo 后台宿主组件 (用于新窗口)
 // ==================================================================================
@@ -172,11 +173,11 @@ export const Messages = () => {
   const [isReplying, setIsReplying] = useState(false)
   const [replyTargetText, setReplyTargetText] = useState('') 
   
-  // 计数状态
   const [stats, setStats] = useState({ total: 0, main: 0, replies: 0 })
 
   const headerIconsRef = useRef<HTMLDivElement>(null)
   
+  // 观察者
   const loadObserverRef = useRef<MutationObserver | null>(null)
   const adminClassObserverRef = useRef<MutationObserver | null>(null)
   const commentObserverRef = useRef<MutationObserver | null>(null)
@@ -211,7 +212,7 @@ export const Messages = () => {
       return { input: mainInput, btn: mainBtn, cancelBtn: null, isReplyMode: false }
   }, [])
 
-  // --- 处理 Admin 弹窗逻辑 ---
+  // --- 处理 Admin 弹窗 ---
   const handleAdminTrigger = useCallback((targetElement: HTMLElement) => {
       if (targetElement.classList.contains('__show')) {
           if (isAdminOpeningRef.current) return;
@@ -236,19 +237,25 @@ export const Messages = () => {
       }
   }, [launchApp, windows]);
 
-  // --- 引用跳转逻辑 ---
+  // --- 引用跳转 ---
   const handleQuoteClick = useCallback((e: Event) => {
       const target = e.currentTarget as HTMLElement;
       const quoteText = target.innerText;
+      // 提取名字: "Name: Content..."
       const colonIndex = quoteText.indexOf(':');
+      
       if (colonIndex > -1) {
-          const parentContentSnippet = quoteText.substring(colonIndex + 1).trim().slice(0, 10);
+          const targetNick = quoteText.substring(0, colonIndex).trim(); // 提取名字
+          const targetContent = quoteText.substring(colonIndex + 1).trim().slice(0, 15); // 提取内容片段
+          
           const allComments = Array.from(document.querySelectorAll('.imessage-mode .tk-comment'));
           
           const parentComment = allComments.find(c => {
-              if (c.contains(target)) return false;
+              if (c.contains(target)) return false; // 排除自己
+              const nick = c.querySelector('.tk-nick')?.textContent || '';
               const content = c.querySelector('.tk-content')?.textContent || '';
-              return content.includes(parentContentSnippet);
+              // 同时匹配名字和内容片段，提高准确率
+              return nick === targetNick && content.includes(targetContent);
           });
 
           if (parentComment) {
@@ -257,25 +264,23 @@ export const Messages = () => {
               if (bubble) {
                   bubble.style.transition = 'background-color 0.5s';
                   const originalBg = bubble.style.backgroundColor;
-                  bubble.style.backgroundColor = '#fff7bc'; 
+                  bubble.style.backgroundColor = 'rgba(255, 235, 59, 0.5)'; // 高亮
                   setTimeout(() => {
                       bubble.style.backgroundColor = originalBg;
-                  }, 1000);
+                  }, 1200);
               }
           }
       }
   }, []);
 
-  // --- 布局处理：搬运 Header、提取回复、排序 ---
+  // --- 布局核心逻辑 ---
   const processLayout = useCallback(() => {
+    // 1. 搬运图标 (清空旧的)
     const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
-    
-    // 1. [核心修复] 搬运图标前先清空，防止重复堆叠
     if (originalHeader) {
         const iconWrappers = originalHeader.querySelectorAll('.tk-icon');
         if (iconWrappers.length > 0 && headerIconsRef.current) {
-            // 清空旧图标
-            headerIconsRef.current.innerHTML = '';
+            headerIconsRef.current.innerHTML = ''; // 清空！
             
             const siblings = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
             siblings.forEach(sibling => {
@@ -289,19 +294,35 @@ export const Messages = () => {
 
     if (commentObserverRef.current) commentObserverRef.current.disconnect();
 
-    // 2. 提取嵌套回复
+    // 2. 提取回复 & 智能引用修复
     const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment'));
     if (nestedReplies.length > 0) {
         nestedReplies.forEach(reply => {
             const contentBox = reply.querySelector('.tk-content');
             if (contentBox && !contentBox.querySelector('.imessage-quote')) {
+                // 默认使用父级楼层作为回复对象
                 const replyList = reply.closest('.tk-replies');
                 const parentComment = replyList?.closest('.tk-comment') as HTMLElement;
+                
                 if (parentComment) {
-                    const parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'User';
+                    let parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'User';
                     const parentContentElem = parentComment.querySelector('.tk-main > .tk-content');
                     let parentText = parentContentElem?.textContent?.replace(/\s+/g, ' ').trim() || '';
-                    
+
+                    // [核心修复] 检测是否有 @user 链接，如果有，说明是回复楼中楼
+                    const atUserLink = contentBox.querySelector('.tk-ruser');
+                    if (atUserLink && atUserLink.textContent) {
+                        // 如果有 @xxx，则被回复的人是这个 xxx
+                        parentNick = atUserLink.textContent.replace('@', '').trim();
+                        // 尝试找到被 @ 的那条消息内容 (Twikoo 没直接提供，只能模糊展示“回复了 xxx”)
+                        parentText = `回复了 ${parentNick}`; 
+                        
+                        // 隐藏原始的 @xxx 文字，保持气泡整洁
+                        const atUserSpan = atUserLink.closest('span');
+                        if (atUserSpan) atUserSpan.style.display = 'none';
+                    }
+
+                    // 清理内容
                     const existingQuote = parentContentElem?.querySelector('.imessage-quote');
                     if (existingQuote && existingQuote.textContent) {
                         parentText = parentText.replace(existingQuote.textContent, '').trim();
@@ -452,10 +473,19 @@ export const Messages = () => {
         if (btn) {
             btn.click()
             setInputValue('')
-            setTimeout(() => {
-                const container = document.querySelector('.imessage-mode .tk-comments-container')
-                if (container) container.scrollTop = container.scrollHeight
-            }, 300)
+            
+            // [NEW] 强制多次刷新，确保发送后新消息能被处理
+            const refreshTimes = [300, 800, 1500];
+            refreshTimes.forEach(t => {
+                setTimeout(() => {
+                    const container = document.querySelector('.imessage-mode .tk-comments-container');
+                    if (container) {
+                        container.scrollTop = container.scrollHeight;
+                        processLayout(); // 手动触发一次布局整理
+                    }
+                }, t);
+            });
+
         } else {
             toast.error("Send button not found")
         }
