@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, Edit, Settings, X, ArrowUp, RefreshCw, MessageCircle, Shield, Copy, Heart, Reply, Trash2 } from 'lucide-react'
+import { Search, Edit, Settings, X, ArrowUp, RefreshCw, MessageCircle, Shield, Copy, Heart, Reply } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
@@ -17,8 +17,10 @@ const TwikooAdminHost = () => {
 
     useEffect(() => {
         const adminContainer = document.querySelector('.tk-admin-container') as HTMLElement
+        
         if (adminContainer && containerRef.current) {
             containerRef.current.appendChild(adminContainer)
+            
             adminContainer.style.display = 'block'
             adminContainer.style.position = 'static'
             adminContainer.style.width = '100%'
@@ -35,6 +37,7 @@ const TwikooAdminHost = () => {
                 adminInner.style.width = '100%'
                 adminInner.style.maxWidth = '100%'
             }
+
             const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement
             if (closeBtn) closeBtn.style.display = 'none' 
         }
@@ -50,12 +53,15 @@ const TwikooAdminHost = () => {
                 }
             }
         };
+
         containerRef.current?.addEventListener('keydown', handleKeyDown, true);
+
         return () => {
             containerRef.current?.removeEventListener('keydown', handleKeyDown, true);
             if (adminContainer) {
                 const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement;
                 if (closeBtn) closeBtn.click();
+
                 document.body.appendChild(adminContainer)
                 adminContainer.style.display = 'none' 
                 const adminInner = adminContainer.querySelector('.tk-admin')
@@ -77,7 +83,7 @@ const TwikooAdminHost = () => {
 }
 
 // ==================================================================================
-// 2. 设置弹窗
+// 2. 设置弹窗组件
 // ==================================================================================
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const { t } = useI18n()
@@ -110,6 +116,7 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
                 if(input.name === 'mail') { input.value = mail; input.dispatchEvent(new Event('input')); }
                 if(input.name === 'link') { input.value = link; input.dispatchEvent(new Event('input')); }
             })
+
             onSave()
             onClose()
             toast.success('Settings saved')
@@ -148,7 +155,7 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
 }
 
 // ==================================================================================
-// 3. 右键菜单组件 (使用 Portal 修复位置)
+// 3. 右键菜单组件
 // ==================================================================================
 interface ContextMenuState {
     visible: boolean
@@ -191,6 +198,7 @@ const MessageContextMenu = ({
 
     const handleAction = (action: 'reply' | 'copy' | 'like') => {
         const commentRow = targetElement.closest('.tk-comment')
+        
         if (action === 'reply' && commentRow) {
             const replyBtn = commentRow.querySelector('.tk-action-link') as HTMLElement
             if (replyBtn) replyBtn.click()
@@ -234,7 +242,7 @@ const MessageContextMenu = ({
 }
 
 // ==================================================================================
-// 4. Messages 主应用
+// 4. Messages 主应用组件
 // ==================================================================================
 export const Messages = () => {
   const { t } = useI18n()
@@ -257,11 +265,9 @@ export const Messages = () => {
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, targetElement: null })
 
   const headerIconsRef = useRef<HTMLDivElement>(null)
-  const loadObserverRef = useRef<MutationObserver | null>(null)
-  const adminClassObserverRef = useRef<MutationObserver | null>(null)
   const commentObserverRef = useRef<MutationObserver | null>(null)
   const isAdminOpeningRef = useRef(false)
-  const layoutTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const isProcessingRef = useRef(false) // [核心修复] 防止递归调用的锁
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
@@ -349,32 +355,34 @@ export const Messages = () => {
       }
   }, []);
 
-  // [辅助函数] 智能提取父级评论纯文本，排除干扰项
   const extractParentText = (parentContentElem: Element | null) => {
       if (!parentContentElem) return '';
-      // 1. 克隆节点，避免修改 DOM
       const clone = parentContentElem.cloneNode(true) as HTMLElement;
       
-      // 2. 移除已存在的引用块
       const existingQuotes = clone.querySelectorAll('.imessage-quote');
       existingQuotes.forEach(el => el.remove());
       
-      // 3. 移除 @用户 链接 (楼中楼)
       const atUsers = clone.querySelectorAll('.tk-ruser');
       atUsers.forEach(el => el.remove());
 
-      // 4. 获取纯文本
       return clone.textContent?.replace(/\s+/g, ' ').trim() || '';
   }
 
-  // 布局处理逻辑 (强制排序优化版)
+  // [安全版] 布局处理逻辑：去除了容易死循环的全量 DOM 重排
   const processLayout = useCallback(() => {
-    const container = document.querySelector('.imessage-mode .tk-comments-container');
-    if (!container) return;
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
 
+    const container = document.querySelector('.imessage-mode .tk-comments-container');
+    if (!container) {
+        isProcessingRef.current = false;
+        return;
+    }
+
+    // 暂停监听
     if (commentObserverRef.current) commentObserverRef.current.disconnect();
 
-    // 1. 搬运图标 (只搬运一次)
+    // 1. 搬运图标
     if (headerIconsRef.current && headerIconsRef.current.childNodes.length === 0) {
         const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
         if (originalHeader) {
@@ -383,114 +391,117 @@ export const Messages = () => {
         }
     }
 
-    // 2. 提取嵌套回复到主列表 (Flat Mode)
-    const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment'));
-    nestedReplies.forEach(reply => {
-        // 构建引用信息
-        const contentBox = reply.querySelector('.tk-content');
-        if (contentBox && !contentBox.querySelector('.imessage-quote')) {
-            const replyList = reply.closest('.tk-replies');
-            const parentComment = replyList?.closest('.tk-comment') as HTMLElement;
-            
-            if (parentComment) {
-                const parentId = parentComment.getAttribute('id');
-                let parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'User';
-                const parentContentElem = parentComment.querySelector('.tk-main > .tk-content');
-                
-                // [智能提取]
-                let parentText = extractParentText(parentContentElem);
-                if (!parentText) parentText = "回复了一条消息"; 
-                if (parentText.length > 30) parentText = parentText.slice(0, 30) + '...';
-
-                const quoteDiv = document.createElement('div');
-                quoteDiv.className = 'imessage-quote';
-                quoteDiv.innerHTML = `<span class="imessage-quote-name">${parentNick}:</span> ${parentText}`;
-                if (parentId) quoteDiv.setAttribute('data-parent-id', parentId);
-                quoteDiv.addEventListener('click', handleQuoteClick);
-                contentBox.insertBefore(quoteDiv, contentBox.firstChild);
-            }
-        }
-        container.appendChild(reply); // 移动到第一级
-    });
-
-    // 3. [强制排序] 获取容器内所有评论，按时间戳升序排列 (Old -> New)
-    const allComments = Array.from(container.children).filter(el => el.classList.contains('tk-comment')) as HTMLElement[];
+    // 2. 提取嵌套回复 (仅处理未处理的)
+    const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment:not(.imessage-processed)'));
     
-    // 如果数量太少没必要排，或者防止抖动，可以加阈值。但为了准确性，这里总是排序。
-    if (allComments.length > 1) {
+    // 如果有未处理的回复，我们把它们挪出来。
+    // 为了防止排序错乱，我们需要把它们收集起来，一次性插入到正确位置。
+    // 但最安全的方法是：只把它们 append 到 container 末尾 (新回复通常在最后)
+    // 然后统一执行一次排序
+    
+    if (nestedReplies.length > 0) {
+        const fragment = document.createDocumentFragment();
+        
+        nestedReplies.forEach(reply => {
+            reply.classList.add('imessage-processed'); 
+            const contentBox = reply.querySelector('.tk-content');
+            
+            if (contentBox && !contentBox.querySelector('.imessage-quote')) {
+                const replyList = reply.closest('.tk-replies');
+                const parentComment = replyList?.closest('.tk-comment') as HTMLElement;
+                
+                if (parentComment) {
+                    const parentId = parentComment.getAttribute('id');
+                    let parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'User';
+                    const parentContentElem = parentComment.querySelector('.tk-main > .tk-content');
+                    
+                    let parentText = extractParentText(parentContentElem);
+                    if (!parentText) parentText = "回复了一条消息"; 
+                    if (parentText.length > 30) parentText = parentText.slice(0, 30) + '...';
+
+                    const quoteDiv = document.createElement('div');
+                    quoteDiv.className = 'imessage-quote';
+                    quoteDiv.innerHTML = `<span class="imessage-quote-name">${parentNick}:</span> ${parentText}`;
+                    if (parentId) quoteDiv.setAttribute('data-parent-id', parentId);
+                    quoteDiv.addEventListener('click', handleQuoteClick);
+                    contentBox.insertBefore(quoteDiv, contentBox.firstChild);
+                }
+            }
+            fragment.appendChild(reply); 
+        });
+        container.appendChild(fragment);
+        
+        // 只有当进行了 DOM 移动时，才需要强制排序，避免顺序错乱
+        const allComments = Array.from(container.children).filter(el => el.classList.contains('tk-comment')) as HTMLElement[];
         allComments.sort((a, b) => {
             const tAStr = a.querySelector('time')?.getAttribute('datetime');
             const tBStr = b.querySelector('time')?.getAttribute('datetime');
             const tA = tAStr ? new Date(tAStr).getTime() : 0;
             const tB = tBStr ? new Date(tBStr).getTime() : 0;
-            return tA - tB; // 升序：小的在前 (旧 -> 新)
+            return tA - tB; 
         });
-
-        // 使用 DocumentFragment 批量插入，减少重绘
-        const fragment = document.createDocumentFragment();
-        allComments.forEach(c => fragment.appendChild(c));
-        
-        // 找到 "Load More" 按钮 (tk-expand) 等其他元素，确保评论在它们之后? 
-        // 简单起见，Twikoo 的 Load More 通常是最后一个元素。
-        // 如果是 Old->New，Load More 应该是 "Load Older"? 
-        // Twikoo 默认是 "Load More"，通常是加载更旧的。如果是这样，它应该在顶部？
-        // 但这里我们假设是一次性加载或标准分页。直接 append 会把它们放到容器底部。
-        container.appendChild(fragment);
+        const sortFragment = document.createDocumentFragment();
+        allComments.forEach(c => sortFragment.appendChild(c));
+        container.appendChild(sortFragment);
     }
 
     // 4. 统计
+    const allComments = container.querySelectorAll('.tk-comment');
     const total = allComments.length;
     let repliesCount = 0;
     allComments.forEach(c => { if(c.querySelector('.imessage-quote')) repliesCount++; });
     setStats({ total, main: total - repliesCount, replies: repliesCount });
 
+    // 恢复监听
     if (commentObserverRef.current) {
-        commentObserverRef.current.observe(container, { childList: true, subtree: true });
+        commentObserverRef.current.observe(container, { childList: true, subtree: false }); // 仅监听子节点变化
     }
+    isProcessingRef.current = false;
   }, [handleQuoteClick]);
 
+  // --- 替换掉高风险的 document.body 监听，改用轮询初始化 ---
   useEffect(() => {
-    adminClassObserverRef.current = new MutationObserver((mutations) => {
-        mutations.forEach(m => {
-            if (m.type === 'attributes' && m.attributeName === 'class') {
-                handleAdminTrigger(m.target as HTMLElement);
-            }
+    // 1. 启动 Admin 类名监听 (用于劫持)
+    const adminInner = document.querySelector('.tk-admin');
+    if (adminInner) {
+        adminClassObserverRef.current = new MutationObserver((mutations) => {
+            mutations.forEach(m => {
+                if (m.type === 'attributes' && m.attributeName === 'class') {
+                    handleAdminTrigger(m.target as HTMLElement);
+                }
+            });
         });
-    });
+        adminClassObserverRef.current.observe(adminInner, { attributes: true, attributeFilter: ['class'] });
+    }
 
+    // 2. 启动评论容器监听
     commentObserverRef.current = new MutationObserver(() => {
-        if (layoutTimeoutRef.current) clearTimeout(layoutTimeoutRef.current);
-        layoutTimeoutRef.current = setTimeout(() => {
-            processLayout();
-        }, 50);
+        processLayout();
     });
 
-    loadObserverRef.current = new MutationObserver(() => {
-        const adminInner = document.querySelector('.tk-admin');
+    // 3. 安全轮询等待 Twikoo 加载
+    const checkTimer = setInterval(() => {
         const commentsContainer = document.querySelector('.imessage-mode .tk-comments-container');
-
-        if (adminInner) {
-            adminClassObserverRef.current?.disconnect();
-            adminClassObserverRef.current?.observe(adminInner, { attributes: true, attributeFilter: ['class'] });
-        }
-
         if (commentsContainer) {
-            processLayout(); 
-            commentObserverRef.current?.disconnect();
-            commentObserverRef.current?.observe(commentsContainer, { childList: true, subtree: true });
+            // 加载成功，执行一次处理
+            processLayout();
+            // 开始监听增量变化
+            if (commentObserverRef.current) {
+                commentObserverRef.current.observe(commentsContainer, { childList: true, subtree: false });
+            }
+            // 停止轮询
+            clearInterval(checkTimer);
         }
-    });
-
-    loadObserverRef.current.observe(document.body, { childList: true, subtree: true });
+    }, 500); // 每 500ms 检查一次
 
     return () => {
-        if (loadObserverRef.current) loadObserverRef.current.disconnect();
         if (adminClassObserverRef.current) adminClassObserverRef.current.disconnect();
         if (commentObserverRef.current) commentObserverRef.current.disconnect();
-        if (layoutTimeoutRef.current) clearTimeout(layoutTimeoutRef.current);
+        clearInterval(checkTimer);
     }
-  }, [handleAdminTrigger, processLayout, activeContactId]); 
+  }, [handleAdminTrigger, processLayout, activeContactId]); // 当联系人切换时，重新跑 Effect
 
+  // 每次切换联系人，重置图标容器
   useEffect(() => {
       if (headerIconsRef.current) headerIconsRef.current.innerHTML = '';
   }, [activeContactId]);
@@ -539,21 +550,14 @@ export const Messages = () => {
             btn.click()
             setInputValue('')
             
-            // [性能] 发送后立即触发一次布局处理，不要等待防抖
-            if (layoutTimeoutRef.current) clearTimeout(layoutTimeoutRef.current);
-            // 稍作延迟等待 Twikoo 插入 DOM
-            setTimeout(processLayout, 100); 
-            
-            const refreshTimes = [300, 800, 1500];
-            refreshTimes.forEach(t => {
-                setTimeout(() => {
-                    const container = document.querySelector('.imessage-mode .tk-comments-container');
-                    if (container) {
-                        container.scrollTop = container.scrollHeight;
-                        processLayout(); 
-                    }
-                }, t);
-            });
+            // [优化] 立即手动触发一次检查，不需要等待 Observer
+            setTimeout(() => {
+                const container = document.querySelector('.imessage-mode .tk-comments-container');
+                if (container) {
+                    container.scrollTop = container.scrollHeight;
+                    processLayout(); 
+                }
+            }, 300); // 稍微给 Twikoo 一点时间生成 DOM
 
         } else {
             toast.error("Send button not found")
@@ -598,6 +602,85 @@ export const Messages = () => {
       <style jsx global>{`
          .imessage-mode .tk-admin-container {
              display: none; 
+         }
+         
+         /* [优化] 布局对齐 */
+         .imessage-mode .tk-row {
+            margin-bottom: 2px !important;
+            display: flex !important;
+            justify-content: flex-start !important; 
+            align-items: center !important;
+            width: 100% !important;
+            gap: 10px !important; 
+         }
+         
+         .imessage-mode .tk-meta {
+            display: flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            font-size: 10px !important;
+            color: #8e8e93 !important;
+            margin-left: 12px !important;
+            margin-right: 0 !important;
+         }
+         .imessage-mode .tk-nick {
+            font-weight: 500 !important;
+            font-size: 11px !important;
+            color: #666 !important;
+         }
+         .dark .imessage-mode .tk-nick {
+            color: #aaa !important;
+         }
+         .imessage-mode .tk-time {
+            font-size: 9px !important;
+            opacity: 0.7 !important;
+         }
+
+         /* 操作按钮 */
+         .imessage-mode .tk-action {
+             opacity: 0 !important;
+             transition: opacity 0.2s ease !important;
+             display: flex !important;
+             gap: 8px !important;
+             margin-right: 0 !important;
+             margin-left: 0 !important;
+         }
+         .imessage-mode .tk-comment:hover .tk-action {
+             opacity: 1 !important;
+         }
+         .imessage-mode .tk-action-link {
+             color: #999 !important;
+             display: flex !important;
+             align-items: center !important;
+             gap: 2px !important;
+             text-decoration: none !important;
+         }
+         .imessage-mode .tk-action-link:hover {
+             color: #007aff !important;
+         }
+         .imessage-mode .tk-action-icon svg {
+             width: 14px !important;
+             height: 14px !important;
+             fill: currentColor !important;
+         }
+         .imessage-mode .tk-action-count {
+             font-size: 10px !important;
+             min-width: 10px !important;
+         }
+
+         /* Master 模式 */
+         .imessage-mode .tk-master .tk-row {
+             justify-content: flex-end !important;
+         }
+         .imessage-mode .tk-master .tk-meta {
+             flex-direction: row-reverse !important;
+             margin-left: 0 !important;
+             margin-right: 12px !important;
+         }
+         .imessage-mode .tk-master .tk-action {
+             flex-direction: row-reverse !important;
+             margin-right: 8px !important;
+             margin-left: 0 !important;
          }
       `}</style>
 
