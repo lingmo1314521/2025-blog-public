@@ -10,20 +10,20 @@ import { useOs } from '../os-context'
 import { toast } from 'sonner' 
 
 // ==================================================================================
-// 1. Twikoo Admin Host (修复关闭后无法再次打开的问题)
+// 1. 独立的 Twikoo 后台宿主组件 (用于新窗口)
 // ==================================================================================
 const TwikooAdminHost = () => {
     const containerRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
+        // 1. 尝试获取全局隐藏的 admin 容器
         const adminContainer = document.querySelector('.tk-admin-container') as HTMLElement
-        const closeBtn = adminContainer?.querySelector('.tk-admin-close') as HTMLElement // 获取原生关闭按钮
-
+        
         if (adminContainer && containerRef.current) {
-            // 1. 劫持 DOM 到窗口内
+            // 将 Twikoo 的 DOM 移动到我们的窗口内
             containerRef.current.appendChild(adminContainer)
             
-            // 2. 强制显示并调整样式适应窗口
+            // 强制样式覆盖，确保在窗口内正确显示
             adminContainer.style.display = 'block'
             adminContainer.style.position = 'static'
             adminContainer.style.width = '100%'
@@ -41,11 +41,12 @@ const TwikooAdminHost = () => {
                 adminInner.style.maxWidth = '100%'
             }
 
-            // 3. 隐藏原生关闭按钮 (我们用窗口红点关闭)
+            // 隐藏 Twikoo 原生的关闭按钮 (因为我们用窗口的红灯关闭)
+            const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement
             if (closeBtn) closeBtn.style.display = 'none' 
         }
 
-        // 修复密码框回车不登录的问题
+        // 修复密码输入框回车无法登录的问题
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Enter') {
                 const target = e.target as HTMLElement;
@@ -57,35 +58,37 @@ const TwikooAdminHost = () => {
                 }
             }
         };
+
         containerRef.current?.addEventListener('keydown', handleKeyDown, true);
 
-        // [关键修复] 组件卸载（窗口关闭）时的清理逻辑
+        // [核心修复] 组件卸载（窗口关闭）时的清理逻辑
         return () => {
             containerRef.current?.removeEventListener('keydown', handleKeyDown, true);
             
             if (adminContainer) {
-                // 1. 先把 DOM 归还给 Body，防止元素丢失
-                document.body.appendChild(adminContainer)
-                
-                // 2. 立即隐藏，防止在页面底部闪烁
-                adminContainer.style.display = 'none'
-
-                // 3. [关键] 模拟点击原生的关闭按钮
-                // 这会通知 Twikoo 内部状态 "面板已关闭"，并移除 __show 类名
-                // 这样下次点击齿轮时，Twikoo 才会重新添加类名，触发 MutationObserver
+                // 1. 关键：手动触发 Twikoo 原生关闭按钮的点击事件
+                // 这告诉 Twikoo 内部状态 "面板已关闭"，下次点击齿轮才会再次触发 open
+                const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement;
                 if (closeBtn) {
                     closeBtn.click();
-                } else {
-                    // 兜底：手动移除类名
-                    const adminInner = adminContainer.querySelector('.tk-admin')
-                    if (adminInner) adminInner.classList.remove('__show')
                 }
+
+                // 2. 将容器还给 body，防止 DOM 丢失
+                document.body.appendChild(adminContainer)
+                
+                // 3. 隐藏容器
+                adminContainer.style.display = 'none' 
+                
+                // 4. 双重保险：移除显示类名
+                const adminInner = adminContainer.querySelector('.tk-admin')
+                if (adminInner) adminInner.classList.remove('__show')
             }
         }
     }, [])
 
     return (
         <div ref={containerRef} className="w-full h-full bg-white dark:bg-[#1e1e1e] overflow-y-auto p-4 select-text relative">
+            {/* 局部样式覆盖 */}
             <style jsx global>{`
                 .tk-admin-container .tk-admin { padding: 0 !important; max-width: 100% !important; }
                 .tk-admin-container { background: transparent !important; }
@@ -97,17 +100,80 @@ const TwikooAdminHost = () => {
 }
 
 // ==================================================================================
-// 2. Settings Modal
+// 2. 设置弹窗组件
 // ==================================================================================
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
-    const { t } = useI18n(); const [nick, setNick] = useState(''); const [mail, setMail] = useState(''); const [link, setLink] = useState('');
-    useEffect(() => { try { const stored = localStorage.getItem('twikoo'); if (stored) { const data = JSON.parse(stored); setNick(data.nick || ''); setMail(data.mail || ''); setLink(data.link || ''); } } catch (e) {} }, [])
-    const handleSave = () => { try { const stored = localStorage.getItem('twikoo'); let data = stored ? JSON.parse(stored) : {}; data.nick = nick; data.mail = mail; data.link = link; localStorage.setItem('twikoo', JSON.stringify(data)); const inputs = document.querySelectorAll('.imessage-mode input'); inputs.forEach((input: any) => { if(input.name === 'nick') { input.value = nick; input.dispatchEvent(new Event('input')); } if(input.name === 'mail') { input.value = mail; input.dispatchEvent(new Event('input')); } if(input.name === 'link') { input.value = link; input.dispatchEvent(new Event('input')); } }); onSave(); onClose(); toast.success('Settings saved'); } catch (e) { console.error(e) } }
-    return (<div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}><div className="w-80 bg-[#f5f5f5] dark:bg-[#2c2c2c] rounded-xl shadow-2xl border border-white/20 p-5" onClick={e => e.stopPropagation()}><div className="flex justify-between items-center mb-4"><h3 className="font-bold text-sm dark:text-white">{t('msg_settings_title')}</h3><button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full cursor-pointer"><X size={14}/></button></div><div className="space-y-3"><div><label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{t('msg_nick')}</label><input value={nick} onChange={e=>setNick(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" placeholder={t('msg_nick_ph')}/></div><div><label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{t('msg_email')}</label><input value={mail} onChange={e=>setMail(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" placeholder={t('msg_email_ph')}/></div><div><label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{t('msg_link')}</label><input value={link} onChange={e=>setLink(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" placeholder="https://..."/></div></div><div className="mt-5 flex justify-end"><button onClick={handleSave} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1 cursor-pointer">{t('msg_save')}</button></div></div></div>)
+    const { t } = useI18n()
+    const [nick, setNick] = useState('')
+    const [mail, setMail] = useState('')
+    const [link, setLink] = useState('')
+
+    useEffect(() => {
+        try {
+            const stored = localStorage.getItem('twikoo')
+            if (stored) {
+                const data = JSON.parse(stored)
+                setNick(data.nick || '')
+                setMail(data.mail || '')
+                setLink(data.link || '')
+            }
+        } catch (e) {}
+    }, [])
+
+    const handleSave = () => {
+        try {
+            const stored = localStorage.getItem('twikoo')
+            let data = stored ? JSON.parse(stored) : {}
+            data.nick = nick; data.mail = mail; data.link = link
+            localStorage.setItem('twikoo', JSON.stringify(data))
+            
+            // 同步到 DOM
+            const inputs = document.querySelectorAll('.imessage-mode input')
+            inputs.forEach((input: any) => {
+                if(input.name === 'nick') { input.value = nick; input.dispatchEvent(new Event('input')); }
+                if(input.name === 'mail') { input.value = mail; input.dispatchEvent(new Event('input')); }
+                if(input.name === 'link') { input.value = link; input.dispatchEvent(new Event('input')); }
+            })
+
+            onSave()
+            onClose()
+            toast.success('Settings saved')
+        } catch (e) { console.error(e) }
+    }
+
+    return (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+            <div className="w-80 bg-[#f5f5f5] dark:bg-[#2c2c2c] rounded-xl shadow-2xl border border-white/20 p-5" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-sm dark:text-white">{t('msg_settings_title')}</h3>
+                    <button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full cursor-pointer"><X size={14}/></button>
+                </div>
+                <div className="space-y-3">
+                    <div>
+                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{t('msg_nick')}</label>
+                        <input value={nick} onChange={e=>setNick(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" placeholder={t('msg_nick_ph')}/>
+                    </div>
+                    <div>
+                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{t('msg_email')}</label>
+                        <input value={mail} onChange={e=>setMail(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" placeholder={t('msg_email_ph')}/>
+                    </div>
+                    <div>
+                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{t('msg_link')}</label>
+                        <input value={link} onChange={e=>setLink(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" placeholder="https://..."/>
+                    </div>
+                </div>
+                <div className="mt-5 flex justify-end">
+                    <button onClick={handleSave} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1 cursor-pointer">
+                        {t('msg_save')}
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
 }
 
 // ==================================================================================
-// 3. Right Click Context Menu
+// 3. 右键菜单组件
 // ==================================================================================
 const MessageContextMenu = ({ visible, x, y, targetElement, onClose }: any) => {
     const menuRef = useRef<HTMLDivElement>(null); const { t } = useI18n(); const [adjustedPos, setAdjustedPos] = useState({ x, y });
@@ -119,7 +185,7 @@ const MessageContextMenu = ({ visible, x, y, targetElement, onClose }: any) => {
 }
 
 // ==================================================================================
-// 4. Messages Application
+// 4. Messages 主应用
 // ==================================================================================
 export const Messages = () => {
   const { t } = useI18n()
@@ -147,7 +213,7 @@ export const Messages = () => {
   const adminClassObserverRef = useRef<MutationObserver | null>(null) 
   const isProcessingRef = useRef(false)
   const layoutTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const isAdminOpeningRef = useRef(false)
+  const isAdminOpeningRef = useRef(false) // 避免短时间内重复触发
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
@@ -177,15 +243,18 @@ export const Messages = () => {
       return { input: mainInput, btn: mainBtn, cancelBtn: null, isReplyMode: false }
   }, [])
 
+  // Admin 窗口触发逻辑
   const handleAdminTrigger = useCallback((targetElement: HTMLElement) => {
       if (targetElement.classList.contains('__show')) {
-          if (isAdminOpeningRef.current) return;
-          if (windows.some(w => w.id === 'twikoo-admin')) return;
+          if (isAdminOpeningRef.current) return; // 防止重复
+          if (windows.some(w => w.id === 'twikoo-admin')) return; // 窗口已存在
 
           isAdminOpeningRef.current = true;
+          
+          // 隐藏原生，用窗口显示
           const container = document.querySelector('.tk-admin-container') as HTMLElement;
           if (container) container.style.display = 'none';
-          
+
           launchApp({
             id: 'twikoo-admin',
             title: 'Comment Admin',
@@ -195,7 +264,8 @@ export const Messages = () => {
             component: <TwikooAdminHost />,
             resizable: true,
           });
-          
+
+          // 1秒冷却
           setTimeout(() => { isAdminOpeningRef.current = false }, 1000);
       }
   }, [launchApp, windows]);
@@ -253,7 +323,6 @@ export const Messages = () => {
       return null;
   }
 
-  // [布局处理]
   const processLayout = useCallback(() => {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
@@ -263,17 +332,18 @@ export const Messages = () => {
 
     if (commentObserverRef.current) commentObserverRef.current.disconnect();
 
-    // 动态检测原位置的图标并重新搬运
-    const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
-    if (originalHeader) {
-        const sourceIcons = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
-        if (sourceIcons.length > 0 && headerIconsRef.current) {
-            headerIconsRef.current.innerHTML = '';
-            sourceIcons.forEach(icon => {
-                headerIconsRef.current?.appendChild(icon);
-                (icon as HTMLElement).style.pointerEvents = 'auto';
-                (icon as HTMLElement).style.cursor = 'pointer';
-            });
+    if (headerIconsRef.current && headerIconsRef.current.childNodes.length === 0) {
+        const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
+        if (originalHeader) {
+            const sourceIcons = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
+            if (sourceIcons.length > 0 && headerIconsRef.current) {
+                headerIconsRef.current.innerHTML = '';
+                sourceIcons.forEach(icon => {
+                    headerIconsRef.current?.appendChild(icon);
+                    (icon as HTMLElement).style.pointerEvents = 'auto';
+                    (icon as HTMLElement).style.cursor = 'pointer';
+                });
+            }
         }
     }
 
@@ -323,16 +393,18 @@ export const Messages = () => {
 
   // --- Effects ---
   useEffect(() => {
-    // 监听 Admin 面板打开事件
+    // 监听 Admin 窗口触发
     const adminInner = document.querySelector('.tk-admin');
-    if (adminInner && !adminClassObserverRef.current) {
-        adminClassObserverRef.current = new MutationObserver((mutations) => {
-            mutations.forEach(m => {
-                if (m.type === 'attributes' && m.attributeName === 'class') {
-                    handleAdminTrigger(m.target as HTMLElement);
-                }
+    if (adminInner) {
+        if (!adminClassObserverRef.current) {
+            adminClassObserverRef.current = new MutationObserver((mutations) => {
+                mutations.forEach(m => {
+                    if (m.type === 'attributes' && m.attributeName === 'class') {
+                        handleAdminTrigger(m.target as HTMLElement);
+                    }
+                });
             });
-        });
+        }
         adminClassObserverRef.current.observe(adminInner, { attributes: true, attributeFilter: ['class'] });
     }
 
@@ -424,7 +496,6 @@ export const Messages = () => {
                 checkCount++;
                 if (checkCount > 10) clearInterval(refreshInterval); 
             }, 500);
-
         } else {
             toast.error("Send button not found")
         }
