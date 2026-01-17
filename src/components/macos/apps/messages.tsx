@@ -18,10 +18,8 @@ const TwikooAdminHost = () => {
         const adminContainer = document.querySelector('.tk-admin-container') as HTMLElement
         
         if (adminContainer && containerRef.current) {
-            // 搬运节点
             containerRef.current.appendChild(adminContainer)
             
-            // 样式覆盖
             adminContainer.style.display = 'block'
             adminContainer.style.position = 'static'
             adminContainer.style.width = '100%'
@@ -38,42 +36,30 @@ const TwikooAdminHost = () => {
                 adminInner.style.width = '100%'
             }
 
-            // 隐藏自带关闭按钮
             const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement
             if (closeBtn) closeBtn.style.display = 'none' 
         }
 
-        // [修复] 监听回车键，防止刷新页面
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Enter') {
                 const target = e.target as HTMLElement;
-                // 检测是否是在密码框内按下的回车
                 if (target.tagName === 'INPUT' && target.getAttribute('type') === 'password') {
-                    e.preventDefault();  // 阻止默认的表单提交（防止刷新）
+                    e.preventDefault();
                     e.stopPropagation();
-                    
-                    // 手动寻找并点击登录按钮
                     const loginBtn = containerRef.current?.querySelector('.tk-login button') as HTMLElement;
-                    if (loginBtn) {
-                        loginBtn.click();
-                    }
+                    if (loginBtn) loginBtn.click();
                 }
             }
         };
 
-        // 使用事件委托绑定到容器上
-        containerRef.current?.addEventListener('keydown', handleKeyDown, true); // capture phase
+        containerRef.current?.addEventListener('keydown', handleKeyDown, true);
 
         return () => {
             containerRef.current?.removeEventListener('keydown', handleKeyDown, true);
-
-            // 卸载逻辑
             if (adminContainer) {
-                // 触发关闭逻辑以同步状态
                 const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement;
                 if (closeBtn) closeBtn.click();
 
-                // 归位并隐藏
                 document.body.appendChild(adminContainer)
                 adminContainer.style.display = 'none' 
                 const adminInner = adminContainer.querySelector('.tk-admin')
@@ -83,23 +69,11 @@ const TwikooAdminHost = () => {
     }, [])
 
     return (
-        <div 
-            ref={containerRef} 
-            className="w-full h-full bg-white dark:bg-[#1e1e1e] overflow-y-auto p-4 select-text"
-        >
+        <div ref={containerRef} className="w-full h-full bg-white dark:bg-[#1e1e1e] overflow-y-auto p-4 select-text">
             <style jsx global>{`
-                .tk-admin-container .tk-admin {
-                    padding: 0 !important;
-                    max-width: 100% !important;
-                }
-                .tk-admin-container {
-                    background: transparent !important;
-                }
-                /* 修复 input 在暗色模式下的显示问题，确保和系统一致 */
-                .tk-admin .el-input__inner {
-                    background-color: transparent !important;
-                    color: inherit !important;
-                }
+                .tk-admin-container .tk-admin { padding: 0 !important; max-width: 100% !important; }
+                .tk-admin-container { background: transparent !important; }
+                .tk-admin .el-input__inner { background-color: transparent !important; color: inherit !important; }
             `}</style>
         </div>
     )
@@ -197,8 +171,10 @@ export const Messages = () => {
   const [inputValue, setInputValue] = useState('')
   const [isReplying, setIsReplying] = useState(false)
   const [replyTargetText, setReplyTargetText] = useState('') 
+  
+  // 计数状态
+  const [stats, setStats] = useState({ total: 0, main: 0, replies: 0 })
 
-  const headerCountRef = useRef<HTMLDivElement>(null)
   const headerIconsRef = useRef<HTMLDivElement>(null)
   
   const loadObserverRef = useRef<MutationObserver | null>(null)
@@ -260,16 +236,48 @@ export const Messages = () => {
       }
   }, [launchApp, windows]);
 
-  // --- 布局处理：搬运 Header、提取回复、排序 ---
+  // --- 引用跳转逻辑 ---
+  const handleQuoteClick = useCallback((e: Event) => {
+      const target = e.currentTarget as HTMLElement;
+      // 从引用中提取父消息的标识，这里用简单的文本匹配
+      // 如果 Twikoo 支持 ID 引用更好，但现在我们用名字+内容摘要匹配
+      const quoteText = target.innerText;
+      const colonIndex = quoteText.indexOf(':');
+      if (colonIndex > -1) {
+          // const parentNick = quoteText.substring(0, colonIndex).trim();
+          const parentContentSnippet = quoteText.substring(colonIndex + 1).trim().slice(0, 10);
+          
+          const allComments = Array.from(document.querySelectorAll('.imessage-mode .tk-comment'));
+          // 寻找匹配的父消息
+          const parentComment = allComments.find(c => {
+              // 排除自己
+              if (c.contains(target)) return false;
+              const content = c.querySelector('.tk-content')?.textContent || '';
+              return content.includes(parentContentSnippet);
+          });
+
+          if (parentComment) {
+              parentComment.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              // 高亮动画
+              const bubble = parentComment.querySelector('.tk-content') as HTMLElement;
+              if (bubble) {
+                  bubble.style.transition = 'background-color 0.5s';
+                  const originalBg = bubble.style.backgroundColor;
+                  bubble.style.backgroundColor = '#fff7bc'; // 高亮色
+                  setTimeout(() => {
+                      bubble.style.backgroundColor = originalBg;
+                  }, 1000);
+              }
+          }
+      }
+  }, []);
+
+  // --- 布局处理：统计、提取回复、排序 ---
   const processLayout = useCallback(() => {
-    // 1. 搬运 Header
     const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
+    
+    // 1. 搬运图标 (保留原有的搬运逻辑，但移除 Count 搬运)
     if (originalHeader) {
-        const countEl = originalHeader.querySelector('.tk-comments-count');
-        if (countEl && headerCountRef.current && !headerCountRef.current.contains(countEl)) {
-            headerCountRef.current.innerHTML = ''; 
-            headerCountRef.current.appendChild(countEl);
-        }
         const iconWrappers = originalHeader.querySelectorAll('.tk-icon');
         if (iconWrappers.length > 0 && headerIconsRef.current) {
             const siblings = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
@@ -308,6 +316,8 @@ export const Messages = () => {
                     const quoteDiv = document.createElement('div');
                     quoteDiv.className = 'imessage-quote';
                     quoteDiv.innerHTML = `<span class="imessage-quote-name">${parentNick}:</span> ${parentText}`;
+                    // 绑定点击跳转
+                    quoteDiv.addEventListener('click', handleQuoteClick);
                     contentBox.insertBefore(quoteDiv, contentBox.firstChild);
                 }
             }
@@ -335,10 +345,19 @@ export const Messages = () => {
         }
     }
 
+    // 4. [NEW] 重新计算统计数据
+    // 主消息通常是指没有 tk-master 类（或者根据具体业务逻辑，这里假设所有被扁平化的都是回复，或者看是否有引用）
+    // Twikoo 的结构比较特殊，扁平化后很难区分谁是主。
+    // 一个简单的方法：看是否有 imessage-quote 类。有引用的是回复，没有的是主消息。
+    const total = comments.length;
+    const repliesCount = comments.filter(c => c.querySelector('.imessage-quote')).length;
+    const mainCount = total - repliesCount;
+    setStats({ total, main: mainCount, replies: repliesCount });
+
     if (commentObserverRef.current) {
         commentObserverRef.current.observe(container, { childList: true });
     }
-  }, []);
+  }, [handleQuoteClick]);
 
 
   // --- 主 Effect ---
@@ -415,7 +434,6 @@ export const Messages = () => {
       return () => clearInterval(interval);
   }, [isReplying, replyTargetText, getTwikooElements])
 
-  // --- Handlers ---
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value
       setInputValue(val)
@@ -516,7 +534,13 @@ export const Messages = () => {
         </div>
 
         <div className="shrink-0 p-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30 relative group select-none">
-            <div id="twikoo-moved-count" ref={headerCountRef} className="absolute top-2 left-6 z-40 select-none pointer-events-none"></div>
+            {/* [NEW] 自定义统计数据展示 */}
+            <div className="absolute top-2 left-6 z-40 select-none pointer-events-none text-[10px] text-gray-400 font-medium">
+                {stats.total > 0 && (
+                    <span>共 {stats.total} 条信息 ({stats.main} 主消息, {stats.replies} 回复)</span>
+                )}
+            </div>
+            
             <div id="twikoo-moved-icons" ref={headerIconsRef} className="absolute top-2 right-6 z-40 flex items-center gap-2"></div>
 
             <div className="relative max-w-4xl mx-auto w-full pt-3">
