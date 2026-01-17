@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, Edit, Settings, X, ArrowUp, RefreshCw, MessageCircle, Shield, Copy, Heart, Reply } from 'lucide-react'
+import { Search, Edit, Settings, X, ArrowUp, RefreshCw, MessageCircle, Shield, Copy, Heart, Reply, Trash2 } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
@@ -10,7 +10,7 @@ import { useOs } from '../os-context'
 import { toast } from 'sonner' 
 
 // ==================================================================================
-// 1. 独立的 Twikoo 后台宿主组件 (用于新窗口)
+// 1. Twikoo Admin Host (For hijacking the admin panel)
 // ==================================================================================
 const TwikooAdminHost = () => {
     const containerRef = useRef<HTMLDivElement>(null)
@@ -21,6 +21,7 @@ const TwikooAdminHost = () => {
         if (adminContainer && containerRef.current) {
             containerRef.current.appendChild(adminContainer)
             
+            // Force styles to ensure it displays inside our window
             adminContainer.style.display = 'block'
             adminContainer.style.position = 'static'
             adminContainer.style.width = '100%'
@@ -42,6 +43,7 @@ const TwikooAdminHost = () => {
             if (closeBtn) closeBtn.style.display = 'none' 
         }
 
+        // Fix Enter key not working for login
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Enter') {
                 const target = e.target as HTMLElement;
@@ -59,6 +61,7 @@ const TwikooAdminHost = () => {
         return () => {
             containerRef.current?.removeEventListener('keydown', handleKeyDown, true);
             if (adminContainer) {
+                // Trigger close to reset state
                 const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement;
                 if (closeBtn) closeBtn.click();
 
@@ -83,7 +86,7 @@ const TwikooAdminHost = () => {
 }
 
 // ==================================================================================
-// 2. 设置弹窗组件
+// 2. Settings Modal
 // ==================================================================================
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const { t } = useI18n()
@@ -110,6 +113,7 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
             data.nick = nick; data.mail = mail; data.link = link
             localStorage.setItem('twikoo', JSON.stringify(data))
             
+            // Sync with DOM
             const inputs = document.querySelectorAll('.imessage-mode input')
             inputs.forEach((input: any) => {
                 if(input.name === 'nick') { input.value = nick; input.dispatchEvent(new Event('input')); }
@@ -155,7 +159,7 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
 }
 
 // ==================================================================================
-// 3. 右键菜单组件
+// 3. Right Click Context Menu (Fixed Position)
 // ==================================================================================
 interface ContextMenuState {
     visible: boolean
@@ -242,7 +246,7 @@ const MessageContextMenu = ({
 }
 
 // ==================================================================================
-// 4. Messages 主应用组件
+// 4. Main Messages Component
 // ==================================================================================
 export const Messages = () => {
   const { t } = useI18n()
@@ -264,10 +268,14 @@ export const Messages = () => {
   const [stats, setStats] = useState({ total: 0, main: 0, replies: 0 })
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, targetElement: null })
 
+  // --- Refs Declaration (Must be top level) ---
   const headerIconsRef = useRef<HTMLDivElement>(null)
   const commentObserverRef = useRef<MutationObserver | null>(null)
+  // Fix for ReferenceError: Explicitly declare this ref
+  const adminClassObserverRef = useRef<MutationObserver | null>(null) 
   const isAdminOpeningRef = useRef(false)
-  const isProcessingRef = useRef(false) // [核心修复] 防止递归调用的锁
+  const isProcessingRef = useRef(false)
+  const layoutTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
@@ -368,7 +376,7 @@ export const Messages = () => {
       return clone.textContent?.replace(/\s+/g, ' ').trim() || '';
   }
 
-  // [安全版] 布局处理逻辑：去除了容易死循环的全量 DOM 重排
+  // --- Layout Processing Logic ---
   const processLayout = useCallback(() => {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
@@ -379,10 +387,9 @@ export const Messages = () => {
         return;
     }
 
-    // 暂停监听
     if (commentObserverRef.current) commentObserverRef.current.disconnect();
 
-    // 1. 搬运图标
+    // 1. Move Icons
     if (headerIconsRef.current && headerIconsRef.current.childNodes.length === 0) {
         const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
         if (originalHeader) {
@@ -391,13 +398,8 @@ export const Messages = () => {
         }
     }
 
-    // 2. 提取嵌套回复 (仅处理未处理的)
+    // 2. Extract Replies
     const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment:not(.imessage-processed)'));
-    
-    // 如果有未处理的回复，我们把它们挪出来。
-    // 为了防止排序错乱，我们需要把它们收集起来，一次性插入到正确位置。
-    // 但最安全的方法是：只把它们 append 到 container 末尾 (新回复通常在最后)
-    // 然后统一执行一次排序
     
     if (nestedReplies.length > 0) {
         const fragment = document.createDocumentFragment();
@@ -431,7 +433,7 @@ export const Messages = () => {
         });
         container.appendChild(fragment);
         
-        // 只有当进行了 DOM 移动时，才需要强制排序，避免顺序错乱
+        // Force sort to fix order after appending replies
         const allComments = Array.from(container.children).filter(el => el.classList.contains('tk-comment')) as HTMLElement[];
         allComments.sort((a, b) => {
             const tAStr = a.querySelector('time')?.getAttribute('datetime');
@@ -445,63 +447,69 @@ export const Messages = () => {
         container.appendChild(sortFragment);
     }
 
-    // 4. 统计
+    // 4. Stats
     const allComments = container.querySelectorAll('.tk-comment');
     const total = allComments.length;
     let repliesCount = 0;
     allComments.forEach(c => { if(c.querySelector('.imessage-quote')) repliesCount++; });
     setStats({ total, main: total - repliesCount, replies: repliesCount });
 
-    // 恢复监听
+    // Restore Observer
     if (commentObserverRef.current) {
-        commentObserverRef.current.observe(container, { childList: true, subtree: false }); // 仅监听子节点变化
+        commentObserverRef.current.observe(container, { childList: true, subtree: false });
     }
     isProcessingRef.current = false;
   }, [handleQuoteClick]);
 
-  // --- 替换掉高风险的 document.body 监听，改用轮询初始化 ---
+  // --- Effects ---
   useEffect(() => {
-    // 1. 启动 Admin 类名监听 (用于劫持)
+    // 1. Admin Observer (with safety check)
     const adminInner = document.querySelector('.tk-admin');
     if (adminInner) {
-        adminClassObserverRef.current = new MutationObserver((mutations) => {
-            mutations.forEach(m => {
-                if (m.type === 'attributes' && m.attributeName === 'class') {
-                    handleAdminTrigger(m.target as HTMLElement);
-                }
+        // Re-initialize ref if null (safe guard)
+        if (!adminClassObserverRef.current) {
+            adminClassObserverRef.current = new MutationObserver((mutations) => {
+                mutations.forEach(m => {
+                    if (m.type === 'attributes' && m.attributeName === 'class') {
+                        handleAdminTrigger(m.target as HTMLElement);
+                    }
+                });
             });
-        });
+        }
         adminClassObserverRef.current.observe(adminInner, { attributes: true, attributeFilter: ['class'] });
     }
 
-    // 2. 启动评论容器监听
+    // 2. Comment Observer
     commentObserverRef.current = new MutationObserver(() => {
-        processLayout();
+        if (layoutTimeoutRef.current) clearTimeout(layoutTimeoutRef.current);
+        layoutTimeoutRef.current = setTimeout(() => {
+            processLayout();
+        }, 50);
     });
 
-    // 3. 安全轮询等待 Twikoo 加载
+    // 3. Polling for Twikoo Load
     const checkTimer = setInterval(() => {
         const commentsContainer = document.querySelector('.imessage-mode .tk-comments-container');
         if (commentsContainer) {
-            // 加载成功，执行一次处理
             processLayout();
-            // 开始监听增量变化
             if (commentObserverRef.current) {
                 commentObserverRef.current.observe(commentsContainer, { childList: true, subtree: false });
             }
-            // 停止轮询
             clearInterval(checkTimer);
         }
-    }, 500); // 每 500ms 检查一次
+    }, 500);
 
     return () => {
-        if (adminClassObserverRef.current) adminClassObserverRef.current.disconnect();
+        if (adminClassObserverRef.current) {
+            adminClassObserverRef.current.disconnect();
+            // adminClassObserverRef.current = null; // Optional: Keep ref for stability or null it
+        }
         if (commentObserverRef.current) commentObserverRef.current.disconnect();
+        if (layoutTimeoutRef.current) clearTimeout(layoutTimeoutRef.current);
         clearInterval(checkTimer);
     }
-  }, [handleAdminTrigger, processLayout, activeContactId]); // 当联系人切换时，重新跑 Effect
+  }, [handleAdminTrigger, processLayout, activeContactId]);
 
-  // 每次切换联系人，重置图标容器
   useEffect(() => {
       if (headerIconsRef.current) headerIconsRef.current.innerHTML = '';
   }, [activeContactId]);
@@ -550,14 +558,15 @@ export const Messages = () => {
             btn.click()
             setInputValue('')
             
-            // [优化] 立即手动触发一次检查，不需要等待 Observer
+            // Force immediate layout check
+            if (layoutTimeoutRef.current) clearTimeout(layoutTimeoutRef.current);
             setTimeout(() => {
                 const container = document.querySelector('.imessage-mode .tk-comments-container');
                 if (container) {
                     container.scrollTop = container.scrollHeight;
                     processLayout(); 
                 }
-            }, 300); // 稍微给 Twikoo 一点时间生成 DOM
+            }, 300);
 
         } else {
             toast.error("Send button not found")
@@ -604,7 +613,6 @@ export const Messages = () => {
              display: none; 
          }
          
-         /* [优化] 布局对齐 */
          .imessage-mode .tk-row {
             margin-bottom: 2px !important;
             display: flex !important;
@@ -636,7 +644,6 @@ export const Messages = () => {
             opacity: 0.7 !important;
          }
 
-         /* 操作按钮 */
          .imessage-mode .tk-action {
              opacity: 0 !important;
              transition: opacity 0.2s ease !important;
@@ -668,7 +675,6 @@ export const Messages = () => {
              min-width: 10px !important;
          }
 
-         /* Master 模式 */
          .imessage-mode .tk-master .tk-row {
              justify-content: flex-end !important;
          }
@@ -684,7 +690,7 @@ export const Messages = () => {
          }
       `}</style>
 
-      {/* 左侧边栏 */}
+      {/* Left Sidebar */}
       <div className="w-[280px] flex flex-col border-r border-gray-200 dark:border-white/10 bg-[#f5f5f5]/90 dark:bg-[#252525]/90 backdrop-blur-xl z-20 select-none">
         <div className="h-12 flex items-center justify-between px-3 shrink-0 pt-2 mb-2">
            <div className="relative flex-1 mr-2">
@@ -709,7 +715,7 @@ export const Messages = () => {
         </div>
       </div>
 
-      {/* 右侧主内容 */}
+      {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#1e1e1e] relative z-0">
         <div className="h-12 border-b border-gray-200/50 dark:border-white/10 flex items-center justify-between px-4 bg-white/80 dark:bg-[#1e1e1e]/80 backdrop-blur-md shrink-0 z-20 sticky top-0">
             <div className="flex items-center gap-3">
