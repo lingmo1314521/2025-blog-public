@@ -10,182 +10,13 @@ import { useOs } from '../os-context'
 import { toast } from 'sonner' 
 
 // ==================================================================================
-// 1. 独立的 Twikoo 后台宿主组件 (用于新窗口) - [已修复二次打开空白问题]
-// ==================================================================================
-const TwikooAdminHost = () => {
-    const containerRef = useRef<HTMLDivElement>(null)
-
-    useEffect(() => {
-        const adminContainer = document.querySelector('.tk-admin-container') as HTMLElement
-        
-        // 定义一个强制显示的函数
-        const forceShow = () => {
-            if (adminContainer) {
-                adminContainer.style.setProperty('display', 'block', 'important');
-                adminContainer.style.opacity = '1';
-                adminContainer.style.visibility = 'visible';
-                adminContainer.style.pointerEvents = 'auto';
-            }
-        }
-
-        if (adminContainer && containerRef.current) {
-            // 1. 搬运 DOM
-            containerRef.current.appendChild(adminContainer)
-            
-            // 2. 初始化样式 (静态定位，填满父容器)
-            adminContainer.style.position = 'static'
-            adminContainer.style.width = '100%'
-            adminContainer.style.height = '100%'
-            adminContainer.style.zIndex = '1'
-            
-            const adminInner = adminContainer.querySelector('.tk-admin') as HTMLElement
-            if (adminInner) {
-                adminInner.style.position = 'static'
-                adminInner.style.boxShadow = 'none'
-                adminInner.style.transform = 'none'
-                adminInner.style.width = '100%'
-                adminInner.style.maxWidth = '100%'
-            }
-
-            // 3. 隐藏原生关闭按钮
-            const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement
-            if (closeBtn) closeBtn.style.display = 'none' 
-
-            // 4. [核心修复] 立即显示，并延时再次强制显示
-            forceShow();
-            const timer1 = setTimeout(forceShow, 10);
-            const timer2 = setTimeout(forceShow, 100);
-
-            // 清理 timer
-            return () => {
-                clearTimeout(timer1);
-                clearTimeout(timer2);
-            };
-        }
-    }, []) // 仅在挂载时执行
-
-    // 独立处理关闭逻辑的清理函数
-    useEffect(() => {
-        const adminContainer = document.querySelector('.tk-admin-container') as HTMLElement;
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Enter') {
-                const target = e.target as HTMLElement;
-                if (target.tagName === 'INPUT' && target.getAttribute('type') === 'password') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const loginBtn = containerRef.current?.querySelector('.tk-login button') as HTMLElement;
-                    if (loginBtn) loginBtn.click();
-                }
-            }
-        };
-        containerRef.current?.addEventListener('keydown', handleKeyDown, true);
-
-        return () => {
-            containerRef.current?.removeEventListener('keydown', handleKeyDown, true);
-            
-            // [关闭窗口时的清理逻辑]
-            if (adminContainer) {
-                // 1. 触发 Twikoo 关闭逻辑 (重置状态)
-                const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement;
-                if (closeBtn) closeBtn.click();
-
-                // 2. 归还 DOM 到 Body (防止丢失)
-                document.body.appendChild(adminContainer)
-                
-                // 3. 隐藏 (为下次打开做准备)
-                adminContainer.style.display = 'none' 
-                
-                // 4. 移除 Show 类名
-                const adminInner = adminContainer.querySelector('.tk-admin')
-                if (adminInner) adminInner.classList.remove('__show')
-            }
-        }
-    }, [])
-
-    return (
-        <div ref={containerRef} className="w-full h-full bg-white dark:bg-[#1e1e1e] overflow-y-auto p-4 select-text relative">
-            <style jsx global>{`
-                .tk-admin-container .tk-admin { padding: 0 !important; max-width: 100% !important; }
-                .tk-admin-container { background: transparent !important; }
-                /* 强制覆盖可能的 display:none */
-                .tk-admin-container[style*="display: none"] { display: block !important; } 
-                .tk-admin .el-input__inner { background-color: transparent !important; color: inherit !important; border-color: #ddd !important; }
-                .dark .tk-admin .el-input__inner { border-color: #444 !important; color: #fff !important; }
-            `}</style>
-        </div>
-    )
-}
-
-// ==================================================================================
-// 2. Settings Modal
+// 1. Settings Modal (用户偏好设置，保留)
 // ==================================================================================
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
-    const { t } = useI18n()
-    const [nick, setNick] = useState('')
-    const [mail, setMail] = useState('')
-    const [link, setLink] = useState('')
-
-    useEffect(() => {
-        try {
-            const stored = localStorage.getItem('twikoo')
-            if (stored) {
-                const data = JSON.parse(stored)
-                setNick(data.nick || '')
-                setMail(data.mail || '')
-                setLink(data.link || '')
-            }
-        } catch (e) {}
-    }, [])
-
-    const handleSave = () => {
-        try {
-            const stored = localStorage.getItem('twikoo')
-            let data = stored ? JSON.parse(stored) : {}
-            data.nick = nick; data.mail = mail; data.link = link
-            localStorage.setItem('twikoo', JSON.stringify(data))
-            
-            const inputs = document.querySelectorAll('.imessage-mode input')
-            inputs.forEach((input: any) => {
-                if(input.name === 'nick') { input.value = nick; input.dispatchEvent(new Event('input')); }
-                if(input.name === 'mail') { input.value = mail; input.dispatchEvent(new Event('input')); }
-                if(input.name === 'link') { input.value = link; input.dispatchEvent(new Event('input')); }
-            })
-
-            onSave()
-            onClose()
-            toast.success('Settings saved')
-        } catch (e) { console.error(e) }
-    }
-
-    return (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-            <div className="w-80 bg-[#f5f5f5] dark:bg-[#2c2c2c] rounded-xl shadow-2xl border border-white/20 p-5" onClick={e => e.stopPropagation()}>
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-sm dark:text-white">{t('msg_settings_title')}</h3>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full cursor-pointer"><X size={14}/></button>
-                </div>
-                <div className="space-y-3">
-                    <div>
-                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{t('msg_nick')}</label>
-                        <input value={nick} onChange={e=>setNick(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" placeholder={t('msg_nick_ph')}/>
-                    </div>
-                    <div>
-                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{t('msg_email')}</label>
-                        <input value={mail} onChange={e=>setMail(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" placeholder={t('msg_email_ph')}/>
-                    </div>
-                    <div>
-                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{t('msg_link')}</label>
-                        <input value={link} onChange={e=>setLink(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" placeholder="https://..."/>
-                    </div>
-                </div>
-                <div className="mt-5 flex justify-end">
-                    <button onClick={handleSave} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1 cursor-pointer">
-                        {t('msg_save')}
-                    </button>
-                </div>
-            </div>
-        </div>
-    )
+    const { t } = useI18n(); const [nick, setNick] = useState(''); const [mail, setMail] = useState(''); const [link, setLink] = useState('');
+    useEffect(() => { try { const stored = localStorage.getItem('twikoo'); if (stored) { const data = JSON.parse(stored); setNick(data.nick || ''); setMail(data.mail || ''); setLink(data.link || ''); } } catch (e) {} }, [])
+    const handleSave = () => { try { const stored = localStorage.getItem('twikoo'); let data = stored ? JSON.parse(stored) : {}; data.nick = nick; data.mail = mail; data.link = link; localStorage.setItem('twikoo', JSON.stringify(data)); const inputs = document.querySelectorAll('.imessage-mode input'); inputs.forEach((input: any) => { if(input.name === 'nick') { input.value = nick; input.dispatchEvent(new Event('input')); } if(input.name === 'mail') { input.value = mail; input.dispatchEvent(new Event('input')); } if(input.name === 'link') { input.value = link; input.dispatchEvent(new Event('input')); } }); onSave(); onClose(); toast.success('Settings saved'); } catch (e) { console.error(e) } }
+    return (<div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}><div className="w-80 bg-[#f5f5f5] dark:bg-[#2c2c2c] rounded-xl shadow-2xl border border-white/20 p-5" onClick={e => e.stopPropagation()}><div className="flex justify-between items-center mb-4"><h3 className="font-bold text-sm dark:text-white">{t('msg_settings_title')}</h3><button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full cursor-pointer"><X size={14}/></button></div><div className="space-y-3"><div><label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{t('msg_nick')}</label><input value={nick} onChange={e=>setNick(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" placeholder={t('msg_nick_ph')}/></div><div><label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{t('msg_email')}</label><input value={mail} onChange={e=>setMail(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" placeholder={t('msg_email_ph')}/></div><div><label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{t('msg_link')}</label><input value={link} onChange={e=>setLink(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" placeholder="https://..."/></div></div><div className="mt-5 flex justify-end"><button onClick={handleSave} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1 cursor-pointer">{t('msg_save')}</button></div></div></div>)
 }
 
 // ==================================================================================
@@ -201,7 +32,7 @@ const MessageContextMenu = ({ visible, x, y, targetElement, onClose }: any) => {
 }
 
 // ==================================================================================
-// 4. Messages 主应用
+// 4. Messages Application (还原版)
 // ==================================================================================
 export const Messages = () => {
   const { t } = useI18n()
@@ -226,10 +57,8 @@ export const Messages = () => {
   // Refs
   const headerIconsRef = useRef<HTMLDivElement>(null)
   const commentObserverRef = useRef<MutationObserver | null>(null)
-  const adminClassObserverRef = useRef<MutationObserver | null>(null) 
   const isProcessingRef = useRef(false)
   const layoutTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const isAdminOpeningRef = useRef(false)
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
@@ -259,29 +88,16 @@ export const Messages = () => {
       return { input: mainInput, btn: mainBtn, cancelBtn: null, isReplyMode: false }
   }, [])
 
-  const handleAdminTrigger = useCallback((targetElement: HTMLElement) => {
-      if (targetElement.classList.contains('__show')) {
-          if (isAdminOpeningRef.current) return;
-          if (windows.some(w => w.id === 'twikoo-admin')) return;
-
-          isAdminOpeningRef.current = true;
-          
-          const container = document.querySelector('.tk-admin-container') as HTMLElement;
-          if (container) container.style.display = 'none';
-
-          launchApp({
-            id: 'twikoo-admin',
-            title: 'Comment Admin',
-            icon: <Shield className="text-green-500" />,
-            width: 400,
-            height: 500,
-            component: <TwikooAdminHost />,
-            resizable: true,
-          });
-
-          setTimeout(() => { isAdminOpeningRef.current = false }, 1000);
+  // [还原] 触发 Twikoo 原生后台
+  // 因为我们 CSS 隐藏了 .tk-footer (包含原生齿轮)，所以这里需要手动代理点击
+  const handleOpenNativeAdmin = () => {
+      const settingIcon = document.querySelector('.tk-icon.__setting') as HTMLElement;
+      if (settingIcon) {
+          settingIcon.click();
+      } else {
+          toast.error("Admin button not found yet. Please wait for load.");
       }
-  }, [launchApp, windows]);
+  }
 
   const handleQuoteClick = useCallback((e: Event) => {
       const target = e.currentTarget as HTMLElement;
@@ -336,6 +152,7 @@ export const Messages = () => {
       return null;
   }
 
+  // [布局处理]
   const processLayout = useCallback(() => {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
@@ -406,18 +223,6 @@ export const Messages = () => {
 
   // --- Effects ---
   useEffect(() => {
-    const adminInner = document.querySelector('.tk-admin');
-    if (adminInner && !adminClassObserverRef.current) {
-        adminClassObserverRef.current = new MutationObserver((mutations) => {
-            mutations.forEach(m => {
-                if (m.type === 'attributes' && m.attributeName === 'class') {
-                    handleAdminTrigger(m.target as HTMLElement);
-                }
-            });
-        });
-        adminClassObserverRef.current.observe(adminInner, { attributes: true, attributeFilter: ['class'] });
-    }
-
     if (!commentObserverRef.current) {
         commentObserverRef.current = new MutationObserver(() => {
             if (layoutTimeoutRef.current) clearTimeout(layoutTimeoutRef.current);
@@ -440,12 +245,11 @@ export const Messages = () => {
     }, 500);
 
     return () => {
-        if (adminClassObserverRef.current) adminClassObserverRef.current.disconnect();
         if (commentObserverRef.current) commentObserverRef.current.disconnect();
         if (layoutTimeoutRef.current) clearTimeout(layoutTimeoutRef.current);
         clearInterval(checkTimer);
     }
-  }, [handleAdminTrigger, processLayout, activeContactId]);
+  }, [processLayout, activeContactId]);
 
   useEffect(() => { if (headerIconsRef.current) headerIconsRef.current.innerHTML = ''; }, [activeContactId]);
 
@@ -534,7 +338,11 @@ export const Messages = () => {
       <MessageContextMenu {...contextMenu} onClose={() => setContextMenu(prev => ({ ...prev, visible: false }))} />
 
       <style jsx global>{`
-         .imessage-mode .tk-admin-container { display: none; }
+         .imessage-mode .tk-admin-container { 
+             /* 还原：不再强制隐藏，交还给 Twikoo 控制 */
+             /* display: none;  <-- 删除这行 */
+         }
+         
          .imessage-mode .tk-row { margin-bottom: 2px !important; display: flex !important; justify-content: flex-start !important; align-items: center !important; width: 100% !important; gap: 10px !important; }
          .imessage-mode .tk-meta { display: flex !important; align-items: center !important; gap: 6px !important; font-size: 10px !important; color: #8e8e93 !important; margin-left: 12px !important; margin-right: 0 !important; }
          .imessage-mode .tk-nick { font-weight: 500 !important; font-size: 11px !important; color: #666 !important; }
@@ -571,7 +379,13 @@ export const Messages = () => {
       <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#1e1e1e] relative z-0">
         <div className="h-12 border-b border-gray-200/50 dark:border-white/10 flex items-center justify-between px-4 bg-white/80 dark:bg-[#1e1e1e]/80 backdrop-blur-md shrink-0 z-20 sticky top-0">
             <div className="flex items-center gap-3"><span className="text-xs text-gray-400">{t('msg_to')}</span><div className="flex items-center gap-1 bg-blue-100/50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full border border-blue-200/50 dark:border-blue-500/20"><span className="text-xs font-bold text-blue-600 dark:text-blue-400">{activeContact.name}</span></div></div>
-            <div className="flex gap-2"><button onClick={() => setReloadKey(k => k + 1)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all cursor-pointer"><RefreshCw size={14} /></button><button onClick={() => setShowSettings(true)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all cursor-pointer" title={t('msg_settings_title')}><Settings size={16} /></button></div>
+            <div className="flex gap-2">
+                <button onClick={() => setReloadKey(k => k + 1)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all cursor-pointer"><RefreshCw size={14} /></button>
+                {/* [还原] 这个按钮现在打开 Twikoo 原生后台 */}
+                <button onClick={handleOpenNativeAdmin} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all cursor-pointer" title="Admin Panel"><Shield size={16} /></button>
+                {/* 这个按钮打开你的个性化设置 */}
+                <button onClick={() => setShowSettings(true)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all cursor-pointer" title={t('msg_settings_title')}><Settings size={16} /></button>
+            </div>
         </div>
 
         <div className="flex-1 overflow-hidden relative flex flex-col w-full select-text" onContextMenu={handleContextMenu}>
