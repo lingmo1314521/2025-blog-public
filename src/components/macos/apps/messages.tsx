@@ -1,7 +1,8 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { Search, Edit, Settings, X, ArrowUp, RefreshCw, MessageCircle, Shield, Copy, Heart, Reply } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { Search, Edit, Settings, X, ArrowUp, RefreshCw, MessageCircle, Shield, Copy, Heart, Reply, Trash2 } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
@@ -15,13 +16,11 @@ const TwikooAdminHost = () => {
     const containerRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
-        // 尝试获取全局隐藏的 admin 容器
         const adminContainer = document.querySelector('.tk-admin-container') as HTMLElement
         
         if (adminContainer && containerRef.current) {
             containerRef.current.appendChild(adminContainer)
             
-            // 强制样式覆盖，确保在窗口内正确显示
             adminContainer.style.display = 'block'
             adminContainer.style.position = 'static'
             adminContainer.style.width = '100%'
@@ -39,12 +38,10 @@ const TwikooAdminHost = () => {
                 adminInner.style.maxWidth = '100%'
             }
 
-            // 隐藏原生的关闭按钮
             const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement
             if (closeBtn) closeBtn.style.display = 'none' 
         }
 
-        // 修复密码输入框回车无法登录的问题
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Enter') {
                 const target = e.target as HTMLElement;
@@ -59,12 +56,11 @@ const TwikooAdminHost = () => {
 
         containerRef.current?.addEventListener('keydown', handleKeyDown, true);
 
-        // 清理函数：组件卸载时将 admin 容器放回 body 并隐藏，防止 Twikoo 报错
         return () => {
             containerRef.current?.removeEventListener('keydown', handleKeyDown, true);
             if (adminContainer) {
                 const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement;
-                if (closeBtn) closeBtn.click(); // 触发一次原生关闭逻辑以重置状态
+                if (closeBtn) closeBtn.click();
 
                 document.body.appendChild(adminContainer)
                 adminContainer.style.display = 'none' 
@@ -76,7 +72,6 @@ const TwikooAdminHost = () => {
 
     return (
         <div ref={containerRef} className="w-full h-full bg-white dark:bg-[#1e1e1e] overflow-y-auto p-4 select-text relative">
-            {/* 局部样式覆盖 */}
             <style jsx global>{`
                 .tk-admin-container .tk-admin { padding: 0 !important; max-width: 100% !important; }
                 .tk-admin-container { background: transparent !important; }
@@ -110,13 +105,11 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
 
     const handleSave = () => {
         try {
-            // 保存到 LocalStorage
             const stored = localStorage.getItem('twikoo')
             let data = stored ? JSON.parse(stored) : {}
             data.nick = nick; data.mail = mail; data.link = link
             localStorage.setItem('twikoo', JSON.stringify(data))
             
-            // 尝试同步更新 DOM 中的隐藏输入框，以便下次发送无需刷新
             const inputs = document.querySelectorAll('.imessage-mode input')
             inputs.forEach((input: any) => {
                 if(input.name === 'nick') { input.value = nick; input.dispatchEvent(new Event('input')); }
@@ -162,7 +155,7 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
 }
 
 // ==================================================================================
-// 3. 右键菜单组件
+// 3. 右键菜单组件 (使用 Portal 修复位置问题)
 // ==================================================================================
 interface ContextMenuState {
     visible: boolean
@@ -222,7 +215,7 @@ const MessageContextMenu = ({
         }
         if (action === 'like' && commentRow) {
             const links = Array.from(commentRow.querySelectorAll('.tk-action-link'))
-            // 通常第二个操作按钮是点赞 (取决于 Twikoo 版本，这里假设顺序)
+            // 通常第二个操作按钮是点赞
             if (links.length > 1) (links[1] as HTMLElement).click()
             else if (links.length > 0) (links[0] as HTMLElement).click() 
         }
@@ -236,7 +229,8 @@ const MessageContextMenu = ({
         onClose()
     }
 
-    return (
+    // [关键修复] 使用 createPortal 将菜单渲染到 body，避开 WindowFrame 的 transform 属性导致的位置偏移
+    return createPortal(
         <div 
             ref={menuRef}
             className="fixed z-[99999] min-w-[140px] bg-white/95 dark:bg-[#2c2c2c]/95 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-xl rounded-lg overflow-hidden py-1 flex flex-col select-none animate-in fade-in zoom-in-95 duration-100"
@@ -254,7 +248,8 @@ const MessageContextMenu = ({
             <button onClick={() => handleAction('like')} className="flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-blue-500 hover:text-white transition-colors text-gray-700 dark:text-gray-200 cursor-pointer">
                 <Heart size={14} /> Like
             </button>
-        </div>
+        </div>,
+        document.body
     )
 }
 
@@ -580,6 +575,8 @@ export const Messages = () => {
 
   const handleContextMenu = (e: React.MouseEvent) => {
       e.preventDefault()
+      e.stopPropagation() // [关键修复] 阻止冒泡，防止触发桌面右键菜单
+      
       const target = e.target as HTMLElement
       const bubble = target.closest('.tk-content')
       
@@ -604,9 +601,7 @@ export const Messages = () => {
          onClose={() => setContextMenu(prev => ({ ...prev, visible: false }))} 
       />
 
-      {/* 核心样式覆盖 
-          这里实现了隐藏操作图标、优化时间/昵称显示
-      */}
+      {/* 核心样式覆盖 */}
       <style jsx global>{`
          .imessage-mode .tk-admin-container {
              display: none; 
@@ -743,25 +738,28 @@ export const Messages = () => {
 
         {/* 底部输入框区域 */}
         <div className="shrink-0 p-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30 relative group select-none">
-            {/* 统计数据 */}
-            <div className="absolute top-2 left-6 z-40 select-none pointer-events-none text-[10px] text-gray-400 font-medium">
-                {stats.total > 0 && (
-                    <span>共 {stats.total} 条信息 (主消息 {stats.main}, 回复 {stats.replies})</span>
-                )}
-            </div>
+            
+            {/* [优化] 统计数据：当正在回复时不显示，防止重叠 */}
+            {!isReplying && (
+                <div className="absolute top-2 left-6 z-40 select-none pointer-events-none text-[10px] text-gray-400 font-medium">
+                    {stats.total > 0 && (
+                        <span>共 {stats.total} 条信息 (主消息 {stats.main}, 回复 {stats.replies})</span>
+                    )}
+                </div>
+            )}
             
             <div id="twikoo-moved-icons" ref={headerIconsRef} className="absolute top-2 right-6 z-40 flex items-center gap-2"></div>
 
             <div className="relative max-w-4xl mx-auto w-full pt-3">
-                {/* 回复提示条 */}
+                {/* [优化] 回复提示条：提高 z-index，调整位置 */}
                 {isReplying && (
-                    <div className="absolute -top-7 left-0 right-0 flex items-center justify-between bg-gray-200/90 dark:bg-[#333]/90 backdrop-blur-sm px-4 py-2 rounded-lg text-xs border border-gray-300 dark:border-white/10 shadow-sm animate-in slide-in-from-bottom-2 z-10">
+                    <div className="absolute -top-10 left-0 right-0 flex items-center justify-between bg-gray-200/95 dark:bg-[#333]/95 backdrop-blur-md px-3 py-2 rounded-xl text-xs border border-gray-300 dark:border-white/10 shadow-lg animate-in slide-in-from-bottom-2 z-50">
                         <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300 truncate">
-                            <MessageCircle size={12} className="text-blue-500"/>
-                            <span className="font-medium truncate max-w-[200px]">{replyTargetText || 'Replying...'}</span>
+                            <MessageCircle size={14} className="text-blue-500 fill-blue-500/20"/>
+                            <span className="font-medium truncate max-w-[240px]">{replyTargetText || 'Replying...'}</span>
                         </div>
-                        <button onClick={handleCancelReply} className="ml-2 p-1 hover:bg-gray-300 dark:hover:bg-white/10 rounded-full transition-colors cursor-pointer">
-                            <X size={12} className="text-gray-500"/>
+                        <button onClick={handleCancelReply} className="ml-2 p-1 hover:bg-gray-300 dark:hover:bg-white/20 rounded-full transition-colors cursor-pointer text-gray-500 hover:text-red-500">
+                            <X size={14}/>
                         </button>
                     </div>
                 )}
@@ -773,14 +771,14 @@ export const Messages = () => {
                     onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                     placeholder={isReplying ? "Reply to message..." : t('msg_imessage')}
                     className={clsx(
-                        "w-full bg-white dark:bg-[#2c2c2c] border border-gray-300 dark:border-white/10 rounded-full py-2 pl-4 pr-10 text-sm outline-none focus:border-blue-500 transition-all text-black dark:text-white",
+                        "w-full bg-white dark:bg-[#2c2c2c] border border-gray-300 dark:border-white/10 rounded-full py-2 pl-4 pr-10 text-sm outline-none focus:border-blue-500 transition-all text-black dark:text-white z-20 relative",
                         isReplying && "border-blue-400 ring-2 ring-blue-500/20"
                     )}
                 />
                 <button 
                     onClick={handleSend} 
                     disabled={!inputValue.trim()} 
-                    className={`absolute right-1 top-4 w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer ${inputValue.trim() ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-300 dark:bg-gray-600 text-gray-500 cursor-not-allowed'}`}
+                    className={`absolute right-1 top-4 w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer z-30 ${inputValue.trim() ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-300 dark:bg-gray-600 text-gray-500 cursor-not-allowed'}`}
                 >
                     <ArrowUp size={16} strokeWidth={3} />
                 </button>
