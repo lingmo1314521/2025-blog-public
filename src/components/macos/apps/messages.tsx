@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { Search, Edit, Settings, X, ArrowUp, RefreshCw, MessageCircle, Shield, Copy, Heart, Reply, Trash2 } from 'lucide-react'
+import { Search, Edit, Settings, X, ArrowUp, RefreshCw, MessageCircle, Shield, Copy, Heart, Reply } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
@@ -15,11 +15,13 @@ const TwikooAdminHost = () => {
     const containerRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
+        // 尝试获取全局隐藏的 admin 容器
         const adminContainer = document.querySelector('.tk-admin-container') as HTMLElement
         
         if (adminContainer && containerRef.current) {
             containerRef.current.appendChild(adminContainer)
             
+            // 强制样式覆盖，确保在窗口内正确显示
             adminContainer.style.display = 'block'
             adminContainer.style.position = 'static'
             adminContainer.style.width = '100%'
@@ -34,12 +36,15 @@ const TwikooAdminHost = () => {
                 adminInner.style.boxShadow = 'none'
                 adminInner.style.transform = 'none'
                 adminInner.style.width = '100%'
+                adminInner.style.maxWidth = '100%'
             }
 
+            // 隐藏原生的关闭按钮
             const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement
             if (closeBtn) closeBtn.style.display = 'none' 
         }
 
+        // 修复密码输入框回车无法登录的问题
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Enter') {
                 const target = e.target as HTMLElement;
@@ -54,11 +59,12 @@ const TwikooAdminHost = () => {
 
         containerRef.current?.addEventListener('keydown', handleKeyDown, true);
 
+        // 清理函数：组件卸载时将 admin 容器放回 body 并隐藏，防止 Twikoo 报错
         return () => {
             containerRef.current?.removeEventListener('keydown', handleKeyDown, true);
             if (adminContainer) {
                 const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement;
-                if (closeBtn) closeBtn.click();
+                if (closeBtn) closeBtn.click(); // 触发一次原生关闭逻辑以重置状态
 
                 document.body.appendChild(adminContainer)
                 adminContainer.style.display = 'none' 
@@ -69,18 +75,20 @@ const TwikooAdminHost = () => {
     }, [])
 
     return (
-        <div ref={containerRef} className="w-full h-full bg-white dark:bg-[#1e1e1e] overflow-y-auto p-4 select-text">
+        <div ref={containerRef} className="w-full h-full bg-white dark:bg-[#1e1e1e] overflow-y-auto p-4 select-text relative">
+            {/* 局部样式覆盖 */}
             <style jsx global>{`
                 .tk-admin-container .tk-admin { padding: 0 !important; max-width: 100% !important; }
                 .tk-admin-container { background: transparent !important; }
-                .tk-admin .el-input__inner { background-color: transparent !important; color: inherit !important; }
+                .tk-admin .el-input__inner { background-color: transparent !important; color: inherit !important; border-color: #ddd !important; }
+                .dark .tk-admin .el-input__inner { border-color: #444 !important; color: #fff !important; }
             `}</style>
         </div>
     )
 }
 
 // ==================================================================================
-// 2. 设置弹窗
+// 2. 设置弹窗组件
 // ==================================================================================
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const { t } = useI18n()
@@ -102,11 +110,13 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
 
     const handleSave = () => {
         try {
+            // 保存到 LocalStorage
             const stored = localStorage.getItem('twikoo')
             let data = stored ? JSON.parse(stored) : {}
             data.nick = nick; data.mail = mail; data.link = link
             localStorage.setItem('twikoo', JSON.stringify(data))
             
+            // 尝试同步更新 DOM 中的隐藏输入框，以便下次发送无需刷新
             const inputs = document.querySelectorAll('.imessage-mode input')
             inputs.forEach((input: any) => {
                 if(input.name === 'nick') { input.value = nick; input.dispatchEvent(new Event('input')); }
@@ -152,7 +162,7 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
 }
 
 // ==================================================================================
-// 3. 右键菜单组件 (智能定位 + 功能实现)
+// 3. 右键菜单组件
 // ==================================================================================
 interface ContextMenuState {
     visible: boolean
@@ -166,25 +176,26 @@ const MessageContextMenu = ({
 }: ContextMenuState & { onClose: () => void }) => {
     const menuRef = useRef<HTMLDivElement>(null)
     const { t } = useI18n()
-    const [pos, setPos] = useState({ x, y })
+    const [adjustedPos, setAdjustedPos] = useState({ x, y })
 
-    // 智能调整位置，防止溢出屏幕
+    // 智能定位：防止菜单溢出屏幕
     useEffect(() => {
         if (visible && menuRef.current) {
             const rect = menuRef.current.getBoundingClientRect()
             let newX = x
             let newY = y
 
-            // 如果菜单超出右边界，向左弹出
+            // 如果右侧溢出，向左弹
             if (x + rect.width > window.innerWidth) {
-                newX = window.innerWidth - rect.width - 10
+                newX = x - rect.width
             }
-            // 如果菜单超出下边界，向上弹出
+            // 如果底部溢出，向上弹
             if (y + rect.height > window.innerHeight) {
                 newY = y - rect.height
             }
-
-            setPos({ x: newX, y: newY })
+            setAdjustedPos({ x: newX, y: newY })
+        } else {
+            setAdjustedPos({ x, y })
         }
     }, [visible, x, y])
 
@@ -201,51 +212,46 @@ const MessageContextMenu = ({
 
     if (!visible || !targetElement) return null
 
-    // 执行 Twikoo 原生动作
-    const handleAction = (type: 'reply' | 'copy' | 'like') => {
+    // 在 Twikoo DOM 中查找真实的功能按钮并触发点击
+    const handleAction = (action: 'reply' | 'copy' | 'like') => {
         const commentRow = targetElement.closest('.tk-comment')
-        if (!commentRow) return onClose()
-
-        if (type === 'reply') {
-            // 查找 Twikoo 内部的回复按钮
+        
+        if (action === 'reply' && commentRow) {
             const replyBtn = commentRow.querySelector('.tk-action-link') as HTMLElement
             if (replyBtn) replyBtn.click()
-            else toast.error("Reply button not found")
         }
-        
-        if (type === 'like') {
-             // 通常第二个 link 是点赞，需要根据实际 DOM 确认
-            const links = commentRow.querySelectorAll('.tk-action-link')
-            // Twikoo 结构通常: [回复, 点赞] 或 [回复]
-            if (links.length >= 2) (links[1] as HTMLElement).click()
-            else if (links.length > 0) (links[0] as HTMLElement).click()
+        if (action === 'like' && commentRow) {
+            const links = Array.from(commentRow.querySelectorAll('.tk-action-link'))
+            // 通常第二个操作按钮是点赞 (取决于 Twikoo 版本，这里假设顺序)
+            if (links.length > 1) (links[1] as HTMLElement).click()
+            else if (links.length > 0) (links[0] as HTMLElement).click() 
         }
-
-        if (type === 'copy') {
-            const content = targetElement.querySelector('.tk-content')?.textContent || targetElement.textContent || ''
-            navigator.clipboard.writeText(content)
-            toast.success('Copied')
+        if (action === 'copy') {
+            const content = targetElement.textContent
+            if (content) {
+                navigator.clipboard.writeText(content)
+                toast.success('Copied')
+            }
         }
-
         onClose()
     }
 
     return (
         <div 
             ref={menuRef}
-            className="fixed z-[99999] min-w-[160px] bg-white/95 dark:bg-[#2c2c2c]/95 backdrop-blur-xl border border-black/10 dark:border-white/10 shadow-xl rounded-lg py-1.5 flex flex-col select-none animate-in fade-in zoom-in-95 duration-100 origin-top-left"
-            style={{ top: pos.y, left: pos.x }}
+            className="fixed z-[99999] min-w-[140px] bg-white/95 dark:bg-[#2c2c2c]/95 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-xl rounded-lg overflow-hidden py-1 flex flex-col select-none animate-in fade-in zoom-in-95 duration-100"
+            style={{ top: adjustedPos.y, left: adjustedPos.x }}
             onClick={(e) => e.stopPropagation()}
             onContextMenu={(e) => e.preventDefault()}
         >
-            <button onClick={() => handleAction('reply')} className="flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-blue-500 hover:text-white transition-colors text-gray-800 dark:text-gray-200">
+            <button onClick={() => handleAction('reply')} className="flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-blue-500 hover:text-white transition-colors text-gray-700 dark:text-gray-200 cursor-pointer">
                 <Reply size={14} /> {t('msg_reply') || 'Reply'}
             </button>
-            <button onClick={() => handleAction('copy')} className="flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-blue-500 hover:text-white transition-colors text-gray-800 dark:text-gray-200">
+            <button onClick={() => handleAction('copy')} className="flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-blue-500 hover:text-white transition-colors text-gray-700 dark:text-gray-200 cursor-pointer">
                 <Copy size={14} /> Copy
             </button>
             <div className="h-[1px] bg-gray-200 dark:bg-white/10 my-1 mx-2"/>
-            <button onClick={() => handleAction('like')} className="flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-blue-500 hover:text-white transition-colors text-gray-800 dark:text-gray-200">
+            <button onClick={() => handleAction('like')} className="flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-blue-500 hover:text-white transition-colors text-gray-700 dark:text-gray-200 cursor-pointer">
                 <Heart size={14} /> Like
             </button>
         </div>
@@ -253,44 +259,46 @@ const MessageContextMenu = ({
 }
 
 // ==================================================================================
-// 4. Messages 主应用
+// 4. Messages 主应用组件
 // ==================================================================================
 export const Messages = () => {
   const { t } = useI18n()
   const { launchApp, windows } = useOs()
   
+  // 联系人列表
   const CONTACTS = useMemo(() => [
     { id: 'guestbook', name: t('msg_guestbook'), slug: 'messages-guestbook', avatar: '🌍', desc: t('msg_guestbook_desc'), time: t('msg_now') },
     { id: 'tech', name: t('msg_tech'), slug: 'messages-tech', avatar: '💻', desc: t('msg_tech_desc'), time: t('msg_yesterday') },
     { id: 'feedback', name: t('msg_bug'), slug: 'messages-bugs', avatar: '🐛', desc: t('msg_bug_desc'), time: t('msg_mon') }
   ], [t])
 
+  // 状态管理
   const [activeContactId, setActiveContactId] = useState(CONTACTS[0].id)
   const [search, setSearch] = useState('')
   const [showSettings, setShowSettings] = useState(false)
-  const [reloadKey, setReloadKey] = useState(0)
+  const [reloadKey, setReloadKey] = useState(0) // 用于强制刷新 CommentSystem
   const [inputValue, setInputValue] = useState('')
   const [isReplying, setIsReplying] = useState(false)
   const [replyTargetText, setReplyTargetText] = useState('') 
-  
   const [stats, setStats] = useState({ total: 0, main: 0, replies: 0 })
-
-  // 状态：右键菜单
+  
+  // 右键菜单状态
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, targetElement: null })
 
+  // Refs
   const headerIconsRef = useRef<HTMLDivElement>(null)
-  
   const loadObserverRef = useRef<MutationObserver | null>(null)
   const adminClassObserverRef = useRef<MutationObserver | null>(null)
   const commentObserverRef = useRef<MutationObserver | null>(null)
-  
   const isAdminOpeningRef = useRef(false)
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
 
+  // 获取 Twikoo 的 DOM 元素 (输入框、按钮等)
   const getTwikooElements = useCallback(() => {
       const cancelBtn = document.querySelector('.imessage-mode .tk-cancel') as HTMLButtonElement
+      // 如果存在取消按钮，说明处于回复模式
       if (cancelBtn) {
           const formContainer = cancelBtn.closest('.tk-submit')
           if (formContainer) {
@@ -302,6 +310,7 @@ export const Messages = () => {
               }
           }
       }
+      // 默认模式
       const allTextareas = Array.from(document.querySelectorAll('.imessage-mode textarea'))
       const mainInput = allTextareas[allTextareas.length - 1] as HTMLTextAreaElement
       let mainBtn = null
@@ -314,14 +323,15 @@ export const Messages = () => {
       return { input: mainInput, btn: mainBtn, cancelBtn: null, isReplyMode: false }
   }, [])
 
-  // --- 处理 Admin 弹窗 ---
+  // 打开 Admin 窗口逻辑
   const handleAdminTrigger = useCallback((targetElement: HTMLElement) => {
       if (targetElement.classList.contains('__show')) {
           if (isAdminOpeningRef.current) return;
           if (windows.some(w => w.id === 'twikoo-admin')) return;
 
           isAdminOpeningRef.current = true;
-
+          
+          // 隐藏原生 Admin，用新窗口接管
           const container = document.querySelector('.tk-admin-container') as HTMLElement;
           if (container) container.style.display = 'none';
 
@@ -339,7 +349,7 @@ export const Messages = () => {
       }
   }, [launchApp, windows]);
 
-  // --- 引用跳转 ---
+  // 处理点击引用跳转
   const handleQuoteClick = useCallback((e: Event) => {
       const target = e.currentTarget as HTMLElement;
       const parentId = target.dataset.parentId;
@@ -349,6 +359,7 @@ export const Messages = () => {
           parentComment = document.getElementById(parentId);
       } 
       
+      // 兜底：如果没有 ID，尝试文本匹配 (旧数据兼容)
       if (!parentComment) {
           const quoteText = target.innerText;
           const colonIndex = quoteText.indexOf(':');
@@ -365,6 +376,7 @@ export const Messages = () => {
           }
       }
 
+      // 滚动并高亮
       if (parentComment) {
           parentComment.scrollIntoView({ behavior: 'smooth', block: 'center' });
           const bubble = parentComment.querySelector('.tk-content') as HTMLElement;
@@ -379,9 +391,9 @@ export const Messages = () => {
       }
   }, []);
 
-  // --- 布局核心逻辑 ---
+  // 核心布局处理：修改 Twikoo 原生 DOM 结构以适应 iMessage 风格
   const processLayout = useCallback(() => {
-    // 1. 搬运图标
+    // 1. 搬运图标 (把 Twikoo 顶部的图标搬运到我们自定义的 header)
     const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
     if (originalHeader) {
         const iconWrappers = originalHeader.querySelectorAll('.tk-icon');
@@ -399,7 +411,7 @@ export const Messages = () => {
 
     if (commentObserverRef.current) commentObserverRef.current.disconnect();
 
-    // 2. 提取回复 & 智能引用
+    // 2. 提取嵌套回复并扁平化显示
     const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment'));
     if (nestedReplies.length > 0) {
         nestedReplies.forEach(reply => {
@@ -414,34 +426,21 @@ export const Messages = () => {
                     const parentContentElem = parentComment.querySelector('.tk-main > .tk-content');
                     let parentText = parentContentElem?.textContent?.replace(/\s+/g, ' ').trim() || '';
 
-                    const atUserLink = contentBox.querySelector('.tk-ruser');
-                    if (atUserLink && atUserLink.textContent) {
-                        parentNick = atUserLink.textContent.replace('@', '').trim();
-                        parentText = `回复了 ${parentNick}`; 
-                        const atUserSpan = atUserLink.closest('span');
-                        if (atUserSpan) atUserSpan.style.display = 'none';
-                    }
-
-                    const existingQuote = parentContentElem?.querySelector('.imessage-quote');
-                    if (existingQuote && existingQuote.textContent) {
-                        parentText = parentText.replace(existingQuote.textContent, '').trim();
-                    }
-                    if (parentText.length > 30) parentText = parentText.slice(0, 30) + '...';
-
+                    // 引用构建
                     const quoteDiv = document.createElement('div');
                     quoteDiv.className = 'imessage-quote';
-                    quoteDiv.innerHTML = `<span class="imessage-quote-name">${parentNick}:</span> ${parentText}`;
+                    quoteDiv.innerHTML = `<span class="imessage-quote-name">${parentNick}:</span> ${parentText.slice(0, 30)}${parentText.length > 30 ? '...' : ''}`;
                     if (parentId) quoteDiv.setAttribute('data-parent-id', parentId);
                     
                     quoteDiv.addEventListener('click', handleQuoteClick);
                     contentBox.insertBefore(quoteDiv, contentBox.firstChild);
                 }
             }
-            container.appendChild(reply);
+            container.appendChild(reply); // 移动到主列表
         });
     }
 
-    // 3. 排序
+    // 3. 按时间排序
     const comments = Array.from(container.children).filter(child => child.classList.contains('tk-comment'));
     if (comments.length > 1) {
         const needsSort = comments.some((c, i, arr) => {
@@ -461,18 +460,17 @@ export const Messages = () => {
         }
     }
 
-    // 4. 统计
+    // 4. 更新统计
     const total = comments.length;
     const repliesCount = comments.filter(c => c.querySelector('.imessage-quote')).length;
-    const mainCount = total - repliesCount;
-    setStats({ total, main: mainCount, replies: repliesCount });
+    setStats({ total, main: total - repliesCount, replies: repliesCount });
 
     if (commentObserverRef.current) {
         commentObserverRef.current.observe(container, { childList: true });
     }
   }, [handleQuoteClick]);
 
-  // --- 主 Effect ---
+  // 监听 DOM 变化
   useEffect(() => {
     adminClassObserverRef.current = new MutationObserver((mutations) => {
         mutations.forEach(m => {
@@ -500,34 +498,18 @@ export const Messages = () => {
             commentObserverRef.current?.disconnect();
             commentObserverRef.current?.observe(commentsContainer, { childList: true });
         }
-
-        if (adminInner && commentsContainer) {
-            loadObserverRef.current?.disconnect();
-        }
     });
 
     loadObserverRef.current.observe(document.body, { childList: true, subtree: true });
-
-    const timer = setTimeout(() => {
-        const adminInner = document.querySelector('.tk-admin');
-        if (adminInner && adminClassObserverRef.current) {
-            adminClassObserverRef.current.observe(adminInner, { attributes: true, attributeFilter: ['class'] });
-        }
-        processLayout();
-    }, 1000);
 
     return () => {
         if (loadObserverRef.current) loadObserverRef.current.disconnect();
         if (adminClassObserverRef.current) adminClassObserverRef.current.disconnect();
         if (commentObserverRef.current) commentObserverRef.current.disconnect();
-        clearTimeout(timer);
     }
   }, [handleAdminTrigger, processLayout, activeContactId]); 
 
-  useEffect(() => {
-      if (headerIconsRef.current) headerIconsRef.current.innerHTML = '';
-  }, [activeContactId]);
-
+  // 检测输入框状态 (是否在回复)
   useEffect(() => {
       const interval = setInterval(() => {
         const { isReplyMode, cancelBtn } = getTwikooElements()
@@ -550,7 +532,7 @@ export const Messages = () => {
       return () => clearInterval(interval);
   }, [isReplying, replyTargetText, getTwikooElements])
 
-  // --- Handlers ---
+  // --- 事件处理 ---
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value
       setInputValue(val)
@@ -572,6 +554,7 @@ export const Messages = () => {
         if (btn) {
             btn.click()
             setInputValue('')
+            // 发送后自动滚动到底部
             const refreshTimes = [300, 800, 1500];
             refreshTimes.forEach(t => {
                 setTimeout(() => {
@@ -595,10 +578,8 @@ export const Messages = () => {
       setInputValue('')
   }
 
-  // --- 触发右键菜单 ---
   const handleContextMenu = (e: React.MouseEvent) => {
       e.preventDefault()
-      // 检查是否点击在消息气泡上
       const target = e.target as HTMLElement
       const bubble = target.closest('.tk-content')
       
@@ -616,103 +597,82 @@ export const Messages = () => {
     <div className="flex h-full w-full bg-white dark:bg-[#1e1e1e] text-black dark:text-white font-sans overflow-hidden relative">
       
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onSave={() => setReloadKey(k => k + 1)} />}
-
-      {/* 右键菜单挂载点 */}
+      
+      {/* 自定义右键菜单 */}
       <MessageContextMenu 
          {...contextMenu} 
          onClose={() => setContextMenu(prev => ({ ...prev, visible: false }))} 
       />
 
+      {/* 核心样式覆盖 
+          这里实现了隐藏操作图标、优化时间/昵称显示
+      */}
       <style jsx global>{`
          .imessage-mode .tk-admin-container {
              display: none; 
          }
          
-         /* ========== 核心优化：Twikoo 消息展示优化 ========== */
-         /* 1. 布局行：让元数据和操作按钮并排 */
+         /* 优化元数据显示 (昵称、时间) */
          .imessage-mode .tk-row {
+            margin-bottom: 2px !important;
             display: flex !important;
             justify-content: space-between !important;
             align-items: center !important;
             width: 100% !important;
-            margin-bottom: 2px !important;
-            padding-right: 4px !important;
          }
-
-         /* 2. 元数据区域 (昵称 + 时间) */
          .imessage-mode .tk-meta {
             display: flex !important;
-            align-items: baseline !important;
-            gap: 8px !important;
-            margin-left: 12px !important; /* 对齐气泡圆角 */
+            align-items: center !important;
+            gap: 6px !important;
+            font-size: 10px !important;
+            color: #8e8e93 !important; /* iOS gray */
+            margin-left: 12px !important;
          }
-         
-         /* 昵称样式 */
          .imessage-mode .tk-nick {
-            font-size: 11px !important;
             font-weight: 500 !important;
-            color: #8e8e93 !important; /* iOS 浅灰 */
+            font-size: 11px !important;
+            color: #666 !important;
          }
          .dark .imessage-mode .tk-nick {
-            color: #98989d !important;
+            color: #aaa !important;
          }
-
-         /* 时间样式 - 默认弱化 */
          .imessage-mode .tk-time {
             font-size: 9px !important;
-            color: #c7c7cc !important;
-            font-weight: 400 !important;
+            opacity: 0.7 !important;
          }
 
-         /* 3. 操作区域 (回复、点赞图标) - 默认隐藏，悬浮显示 */
+         /* 优化操作按钮 (点赞、回复) - 默认隐藏，悬浮显示 */
          .imessage-mode .tk-action {
              opacity: 0 !important;
-             transform: scale(0.9);
-             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+             transition: opacity 0.2s ease !important;
              display: flex !important;
-             align-items: center !important;
-             gap: 10px !important;
+             gap: 12px !important;
+             margin-right: 8px !important;
          }
-         
-         /* 悬浮整个消息行时显示操作按钮 */
          .imessage-mode .tk-comment:hover .tk-action {
              opacity: 1 !important;
-             transform: scale(1);
          }
-
-         /* 操作链接通用样式 */
          .imessage-mode .tk-action-link {
+             color: #999 !important;
              display: flex !important;
              align-items: center !important;
-             gap: 3px !important;
+             gap: 2px !important;
              text-decoration: none !important;
-             color: #aeaeb2 !important;
-             cursor: pointer !important;
          }
          .imessage-mode .tk-action-link:hover {
-             color: #007aff !important; /* 悬浮变蓝 */
+             color: #007aff !important;
          }
-
-         /* 强制 SVG 图标大小，防止过大 */
          .imessage-mode .tk-action-icon svg {
              width: 14px !important;
              height: 14px !important;
              fill: currentColor !important;
          }
-
-         /* 隐藏文字计数，或者把它变小 */
          .imessage-mode .tk-action-count {
-             font-size: 9px !important;
-             min-width: 8px !important;
-             text-align: center !important;
+             font-size: 10px !important;
+             min-width: 10px !important;
          }
 
-         /* Master (自己发的) 消息的特殊布局：反向排列 */
-         .imessage-mode .tk-master .tk-row {
-             flex-direction: row-reverse !important;
-             padding-right: 0 !important;
-             padding-left: 4px !important;
-         }
+         /* Master (自己发的) 模式下的特殊对齐 */
          .imessage-mode .tk-master .tk-meta {
              flex-direction: row-reverse !important;
              margin-left: 0 !important;
@@ -720,10 +680,12 @@ export const Messages = () => {
          }
          .imessage-mode .tk-master .tk-action {
              flex-direction: row-reverse !important;
+             margin-right: 0 !important;
+             margin-left: 8px !important;
          }
       `}</style>
 
-      {/* 左侧边栏 */}
+      {/* 左侧边栏 (联系人列表) */}
       <div className="w-[280px] flex flex-col border-r border-gray-200 dark:border-white/10 bg-[#f5f5f5]/90 dark:bg-[#252525]/90 backdrop-blur-xl z-20 select-none">
         <div className="h-12 flex items-center justify-between px-3 shrink-0 pt-2 mb-2">
            <div className="relative flex-1 mr-2">
@@ -748,8 +710,10 @@ export const Messages = () => {
         </div>
       </div>
 
-      {/* 右侧主内容 */}
+      {/* 右侧主内容区域 */}
       <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#1e1e1e] relative z-0">
+        
+        {/* 顶部栏 */}
         <div className="h-12 border-b border-gray-200/50 dark:border-white/10 flex items-center justify-between px-4 bg-white/80 dark:bg-[#1e1e1e]/80 backdrop-blur-md shrink-0 z-20 sticky top-0">
             <div className="flex items-center gap-3">
                 <span className="text-xs text-gray-400">{t('msg_to')}</span>
@@ -763,10 +727,7 @@ export const Messages = () => {
             </div>
         </div>
 
-        {/* 绑定 Context Menu 事件到容器 
-            注意：processLayout 会把 Twikoo DOM 注入到 CommentSystem 中，
-            我们在最外层容器捕获冒泡上来的右键事件
-        */}
+        {/* 消息流容器 (绑定右键菜单事件) */}
         <div 
             className="flex-1 overflow-hidden relative flex flex-col w-full select-text"
             onContextMenu={handleContextMenu}
@@ -780,6 +741,7 @@ export const Messages = () => {
             />
         </div>
 
+        {/* 底部输入框区域 */}
         <div className="shrink-0 p-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30 relative group select-none">
             {/* 统计数据 */}
             <div className="absolute top-2 left-6 z-40 select-none pointer-events-none text-[10px] text-gray-400 font-medium">
@@ -791,6 +753,7 @@ export const Messages = () => {
             <div id="twikoo-moved-icons" ref={headerIconsRef} className="absolute top-2 right-6 z-40 flex items-center gap-2"></div>
 
             <div className="relative max-w-4xl mx-auto w-full pt-3">
+                {/* 回复提示条 */}
                 {isReplying && (
                     <div className="absolute -top-7 left-0 right-0 flex items-center justify-between bg-gray-200/90 dark:bg-[#333]/90 backdrop-blur-sm px-4 py-2 rounded-lg text-xs border border-gray-300 dark:border-white/10 shadow-sm animate-in slide-in-from-bottom-2 z-10">
                         <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300 truncate">
