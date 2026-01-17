@@ -1,7 +1,3 @@
-{
-type: uploaded file
-fileName: messages.tsx
-fullContent:
 'use client'
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
@@ -816,5 +812,4 @@ export const Messages = () => {
       </div>
     </div>
   )
-}
 }
