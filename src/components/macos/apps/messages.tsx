@@ -54,7 +54,7 @@ const MessageContextMenu = ({ visible, x, y, targetElement, onClose }: any) => {
 }
 
 // ==================================================================================
-// 4. Messages Application (Fixed Reply Logic & Auto Refresh)
+// 4. Messages Application
 // ==================================================================================
 export const Messages = () => {
   const { t } = useI18n()
@@ -145,7 +145,7 @@ export const Messages = () => {
       }
   }, []);
 
-  // [辅助函数] 提取父级信息 (修复楼中楼显示问题)
+  // [辅助函数] 提取父级信息 + 文本清理
   const extractParentInfo = (replyElement: Element) => {
       const contentBox = replyElement.querySelector('.tk-content');
       if (!contentBox) return null;
@@ -153,31 +153,39 @@ export const Messages = () => {
       // 1. 尝试从 @ 链接中获取真实的 Parent ID
       const atUser = contentBox.querySelector('.tk-ruser');
       if (atUser) {
-          const href = atUser.getAttribute('href'); // e.g. "#comment-id"
+          const href = atUser.getAttribute('href'); 
           if (href && href.startsWith('#')) {
               const targetId = href.substring(1);
               const targetEl = document.getElementById(targetId);
               if (targetEl) {
                   const targetNick = targetEl.querySelector('.tk-nick')?.textContent || 'User';
-                  // 克隆内容并移除杂项，提取纯文本
+                  
                   const clone = targetEl.querySelector('.tk-content')?.cloneNode(true) as HTMLElement;
                   clone.querySelectorAll('.imessage-quote').forEach(el => el.remove());
                   clone.querySelectorAll('.tk-ruser').forEach(el => el.remove());
-                  const targetText = clone.textContent?.replace(/\s+/g, ' ').trim() || '...';
+                  
+                  // 清理 "回复 :" 等残留文本
+                  let targetText = clone.textContent?.replace(/\s+/g, ' ').trim() || '...';
+                  targetText = targetText.replace(/^(回复|Reply)\s*[:：]?\s*/i, '');
+
                   return { id: targetId, nick: targetNick, text: targetText };
               }
           }
       }
 
-      // 2. 如果没有 @ 链接，尝试从 DOM 层级获取 (直接回复楼主)
+      // 2. DOM 层级获取
       const replyList = replyElement.closest('.tk-replies');
       const parentComment = replyList?.closest('.tk-comment') as HTMLElement;
       if (parentComment) {
           const parentId = parentComment.getAttribute('id') || '';
           const parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'User';
+          
           const clone = parentComment.querySelector('.tk-main > .tk-content')?.cloneNode(true) as HTMLElement;
           clone.querySelectorAll('.imessage-quote').forEach(el => el.remove());
-          const parentText = clone.textContent?.replace(/\s+/g, ' ').trim() || '...';
+          
+          let parentText = clone.textContent?.replace(/\s+/g, ' ').trim() || '...';
+          parentText = parentText.replace(/^(回复|Reply)\s*[:：]?\s*/i, '');
+
           return { id: parentId, nick: parentNick, text: parentText };
       }
 
@@ -192,10 +200,8 @@ export const Messages = () => {
     const container = document.querySelector('.imessage-mode .tk-comments-container') as HTMLElement;
     if (!container) { isProcessingRef.current = false; return; }
 
-    // 暂停监听
     if (commentObserverRef.current) commentObserverRef.current.disconnect();
 
-    // 1. 搬运图标
     if (headerIconsRef.current && headerIconsRef.current.childNodes.length === 0) {
         const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
         if (originalHeader) {
@@ -204,12 +210,10 @@ export const Messages = () => {
         }
     }
 
-    // 2. 提取并平铺所有回复
     const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment'));
     nestedReplies.forEach(reply => {
         const contentBox = reply.querySelector('.tk-content');
         
-        // 如果还没有添加引用块
         if (contentBox && !contentBox.querySelector('.imessage-quote')) {
             const parentInfo = extractParentInfo(reply);
             
@@ -219,18 +223,19 @@ export const Messages = () => {
 
                 const quoteDiv = document.createElement('div');
                 quoteDiv.className = 'imessage-quote';
-                quoteDiv.innerHTML = `<span class="imessage-quote-name">${parentInfo.nick}:</span> ${parentText}`;
+                
+                // [关键修改] 格式：回复: 昵称 : 内容
+                quoteDiv.innerHTML = `回复: <span class="imessage-quote-name">${parentInfo.nick}</span> : ${parentText}`;
+                
                 if (parentInfo.id) quoteDiv.setAttribute('data-parent-id', parentInfo.id);
                 quoteDiv.addEventListener('click', handleQuoteClick);
                 
                 contentBox.insertBefore(quoteDiv, contentBox.firstChild);
             }
         }
-        // 移动到主容器
         container.appendChild(reply); 
     });
 
-    // 3. 计算 Order 实现排序 (旧 -> 新)
     const allComments = Array.from(container.children).filter(el => el.classList.contains('tk-comment')) as HTMLElement[];
     allComments.forEach(comment => {
         const timeEl = comment.querySelector('time');
@@ -241,18 +246,15 @@ export const Messages = () => {
                 comment.style.order = String(Math.floor(timestamp / 1000));
             }
         } else {
-            // 无时间戳的（刚发的），放到最后
             comment.style.order = '9999999999';
         }
     });
 
-    // 4. 统计
     const total = allComments.length;
     let repliesCount = 0;
     allComments.forEach(c => { if(c.querySelector('.imessage-quote')) repliesCount++; });
     setStats({ total, main: total - repliesCount, replies: repliesCount });
 
-    // 恢复监听 (仅监听 childList 和 subtree，不监听 attributes 避免死循环)
     if (commentObserverRef.current) {
         commentObserverRef.current.observe(container, { childList: true, subtree: true, attributes: false });
     }
@@ -282,7 +284,6 @@ export const Messages = () => {
         });
     }
 
-    // Polling until loaded
     const checkTimer = setInterval(() => {
         const commentsContainer = document.querySelector('.imessage-mode .tk-comments-container');
         if (commentsContainer) {
@@ -336,7 +337,6 @@ export const Messages = () => {
       }
   }
 
-  // [关键修复] 发送后启动强力轮询，确保新评论被捕获
   const handleSend = () => {
       if (!inputValue.trim()) return
       const { input, btn } = getTwikooElements()
@@ -349,22 +349,19 @@ export const Messages = () => {
             btn.click()
             setInputValue('')
             
-            // 立即检查
             processLayout();
             
-            // 启动 5 秒的高频轮询 (每 500ms 一次)
             let checkCount = 0;
             const refreshInterval = setInterval(() => {
                 const container = document.querySelector('.imessage-mode .tk-comments-container');
                 if (container) {
                     processLayout(); 
-                    // 如果在底部附近，自动滚动
                     if(container.scrollHeight - container.scrollTop - container.clientHeight < 300) {
                         container.scrollTop = container.scrollHeight;
                     }
                 }
                 checkCount++;
-                if (checkCount > 10) clearInterval(refreshInterval); // 5秒后停止
+                if (checkCount > 10) clearInterval(refreshInterval); 
             }, 500);
 
         } else {
