@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { MessageSquare, Server, RefreshCw } from 'lucide-react' 
+import { MessageSquare, Server } from 'lucide-react' 
 
 type CommentSystemType = 'giscus' | 'twikoo'
 
@@ -20,7 +20,6 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
   const giscusContainerRef = useRef<HTMLDivElement>(null)
   const twikooContainerRef = useRef<HTMLDivElement>(null)
 
-  // Giscus 初始化 (保持不变)
   const initGiscus = () => {
     if (!giscusContainerRef.current) return
     try {
@@ -60,17 +59,15 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     }
   }
 
-  // Twikoo 初始化
   const initTwikoo = () => {
-    // ⚠️ 请确保这里替换成你自己的 EnvId
-    const envId = process.env.NEXT_PUBLIC_TWIKOO_ENV_ID || 'https://your-twikoo.vercel.app' 
+    const envId = process.env.NEXT_PUBLIC_TWIKOO_ENV_ID
+    if (!envId) return 
 
-    // 彻底清理旧的脚本和 DOM
     const oldScripts = document.querySelectorAll('script[src*="twikoo"]')
     oldScripts.forEach(script => script.remove())
     
     if (twikooContainerRef.current) {
-        twikooContainerRef.current.innerHTML = '<div id="twikoo"></div>'
+        twikooContainerRef.current.innerHTML = ''
     }
 
     const script = document.createElement('script')
@@ -78,20 +75,17 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     script.async = true
     
     script.onload = () => {
-      // 延时一点点确保 DOM 准备好
-      setTimeout(() => {
-          if (window.twikoo && twikooContainerRef.current) {
-            window.twikoo.init({
-              envId: envId,
-              el: '#twikoo', // 必须匹配上面的 innerHTML ID
-              path: compact ? `/messages/${slug}` : `/blog/${slug}`,
-              lang: 'zh-CN',
-              onCommentLoaded: () => {
-                  setTwikooLoaded(true)
-              }
-            })
+      if (window.twikoo && twikooContainerRef.current) {
+        window.twikoo.init({
+          envId: envId,
+          el: twikooContainerRef.current,
+          path: compact ? `/messages/${slug}` : `/blog/${slug}`,
+          lang: 'zh-CN',
+          onCommentLoaded: () => {
+              setTwikooLoaded(true)
           }
-      }, 50)
+        })
+      }
     }
     document.body.appendChild(script)
   }
@@ -115,12 +109,8 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     setTwikooLoaded(false)
     setGiscusLoaded(false)
     
-    // 增加一点防抖
-    const timer = setTimeout(() => {
-        if (currentSystem === 'giscus') initGiscus()
-        else initTwikoo()
-    }, 100)
-    return () => clearTimeout(timer)
+    if (currentSystem === 'giscus') setTimeout(() => initGiscus(), 100)
+    else setTimeout(() => initTwikoo(), 100)
   }, [currentSystem, slug, reloadKey])
 
   declare global {
@@ -149,24 +139,35 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-500">评论系统：</span>
               <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
-                <button onClick={() => handleSystemSwitch('giscus')} className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${currentSystem === 'giscus' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
-                  Giscus
+                <button
+                  onClick={() => handleSystemSwitch('giscus')}
+                  className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    currentSystem === 'giscus' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Giscus {currentSystem === 'giscus' && !giscusLoaded && <span className="ml-1 h-1.5 w-1.5 animate-ping rounded-full bg-blue-500"></span>}
                 </button>
-                <button onClick={() => handleSystemSwitch('twikoo')} className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${currentSystem === 'twikoo' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
-                  Twikoo
+                <button
+                  onClick={() => handleSystemSwitch('twikoo')}
+                  className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    currentSystem === 'twikoo' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Twikoo {currentSystem === 'twikoo' && !twikooLoaded && <span className="ml-1 h-1.5 w-1.5 animate-ping rounded-full bg-blue-500"></span>}
                 </button>
               </div>
             </div>
           </div>
         )}
         
-        <div className={`flex-1 min-h-0 relative ${compact ? 'overflow-y-auto scrollbar-none' : ''}`}>
+        <div className={`flex-1 min-h-0 relative overflow-y-auto ${compact ? 'px-4 py-2' : ''}`}>
             {currentSystem === 'giscus' && (
-            <div className="h-full">
+            <div>
                 {!giscusLoaded && (
-                <div className="flex flex-col items-center justify-center p-8 opacity-60 h-full">
-                    <RefreshCw className="mb-2 h-6 w-6 animate-spin text-gray-400" />
+                <div className="flex flex-col items-center justify-center p-8 opacity-60">
+                    <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500"></div>
                     <p className="text-xs text-gray-500">Connecting to GitHub...</p>
+                    <button onClick={initGiscus} className="mt-2 text-xs text-blue-500 hover:underline">Retry</button>
                 </div>
                 )}
                 <div ref={giscusContainerRef} className="w-full min-h-[200px]" style={{ display: giscusLoaded ? 'block' : 'none' }} />
@@ -174,25 +175,31 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
             )}
             
             {currentSystem === 'twikoo' && (
-            <div className="h-full">
+            <div>
                 {!twikooLoaded && (
-                <div className="flex flex-col items-center justify-center p-8 opacity-60 h-full">
-                    <RefreshCw className="mb-2 h-6 w-6 animate-spin text-gray-400" />
-                    <p className="text-xs text-gray-500">Syncing Messages...</p>
+                <div className="flex flex-col items-center justify-center p-8 opacity-60">
+                    <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500"></div>
+                    <p className="text-xs text-gray-500">Loading Messages...</p>
                 </div>
                 )}
-                <div ref={twikooContainerRef} className="w-full min-h-[200px] pb-4" />
+                <div ref={twikooContainerRef} className="w-full min-h-[200px]" style={{ display: twikooLoaded ? 'block' : 'none' }} />
             </div>
             )}
         </div>
 
         {compact && (
-            <div className="shrink-0 h-6 flex items-center justify-center gap-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/5 z-20 select-none">
-                <button onClick={() => handleSystemSwitch('twikoo')} className={`flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider transition-colors ${currentSystem === 'twikoo' ? 'text-blue-500' : 'text-gray-300 hover:text-gray-500'}`}>
+            <div className="shrink-0 h-6 flex items-center justify-center gap-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/5 z-20">
+                <button 
+                    onClick={() => handleSystemSwitch('twikoo')}
+                    className={`flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider transition-colors ${currentSystem === 'twikoo' ? 'text-blue-500' : 'text-gray-300 hover:text-gray-500'}`}
+                >
                     <MessageSquare size={9} /> Twikoo
                 </button>
                 <div className="w-[1px] h-2 bg-gray-200 dark:bg-white/10"></div>
-                <button onClick={() => handleSystemSwitch('giscus')} className={`flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider transition-colors ${currentSystem === 'giscus' ? 'text-blue-500' : 'text-gray-300 hover:text-gray-500'}`}>
+                <button 
+                    onClick={() => handleSystemSwitch('giscus')}
+                    className={`flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider transition-colors ${currentSystem === 'giscus' ? 'text-blue-500' : 'text-gray-300 hover:text-gray-500'}`}
+                >
                     <Server size={9} /> GitHub
                 </button>
             </div>
