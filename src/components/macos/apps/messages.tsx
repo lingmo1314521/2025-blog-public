@@ -1,7 +1,11 @@
+{
+type: uploaded file
+fileName: messages.tsx
+fullContent:
 'use client'
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { Search, Edit, Settings, X, ArrowUp, RefreshCw, MessageCircle, Shield } from 'lucide-react'
+import { Search, Edit, Settings, X, ArrowUp, RefreshCw, MessageCircle, Shield, Copy, Heart, Reply, Trash2 } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
@@ -152,7 +156,114 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
 }
 
 // ==================================================================================
-// 3. Messages 主应用
+// 3. 右键菜单组件
+// ==================================================================================
+interface ContextMenuState {
+    visible: boolean
+    x: number
+    y: number
+    targetElement: HTMLElement | null
+}
+
+const MessageContextMenu = ({ 
+    visible, x, y, targetElement, onClose 
+}: ContextMenuState & { onClose: () => void }) => {
+    const menuRef = useRef<HTMLDivElement>(null)
+    const { t } = useI18n()
+
+    // 自动调整位置，防止超出屏幕
+    const [adjustedPos, setAdjustedPos] = useState({ x, y })
+
+    useEffect(() => {
+        if (visible && menuRef.current) {
+            const rect = menuRef.current.getBoundingClientRect()
+            let newX = x
+            let newY = y
+
+            // 右侧溢出检测
+            if (x + rect.width > window.innerWidth) {
+                newX = x - rect.width
+            }
+            // 底部溢出检测
+            if (y + rect.height > window.innerHeight) {
+                newY = y - rect.height
+            }
+
+            setAdjustedPos({ x: newX, y: newY })
+        }
+    }, [visible, x, y])
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+                onClose()
+            }
+        }
+        if (visible) window.addEventListener('mousedown', handleClickOutside)
+        return () => window.removeEventListener('mousedown', handleClickOutside)
+    }, [visible, onClose])
+
+    if (!visible || !targetElement) return null
+
+    // 查找 Twikoo 原始 DOM 中的操作按钮
+    const findAction = (selector: string) => {
+        // 从气泡向上找到 tk-comment 容器
+        const commentRow = targetElement.closest('.tk-comment')
+        if (commentRow) {
+            return commentRow.querySelector(selector) as HTMLElement
+        }
+        return null
+    }
+
+    const handleAction = (action: 'reply' | 'copy' | 'like') => {
+        if (action === 'reply') {
+            const replyBtn = findAction('.tk-action-link') // Twikoo 回复按钮通常是第一个链接
+            if (replyBtn) replyBtn.click()
+        }
+        if (action === 'like') {
+            // 查找包含点赞图标的链接
+            const commentRow = targetElement.closest('.tk-comment')
+            if (commentRow) {
+                const links = Array.from(commentRow.querySelectorAll('.tk-action-link'))
+                // 通常第二个是点赞，或者通过图标 SVG 路径判断，这里假设第二个是点赞
+                if (links.length > 1) (links[1] as HTMLElement).click()
+                else if (links.length > 0) (links[0] as HTMLElement).click() // 兜底
+            }
+        }
+        if (action === 'copy') {
+            const content = targetElement.querySelector('.tk-content')?.textContent || targetElement.textContent
+            if (content) {
+                navigator.clipboard.writeText(content)
+                toast.success('Copied to clipboard')
+            }
+        }
+        onClose()
+    }
+
+    return (
+        <div 
+            ref={menuRef}
+            className="fixed z-[99999] min-w-[140px] bg-white/90 dark:bg-[#2c2c2c]/90 backdrop-blur-xl border border-black/10 dark:border-white/10 shadow-xl rounded-lg overflow-hidden py-1 flex flex-col select-none animate-in fade-in zoom-in-95 duration-100"
+            style={{ top: adjustedPos.y, left: adjustedPos.x }}
+            onClick={(e) => e.stopPropagation()}
+            onContextMenu={(e) => e.preventDefault()}
+        >
+            <button onClick={() => handleAction('reply')} className="flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-blue-500 hover:text-white transition-colors text-gray-700 dark:text-gray-200">
+                <Reply size={14} /> {t('msg_reply') || 'Reply'}
+            </button>
+            <button onClick={() => handleAction('copy')} className="flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-blue-500 hover:text-white transition-colors text-gray-700 dark:text-gray-200">
+                <Copy size={14} /> Copy
+            </button>
+            <div className="h-[1px] bg-gray-200 dark:bg-white/10 my-1 mx-2"/>
+            <button onClick={() => handleAction('like')} className="flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-blue-500 hover:text-white transition-colors text-gray-700 dark:text-gray-200">
+                <Heart size={14} /> Like
+            </button>
+        </div>
+    )
+}
+
+// ==================================================================================
+// 4. Messages 主应用
 // ==================================================================================
 export const Messages = () => {
   const { t } = useI18n()
@@ -173,6 +284,9 @@ export const Messages = () => {
   const [replyTargetText, setReplyTargetText] = useState('') 
   
   const [stats, setStats] = useState({ total: 0, main: 0, replies: 0 })
+
+  // 右键菜单状态
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, targetElement: null })
 
   const headerIconsRef = useRef<HTMLDivElement>(null)
   
@@ -235,19 +349,16 @@ export const Messages = () => {
       }
   }, [launchApp, windows]);
 
-  // --- [核心升级] 引用跳转：改用 ID 锚定 ---
+  // --- 引用跳转 ---
   const handleQuoteClick = useCallback((e: Event) => {
       const target = e.currentTarget as HTMLElement;
-      // 从 dataset 中获取父 ID (最可靠的方式)
       const parentId = target.dataset.parentId;
-      
       let parentComment: HTMLElement | null = null;
 
       if (parentId) {
           parentComment = document.getElementById(parentId);
       } 
       
-      // 兜底：如果没 ID (极少情况)，再尝试旧的文本匹配逻辑
       if (!parentComment) {
           const quoteText = target.innerText;
           const colonIndex = quoteText.indexOf(':');
@@ -270,7 +381,6 @@ export const Messages = () => {
           if (bubble) {
               bubble.style.transition = 'background-color 0.5s';
               const originalBg = bubble.style.backgroundColor;
-              // 闪烁高亮
               bubble.style.backgroundColor = 'rgba(255, 235, 59, 0.5)'; 
               setTimeout(() => {
                   bubble.style.backgroundColor = originalBg;
@@ -286,7 +396,7 @@ export const Messages = () => {
     if (originalHeader) {
         const iconWrappers = originalHeader.querySelectorAll('.tk-icon');
         if (iconWrappers.length > 0 && headerIconsRef.current) {
-            headerIconsRef.current.innerHTML = ''; // 清空旧图标
+            headerIconsRef.current.innerHTML = ''; 
             const siblings = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
             siblings.forEach(sibling => {
                 headerIconsRef.current?.appendChild(sibling);
@@ -309,14 +419,11 @@ export const Messages = () => {
                 const parentComment = replyList?.closest('.tk-comment') as HTMLElement;
                 
                 if (parentComment) {
-                    // [核心升级] 获取父 ID
                     const parentId = parentComment.getAttribute('id');
-                    
                     let parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'User';
                     const parentContentElem = parentComment.querySelector('.tk-main > .tk-content');
                     let parentText = parentContentElem?.textContent?.replace(/\s+/g, ' ').trim() || '';
 
-                    // 楼中楼回复处理
                     const atUserLink = contentBox.querySelector('.tk-ruser');
                     if (atUserLink && atUserLink.textContent) {
                         parentNick = atUserLink.textContent.replace('@', '').trim();
@@ -325,7 +432,6 @@ export const Messages = () => {
                         if (atUserSpan) atUserSpan.style.display = 'none';
                     }
 
-                    // 清理引用中的引用
                     const existingQuote = parentContentElem?.querySelector('.imessage-quote');
                     if (existingQuote && existingQuote.textContent) {
                         parentText = parentText.replace(existingQuote.textContent, '').trim();
@@ -335,8 +441,6 @@ export const Messages = () => {
                     const quoteDiv = document.createElement('div');
                     quoteDiv.className = 'imessage-quote';
                     quoteDiv.innerHTML = `<span class="imessage-quote-name">${parentNick}:</span> ${parentText}`;
-                    
-                    // [核心升级] 注入 Parent ID 到 DOM，方便点击查找
                     if (parentId) quoteDiv.setAttribute('data-parent-id', parentId);
                     
                     quoteDiv.addEventListener('click', handleQuoteClick);
@@ -377,7 +481,6 @@ export const Messages = () => {
         commentObserverRef.current.observe(container, { childList: true });
     }
   }, [handleQuoteClick]);
-
 
   // --- 主 Effect ---
   useEffect(() => {
@@ -431,7 +534,6 @@ export const Messages = () => {
     }
   }, [handleAdminTrigger, processLayout, activeContactId]); 
 
-  // 切换联系人时清空图标
   useEffect(() => {
       if (headerIconsRef.current) headerIconsRef.current.innerHTML = '';
   }, [activeContactId]);
@@ -480,7 +582,6 @@ export const Messages = () => {
         if (btn) {
             btn.click()
             setInputValue('')
-            
             const refreshTimes = [300, 800, 1500];
             refreshTimes.forEach(t => {
                 setTimeout(() => {
@@ -491,7 +592,6 @@ export const Messages = () => {
                     }
                 }, t);
             });
-
         } else {
             toast.error("Send button not found")
         }
@@ -505,14 +605,108 @@ export const Messages = () => {
       setInputValue('')
   }
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+      e.preventDefault()
+      // 检查点击目标是否在消息气泡内
+      const target = e.target as HTMLElement
+      const bubble = target.closest('.tk-content')
+      
+      if (bubble) {
+          setContextMenu({
+              visible: true,
+              x: e.clientX,
+              y: e.clientY,
+              targetElement: bubble as HTMLElement
+          })
+      }
+  }
+
   return (
     <div className="flex h-full w-full bg-white dark:bg-[#1e1e1e] text-black dark:text-white font-sans overflow-hidden relative">
       
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onSave={() => setReloadKey(k => k + 1)} />}
+      
+      {/* Context Menu */}
+      <MessageContextMenu 
+         {...contextMenu} 
+         onClose={() => setContextMenu(prev => ({ ...prev, visible: false }))} 
+      />
 
       <style jsx global>{`
          .imessage-mode .tk-admin-container {
              display: none; 
+         }
+         /* 优化元数据显示 (昵称、时间) */
+         .imessage-mode .tk-row {
+            margin-bottom: 2px !important;
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            width: 100% !important;
+         }
+         .imessage-mode .tk-meta {
+            display: flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            font-size: 10px !important;
+            color: #8e8e93 !important; /* iOS gray */
+            margin-left: 12px !important; /* Align with bubble curvature */
+         }
+         .imessage-mode .tk-nick {
+            font-weight: 500 !important;
+            font-size: 11px !important;
+            color: #666 !important;
+         }
+         .dark .imessage-mode .tk-nick {
+            color: #aaa !important;
+         }
+         .imessage-mode .tk-time {
+            font-size: 9px !important;
+            opacity: 0.7 !important;
+         }
+
+         /* 优化操作按钮 (点赞、回复) - 默认隐藏，悬浮显示 */
+         .imessage-mode .tk-action {
+             opacity: 0 !important;
+             transition: opacity 0.2s ease !important;
+             display: flex !important;
+             gap: 12px !important;
+             margin-right: 8px !important;
+         }
+         .imessage-mode .tk-comment:hover .tk-action {
+             opacity: 1 !important;
+         }
+         .imessage-mode .tk-action-link {
+             color: #999 !important;
+             display: flex !important;
+             align-items: center !important;
+             gap: 2px !important;
+             text-decoration: none !important;
+         }
+         .imessage-mode .tk-action-link:hover {
+             color: #007aff !important;
+         }
+         /* 重置 SVG 图标大小 */
+         .imessage-mode .tk-action-icon svg {
+             width: 14px !important;
+             height: 14px !important;
+             fill: currentColor !important;
+         }
+         .imessage-mode .tk-action-count {
+             font-size: 10px !important;
+             min-width: 10px !important;
+         }
+
+         /* Master 模式下的特殊对齐 */
+         .imessage-mode .tk-master .tk-meta {
+             flex-direction: row-reverse !important;
+             margin-left: 0 !important;
+             margin-right: 12px !important;
+         }
+         .imessage-mode .tk-master .tk-action {
+             flex-direction: row-reverse !important;
+             margin-right: 0 !important;
+             margin-left: 8px !important;
          }
       `}</style>
 
@@ -556,7 +750,11 @@ export const Messages = () => {
             </div>
         </div>
 
-        <div className="flex-1 overflow-hidden relative flex flex-col w-full select-text">
+        {/* 绑定 Context Menu 事件到容器 */}
+        <div 
+            className="flex-1 overflow-hidden relative flex flex-col w-full select-text"
+            onContextMenu={handleContextMenu}
+        >
             <CommentSystem 
                 key={`${activeContact.slug}-${reloadKey}`} 
                 slug={activeContact.slug} 
@@ -618,4 +816,5 @@ export const Messages = () => {
       </div>
     </div>
   )
+}
 }
