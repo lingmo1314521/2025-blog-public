@@ -1,18 +1,12 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { 
-  Search, Edit, Settings, X, ArrowUp, RefreshCw, MessageCircle, Shield, 
-  Copy, Reply, Heart, Trash2, MoreHorizontal, Flag, Languages, Pin
-} from 'lucide-react'
+import { Search, Edit, Settings, X, ArrowUp, RefreshCw, MessageCircle, Shield, Copy, Reply, Quote, Volume2, MoreHorizontal } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
 import { useOs } from '../os-context'
 import { toast } from 'sonner' 
-
-// --- 补充翻译键类型 (请确保在 translations.ts 中添加这些键) ---
-// 'msg_copy': '复制', 'msg_reply': '回复', 'msg_like': '点赞', 'msg_delete': '删除', 'msg_report': '举报', 'msg_translate': '翻译', 'msg_pin': '置顶'
 
 // ==================================================================================
 // 1. 独立的 Twikoo 后台宿主组件
@@ -25,7 +19,6 @@ const TwikooAdminHost = () => {
         
         if (adminContainer && containerRef.current) {
             containerRef.current.appendChild(adminContainer)
-            
             adminContainer.style.display = 'block'
             adminContainer.style.position = 'static'
             adminContainer.style.width = '100%'
@@ -64,7 +57,7 @@ const TwikooAdminHost = () => {
             containerRef.current?.removeEventListener('keydown', handleKeyDown, true);
             if (adminContainer) {
                 const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement;
-                if (closeBtn) closeBtn.click();
+                if (closeBtn) closeBtn.click(); // 同步关闭状态
 
                 document.body.appendChild(adminContainer)
                 adminContainer.style.display = 'none' 
@@ -86,138 +79,68 @@ const TwikooAdminHost = () => {
 }
 
 // ==================================================================================
-// 2. 右键菜单组件 (New)
+// 2. 右键菜单组件
 // ==================================================================================
 interface ContextMenuProps {
-    x: number;
-    y: number;
-    data: { id: string; text: string; author: string; element: HTMLElement };
-    onClose: () => void;
-    onAction: (action: string, data: any) => void;
+    x: number
+    y: number
+    content: string
+    onClose: () => void
+    onReply: () => void
+    onQuote: () => void
 }
 
-const MessageContextMenu = ({ x, y, data, onClose, onAction }: ContextMenuProps) => {
-    const { t } = useI18n();
-    const menuRef = useRef<HTMLDivElement>(null);
+const MessageContextMenu = ({ x, y, content, onClose, onReply, onQuote }: ContextMenuProps) => {
+    const menuRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
-            if (menuRef.current && !menuRef.current.contains(e.target as Node)) onClose();
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [onClose]);
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) onClose()
+        }
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [onClose])
 
-    // 边界检测
-    const style: React.CSSProperties = { top: y, left: x };
+    const handleCopy = () => {
+        navigator.clipboard.writeText(content);
+        toast.success("Text copied");
+        onClose();
+    }
+
+    const handleSpeak = () => {
+        const utterance = new SpeechSynthesisUtterance(content);
+        window.speechSynthesis.speak(utterance);
+        onClose();
+    }
+
+    // 简单的边界检测
+    const style: React.CSSProperties = { top: y, left: x }
     if (typeof window !== 'undefined') {
-        if (y + 200 > window.innerHeight) style.top = y - 200;
-        if (x + 160 > window.innerWidth) style.left = x - 160;
+        if (y + 150 > window.innerHeight) style.top = y - 150;
+        if (x + 200 > window.innerWidth) style.left = x - 200;
     }
 
-    const MenuItem = ({ icon: Icon, label, action, danger = false }: any) => (
-        <button 
-            onClick={() => onAction(action, data)}
-            className={clsx(
-                "flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left transition-colors rounded-md mx-1 my-0.5",
-                danger ? "text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30" : "text-gray-700 dark:text-gray-200 hover:bg-blue-500 hover:text-white"
-            )}
+    return (
+        <div 
+            ref={menuRef}
+            className="fixed z-[99999] min-w-[160px] bg-white/90 dark:bg-[#2c2c2c]/90 backdrop-blur-xl border border-white/20 shadow-2xl rounded-lg overflow-hidden py-1.5 flex flex-col select-none origin-top-left animate-in fade-in zoom-in-95 duration-100"
+            style={style}
+            onClick={e => e.stopPropagation()}
         >
-            <Icon size={14} />
-            <span>{label}</span>
-        </button>
-    )
-
-    return (
-        <div ref={menuRef} style={style} className="fixed z-[9999] min-w-[160px] bg-white/90 dark:bg-[#2c2c2c]/90 backdrop-blur-xl border border-gray-200 dark:border-white/10 shadow-xl rounded-lg py-1 flex flex-col select-none animate-in fade-in zoom-in-95 duration-100">
-            <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-200 dark:border-white/10 mb-1">
-                {data.author}
-            </div>
-            <MenuItem icon={Reply} label={t('msg_reply') || 'Reply'} action="reply" />
-            <MenuItem icon={Copy} label={t('msg_copy') || 'Copy Text'} action="copy" />
-            <MenuItem icon={Languages} label={t('msg_translate') || 'Translate'} action="translate" />
-            <div className="h-[1px] bg-gray-200 dark:bg-white/10 my-1 mx-2" />
-            <MenuItem icon={Heart} label={t('msg_like') || 'Like'} action="like" />
-            <MenuItem icon={Pin} label={t('msg_pin') || 'Pin'} action="pin" />
-            <div className="h-[1px] bg-gray-200 dark:bg-white/10 my-1 mx-2" />
-            <MenuItem icon={Flag} label={t('msg_report') || 'Report'} action="report" danger />
-            <MenuItem icon={Trash2} label={t('msg_delete') || 'Delete'} action="delete" danger />
+            <MenuItem icon={<Reply size={14} />} label="Reply" onClick={() => { onReply(); onClose(); }} />
+            <MenuItem icon={<Quote size={14} />} label="Quote Reply" onClick={() => { onQuote(); onClose(); }} />
+            <div className="h-[1px] bg-black/5 dark:bg-white/10 my-1 mx-2" />
+            <MenuItem icon={<Copy size={14} />} label="Copy" onClick={handleCopy} />
+            <MenuItem icon={<Volume2 size={14} />} label="Speak" onClick={handleSpeak} />
         </div>
     )
 }
 
-// ==================================================================================
-// 3. Settings Modal (保留)
-// ==================================================================================
-const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
-    // ... (代码与之前相同，省略以节省空间，功能不变)
-    const { t } = useI18n()
-    const [nick, setNick] = useState('')
-    const [mail, setMail] = useState('')
-    const [link, setLink] = useState('')
-
-    useEffect(() => {
-        try {
-            const stored = localStorage.getItem('twikoo')
-            if (stored) {
-                const data = JSON.parse(stored)
-                setNick(data.nick || '')
-                setMail(data.mail || '')
-                setLink(data.link || '')
-            }
-        } catch (e) {}
-    }, [])
-
-    const handleSave = () => {
-        try {
-            const stored = localStorage.getItem('twikoo')
-            let data = stored ? JSON.parse(stored) : {}
-            data.nick = nick; data.mail = mail; data.link = link
-            localStorage.setItem('twikoo', JSON.stringify(data))
-            
-            const inputs = document.querySelectorAll('.imessage-mode input')
-            inputs.forEach((input: any) => {
-                if(input.name === 'nick') { input.value = nick; input.dispatchEvent(new Event('input')); }
-                if(input.name === 'mail') { input.value = mail; input.dispatchEvent(new Event('input')); }
-                if(input.name === 'link') { input.value = link; input.dispatchEvent(new Event('input')); }
-            })
-
-            onSave()
-            onClose()
-            toast.success('Settings saved')
-        } catch (e) { console.error(e) }
-    }
-
-    return (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-            <div className="w-80 bg-[#f5f5f5] dark:bg-[#2c2c2c] rounded-xl shadow-2xl border border-white/20 p-5" onClick={e => e.stopPropagation()}>
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-sm dark:text-white">{t('msg_settings_title')}</h3>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full cursor-pointer"><X size={14}/></button>
-                </div>
-                <div className="space-y-3">
-                    <div>
-                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{t('msg_nick')}</label>
-                        <input value={nick} onChange={e=>setNick(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" placeholder={t('msg_nick_ph')}/>
-                    </div>
-                    <div>
-                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{t('msg_email')}</label>
-                        <input value={mail} onChange={e=>setMail(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" placeholder={t('msg_email_ph')}/>
-                    </div>
-                    <div>
-                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{t('msg_link')}</label>
-                        <input value={link} onChange={e=>setLink(e.target.value)} className="w-full bg-white dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-md px-2 py-1.5 text-xs outline-none focus:border-blue-500 text-black dark:text-white" placeholder="https://..."/>
-                    </div>
-                </div>
-                <div className="mt-5 flex justify-end">
-                    <button onClick={handleSave} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1 cursor-pointer">
-                        {t('msg_save')}
-                    </button>
-                </div>
-            </div>
-        </div>
-    )
-}
+const MenuItem = ({ icon, label, onClick }: any) => (
+    <button onClick={onClick} className="flex items-center gap-2 px-3 py-1.5 mx-1 rounded text-xs text-left transition-colors text-gray-800 dark:text-gray-200 hover:bg-blue-500 hover:text-white cursor-pointer">
+        {icon} <span className="font-medium">{label}</span>
+    </button>
+)
 
 // ==================================================================================
 // 3. Messages 主应用
@@ -234,15 +157,16 @@ export const Messages = () => {
 
   const [activeContactId, setActiveContactId] = useState(CONTACTS[0].id)
   const [search, setSearch] = useState('')
-  const [showSettings, setShowSettings] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [inputValue, setInputValue] = useState('')
   const [isReplying, setIsReplying] = useState(false)
   const [replyTargetText, setReplyTargetText] = useState('') 
-  
   const [stats, setStats] = useState({ total: 0, main: 0, replies: 0 })
-  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, data: any } | null>(null)
 
+  // 右键菜单状态
+  const [ctxMenu, setCtxMenu] = useState<{ x: number, y: number, content: string, domElement: HTMLElement | null } | null>(null)
+
+  const headerCountRef = useRef<HTMLDivElement>(null)
   const headerIconsRef = useRef<HTMLDivElement>(null)
   const loadObserverRef = useRef<MutationObserver | null>(null)
   const adminClassObserverRef = useRef<MutationObserver | null>(null)
@@ -277,6 +201,52 @@ export const Messages = () => {
       return { input: mainInput, btn: mainBtn, cancelBtn: null, isReplyMode: false }
   }, [])
 
+  // --- 右键菜单处理 ---
+  const handleContextMenu = (e: React.MouseEvent) => {
+      e.preventDefault();
+      const target = e.target as HTMLElement;
+      // 查找最近的评论气泡
+      const bubble = target.closest('.tk-content');
+      if (bubble) {
+          const text = bubble.textContent || '';
+          // 清理引用文本，只获取正文
+          const quote = bubble.querySelector('.imessage-quote');
+          let cleanText = text;
+          if (quote) {
+              cleanText = text.replace(quote.textContent || '', '').trim();
+          }
+          
+          setCtxMenu({
+              x: e.clientX,
+              y: e.clientY,
+              content: cleanText,
+              domElement: bubble.closest('.tk-comment') as HTMLElement
+          });
+      }
+  }
+
+  // --- 菜单功能实现 ---
+  const handleCtxReply = () => {
+      if (ctxMenu?.domElement) {
+          const replyLink = ctxMenu.domElement.querySelector('.tk-action-link') as HTMLElement; // Twikoo 回复按钮
+          if (replyLink) replyLink.click();
+      }
+  }
+
+  const handleCtxQuote = () => {
+      if (ctxMenu?.domElement) {
+          // 先触发回复
+          handleCtxReply();
+          // 然后将内容填入输入框（模拟引用）
+          setTimeout(() => {
+              setInputValue(`> ${ctxMenu.content}\n\n`);
+              const { input } = getTwikooElements();
+              if (input) input.focus();
+          }, 200);
+      }
+  }
+
+  // --- Admin 弹窗逻辑 ---
   const handleAdminTrigger = useCallback((targetElement: HTMLElement) => {
       if (targetElement.classList.contains('__show')) {
           if (isAdminOpeningRef.current) return;
@@ -300,149 +270,7 @@ export const Messages = () => {
       }
   }, [launchApp, windows]);
 
-  // --- 右键菜单处理器 ---
-  const handleContextMenu = (e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const target = e.target as HTMLElement;
-      const commentEl = target.closest('.tk-comment') as HTMLElement;
-      
-      if (commentEl) {
-          const nick = commentEl.querySelector('.tk-nick')?.textContent || 'User';
-          const content = commentEl.querySelector('.tk-content')?.textContent || '';
-          const id = commentEl.id;
-          
-          setContextMenu({
-              x: e.clientX,
-              y: e.clientY,
-              data: { id, text: content, author: nick, element: commentEl }
-          });
-      }
-  };
-
-  // --- 菜单动作处理 ---
-  const handleMenuAction = (action: string, data: any) => {
-      setContextMenu(null);
-      const { element } = data;
-      
-      // 获取 Twikoo 原生操作按钮
-      const actionsContainer = element.querySelector('.tk-actions') || element.querySelector('.tk-meta');
-      
-      switch(action) {
-          case 'reply':
-              // 触发原生回复按钮
-              const replyBtn = element.querySelector('.tk-action-link:first-child') || element.querySelector('.tk-reply');
-              if (replyBtn) (replyBtn as HTMLElement).click();
-              
-              // 聚焦输入框
-              setTimeout(() => {
-                  const { input } = getTwikooElements();
-                  if (input) {
-                      input.focus();
-                      const container = document.querySelector('.imessage-mode .tk-comments-container');
-                      if (container) container.scrollTop = container.scrollHeight;
-                  }
-              }, 100);
-              break;
-              
-          case 'copy':
-              navigator.clipboard.writeText(data.text);
-              toast.success(t('msg_copy_success') || 'Copied to clipboard');
-              break;
-              
-          case 'like':
-              // 找到原生点赞按钮并点击
-              // 通常是第二个 tk-action-link 或者包含 heart icon 的元素
-              const likeBtns = element.querySelectorAll('.tk-action-link');
-              let likeBtn = null;
-              // 遍历找包含心形或数字的
-              likeBtns.forEach((btn: HTMLElement) => {
-                  if (btn.querySelector('.tk-action-count')) likeBtn = btn;
-              });
-              if (likeBtn) {
-                  (likeBtn as HTMLElement).click();
-                  toast.success('Liked!');
-              } else {
-                  toast.error('Like button not found');
-              }
-              break;
-              
-          case 'delete':
-              // 只有当登录为 Admin 时，Twikoo 才会渲染删除按钮
-              // 我们尝试寻找“删除”或 trash icon
-              const delLink = Array.from(element.querySelectorAll('a')).find(a => (a as HTMLElement).textContent?.includes('删除') || (a as HTMLElement).textContent?.includes('Delete'));
-              if (delLink) {
-                  (delLink as HTMLElement).click();
-              } else {
-                  toast.error('Permission denied or delete option not available');
-              }
-              break;
-              
-          case 'translate':
-              toast.info('Translation feature coming soon!');
-              break;
-              
-          case 'pin':
-              const pinLink = Array.from(element.querySelectorAll('a')).find(a => (a as HTMLElement).textContent?.includes('置顶') || (a as HTMLElement).textContent?.includes('Pin'));
-              if (pinLink) (pinLink as HTMLElement).click();
-              break;
-              
-          case 'report':
-              toast.success('Report submitted. We will review it shortly.');
-              break;
-      }
-  };
-
-  // --- [UI 魔改] 注入悬浮工具栏 ---
-  const injectHoverToolbar = (comment: HTMLElement) => {
-      if (comment.querySelector('.imessage-toolbar')) return; // 已注入
-
-      const contentBox = comment.querySelector('.tk-content');
-      if (!contentBox) return;
-
-      const toolbar = document.createElement('div');
-      toolbar.className = 'imessage-toolbar absolute -top-8 right-0 bg-white dark:bg-[#333] shadow-md border border-gray-200 dark:border-white/10 rounded-full px-2 py-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none group-hover:pointer-events-auto z-10 scale-90 group-hover:scale-100 origin-bottom-right';
-      
-      // 这里使用 innerHTML 快速生成图标，实际应用中建议用 React Portal，但为了性能和兼容 Twikoo DOM，用原生 JS 更稳
-      // 1. Reply
-      const replyBtn = document.createElement('button');
-      replyBtn.className = 'p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full text-blue-500 transition-colors';
-      replyBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"></polyline><path d="M20 18v-2a4 4 0 0 0-4-4H4"></path></svg>';
-      replyBtn.onclick = (e) => { e.stopPropagation(); handleMenuAction('reply', { element: comment }); };
-      
-      // 2. Like
-      const likeBtn = document.createElement('button');
-      likeBtn.className = 'p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full text-pink-500 transition-colors';
-      likeBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path></svg>';
-      likeBtn.onclick = (e) => { e.stopPropagation(); handleMenuAction('like', { element: comment }); };
-
-      // 3. More
-      const moreBtn = document.createElement('button');
-      moreBtn.className = 'p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full text-gray-500 transition-colors';
-      moreBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>';
-      moreBtn.onclick = (e) => { 
-          // 模拟右键
-          const rect = moreBtn.getBoundingClientRect();
-          const fakeEvent = { 
-              preventDefault: ()=>{}, stopPropagation: ()=>{}, 
-              target: comment, clientX: rect.left, clientY: rect.bottom + 5 
-          };
-          handleContextMenu(fakeEvent as any);
-      };
-
-      toolbar.appendChild(replyBtn);
-      toolbar.appendChild(likeBtn);
-      toolbar.appendChild(moreBtn);
-
-      // 插入到 tk-main 里，相对 content 定位
-      const main = comment.querySelector('.tk-main');
-      if (main) {
-          (main as HTMLElement).style.position = 'relative'; // 确保定位基准
-          main.appendChild(toolbar);
-      }
-  }
-
-  // --- 引用跳转 ---
+  // --- 引用点击跳转 ---
   const handleQuoteClick = useCallback((e: Event) => {
       const target = e.currentTarget as HTMLElement;
       const parentId = target.dataset.parentId;
@@ -473,21 +301,43 @@ export const Messages = () => {
               bubble.style.transition = 'background-color 0.5s';
               const originalBg = bubble.style.backgroundColor;
               bubble.style.backgroundColor = 'rgba(255, 235, 59, 0.5)'; 
-              setTimeout(() => {
-                  bubble.style.backgroundColor = originalBg;
-              }, 1200);
+              setTimeout(() => { bubble.style.backgroundColor = originalBg }, 1200);
           }
       }
   }, []);
 
-  // --- 布局核心逻辑 ---
+  // --- [魔改核心] 注入自定义操作按钮 ---
+  const injectMagicActions = useCallback((commentNode: Element) => {
+      const actionsContainer = commentNode.querySelector('.tk-actions');
+      if (!actionsContainer) return;
+
+      // 1. 检查是否已经注入过
+      if (actionsContainer.querySelector('.magic-copy-btn')) return;
+
+      // 2. 创建“复制”按钮
+      const copyBtn = document.createElement('a');
+      copyBtn.className = 'tk-action-link magic-copy-btn'; // 使用 Twikoo 类名保持一致
+      copyBtn.innerHTML = '<span class="tk-action-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></span>';
+      copyBtn.onclick = (e) => {
+          e.stopPropagation();
+          const content = commentNode.querySelector('.tk-content')?.textContent || '';
+          navigator.clipboard.writeText(content);
+          toast.success("Copied to clipboard");
+      };
+
+      // 3. 插入到 actions 容器的最前面
+      actionsContainer.prepend(copyBtn);
+  }, []);
+
+  // --- 布局处理 ---
   const processLayout = useCallback(() => {
-    // 1. Header 图标搬运
     const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
+    
+    // 搬运图标 (每次先清空)
     if (originalHeader) {
         const iconWrappers = originalHeader.querySelectorAll('.tk-icon');
         if (iconWrappers.length > 0 && headerIconsRef.current) {
-            headerIconsRef.current.innerHTML = '';
+            headerIconsRef.current.innerHTML = ''; 
             const siblings = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
             siblings.forEach(sibling => {
                 headerIconsRef.current?.appendChild(sibling);
@@ -500,22 +350,15 @@ export const Messages = () => {
 
     if (commentObserverRef.current) commentObserverRef.current.disconnect();
 
-    // 2. 提取回复 & 注入工具栏 & 引用修复
-    const comments = Array.from(document.querySelectorAll('.imessage-mode .tk-comment'));
-    
-    comments.forEach(comment => {
-        const cEl = comment as HTMLElement;
-        // 注入 Hover Class 方便 CSS 控制
-        cEl.classList.add('group'); 
-        
-        // [魔改] 注入悬浮工具栏
-        injectHoverToolbar(cEl);
-
-        // 处理嵌套
-        if (cEl.parentElement?.classList.contains('tk-replies')) {
-            const contentBox = cEl.querySelector('.tk-content');
+    // 提取嵌套 & 注入功能
+    const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment'));
+    if (nestedReplies.length > 0) {
+        nestedReplies.forEach(reply => {
+            const contentBox = reply.querySelector('.tk-content');
             if (contentBox && !contentBox.querySelector('.imessage-quote')) {
-                const parentComment = cEl.closest('.tk-replies')?.closest('.tk-comment') as HTMLElement;
+                const replyList = reply.closest('.tk-replies');
+                const parentComment = replyList?.closest('.tk-comment') as HTMLElement;
+                
                 if (parentComment) {
                     const parentId = parentComment.getAttribute('id');
                     let parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'User';
@@ -544,14 +387,17 @@ export const Messages = () => {
                     contentBox.insertBefore(quoteDiv, contentBox.firstChild);
                 }
             }
-            container.appendChild(cEl); // 移到外层
-        }
-    });
+            container.appendChild(reply);
+        });
+    }
 
-    // 3. 排序
-    const rootComments = Array.from(container.children).filter(child => child.classList.contains('tk-comment'));
-    if (rootComments.length > 1) {
-        const needsSort = rootComments.some((c, i, arr) => {
+    // [魔改] 遍历所有评论，注入自定义按钮
+    const allComments = Array.from(container.children).filter(child => child.classList.contains('tk-comment'));
+    allComments.forEach(comment => injectMagicActions(comment));
+
+    // 排序
+    if (allComments.length > 1) {
+        const needsSort = allComments.some((c, i, arr) => {
             if (i === 0) return false;
             const prevT = new Date(arr[i-1].querySelector('time')?.getAttribute('datetime') || 0).getTime();
             const currT = new Date(c.querySelector('time')?.getAttribute('datetime') || 0).getTime();
@@ -559,7 +405,7 @@ export const Messages = () => {
         });
         
         if (needsSort) {
-            const sorted = rootComments.sort((a, b) => {
+            const sorted = allComments.sort((a, b) => {
                 const tA = a.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
                 const tB = b.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
                 return new Date(tA).getTime() - new Date(tB).getTime(); 
@@ -568,31 +414,27 @@ export const Messages = () => {
         }
     }
 
-    // 4. 统计
-    const total = rootComments.length;
-    const repliesCount = rootComments.filter(c => c.querySelector('.imessage-quote')).length;
+    // 统计
+    const total = allComments.length;
+    const repliesCount = allComments.filter(c => c.querySelector('.imessage-quote')).length;
     const mainCount = total - repliesCount;
     setStats({ total, main: mainCount, replies: repliesCount });
 
     if (commentObserverRef.current) {
         commentObserverRef.current.observe(container, { childList: true });
     }
-  }, [handleQuoteClick]);
+  }, [handleQuoteClick, injectMagicActions]);
 
 
-  // --- Hooks ---
+  // --- 主 Effect ---
   useEffect(() => {
     adminClassObserverRef.current = new MutationObserver((mutations) => {
         mutations.forEach(m => {
-            if (m.type === 'attributes' && m.attributeName === 'class') {
-                handleAdminTrigger(m.target as HTMLElement);
-            }
+            if (m.type === 'attributes' && m.attributeName === 'class') handleAdminTrigger(m.target as HTMLElement);
         });
     });
 
-    commentObserverRef.current = new MutationObserver(() => {
-        requestAnimationFrame(processLayout);
-    });
+    commentObserverRef.current = new MutationObserver(() => requestAnimationFrame(processLayout));
 
     loadObserverRef.current = new MutationObserver(() => {
         const adminInner = document.querySelector('.tk-admin');
@@ -609,18 +451,14 @@ export const Messages = () => {
             commentObserverRef.current?.observe(commentsContainer, { childList: true });
         }
 
-        if (adminInner && commentsContainer) {
-            loadObserverRef.current?.disconnect();
-        }
+        if (adminInner && commentsContainer) loadObserverRef.current?.disconnect();
     });
 
     loadObserverRef.current.observe(document.body, { childList: true, subtree: true });
 
     const timer = setTimeout(() => {
         const adminInner = document.querySelector('.tk-admin');
-        if (adminInner && adminClassObserverRef.current) {
-            adminClassObserverRef.current.observe(adminInner, { attributes: true, attributeFilter: ['class'] });
-        }
+        if (adminInner && adminClassObserverRef.current) adminClassObserverRef.current.observe(adminInner, { attributes: true, attributeFilter: ['class'] });
         processLayout();
     }, 1000);
 
@@ -681,6 +519,7 @@ export const Messages = () => {
         if (btn) {
             btn.click()
             setInputValue('')
+            
             const refreshTimes = [300, 800, 1500];
             refreshTimes.forEach(t => {
                 setTimeout(() => {
@@ -691,6 +530,7 @@ export const Messages = () => {
                     }
                 }, t);
             });
+
         } else {
             toast.error("Send button not found")
         }
@@ -707,26 +547,71 @@ export const Messages = () => {
   return (
     <div className="flex h-full w-full bg-white dark:bg-[#1e1e1e] text-black dark:text-white font-sans overflow-hidden relative">
       
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onSave={() => setReloadKey(k => k + 1)} />}
-      
-      {contextMenu && (
-          <MessageContextMenu 
-              x={contextMenu.x} 
-              y={contextMenu.y} 
-              data={contextMenu.data} 
-              onClose={() => setContextMenu(null)}
-              onAction={handleMenuAction}
-          />
-      )}
-
-      {/* CSS 魔法：隐藏原生杂乱 UI，显示自定义 UI */}
+      {/* 样式魔改区域 */}
       <style jsx global>{`
          .imessage-mode .tk-admin-container { display: none; }
-         /* 隐藏原生操作按钮和多余信息，只保留时间和昵称 */
-         .imessage-mode .tk-meta .tk-actions, 
-         .imessage-mode .tk-action { display: none !important; }
-         .imessage-mode .tk-extra { display: none !important; } 
+         
+         /* 1. 操作栏胶囊样式 (Magic Mod) */
+         .imessage-mode .tk-actions {
+             position: absolute !important;
+             top: -25px !important; /* 移动到气泡上方或下方 */
+             right: 0 !important;
+             background: rgba(255, 255, 255, 0.75) !important;
+             backdrop-filter: blur(10px) !important;
+             border-radius: 20px !important;
+             padding: 4px 8px !important;
+             display: flex !important;
+             gap: 8px !important;
+             box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+             opacity: 0 !important;
+             transform: translateY(5px);
+             transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+             z-index: 50 !important;
+             border: 1px solid rgba(0,0,0,0.05) !important;
+         }
+         .dark .imessage-mode .tk-actions {
+             background: rgba(40, 40, 40, 0.75) !important;
+             border: 1px solid rgba(255,255,255,0.1) !important;
+         }
+         
+         /* 悬停显示 */
+         .imessage-mode .tk-comment:hover .tk-actions {
+             opacity: 1 !important;
+             transform: translateY(0);
+         }
+
+         /* 2. 操作图标样式 */
+         .imessage-mode .tk-action-link {
+             display: flex !important;
+             align-items: center !important;
+             justify-content: center !important;
+             width: 24px !important;
+             height: 24px !important;
+             border-radius: 50% !important;
+             color: #666 !important;
+             transition: background 0.2s !important;
+         }
+         .imessage-mode .tk-action-link:hover {
+             background: rgba(0,0,0,0.05) !important;
+             color: #007aff !important;
+         }
+         .dark .imessage-mode .tk-action-link { color: #aaa !important; }
+         .dark .imessage-mode .tk-action-link:hover { background: rgba(255,255,255,0.1) !important; }
+
+         /* 隐藏原来的文字 */
+         .imessage-mode .tk-action-count { font-size: 10px !important; margin-left: 2px !important; font-weight: bold !important; }
       `}</style>
+
+      {/* 右键菜单 */}
+      {ctxMenu && (
+          <MessageContextMenu 
+              x={ctxMenu.x} y={ctxMenu.y} 
+              content={ctxMenu.content} 
+              onClose={() => setCtxMenu(null)}
+              onReply={handleCtxReply}
+              onQuote={handleCtxQuote}
+          />
+      )}
 
       {/* 左侧边栏 */}
       <div className="w-[280px] flex flex-col border-r border-gray-200 dark:border-white/10 bg-[#f5f5f5]/90 dark:bg-[#252525]/90 backdrop-blur-xl z-20 select-none">
@@ -764,10 +649,10 @@ export const Messages = () => {
             </div>
             <div className="flex gap-2">
                 <button onClick={() => setReloadKey(k => k + 1)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all cursor-pointer"><RefreshCw size={14} /></button>
-                <button onClick={() => setShowSettings(true)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all cursor-pointer" title={t('msg_settings_title')}><Settings size={16} /></button>
             </div>
         </div>
 
+        {/* 消息区域：增加右键事件 */}
         <div className="flex-1 overflow-hidden relative flex flex-col w-full select-text" onContextMenu={handleContextMenu}>
             <CommentSystem 
                 key={`${activeContact.slug}-${reloadKey}`} 
@@ -779,12 +664,14 @@ export const Messages = () => {
         </div>
 
         <div className="shrink-0 p-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30 relative group select-none">
+            {/* 统计数据 */}
             <div className="absolute top-2 left-6 z-40 select-none pointer-events-none text-[10px] text-gray-400 font-medium">
                 {stats.total > 0 && (
                     <span>共 {stats.total} 条信息 (主消息 {stats.main}, 回复 {stats.replies})</span>
                 )}
             </div>
             
+            {/* 图标搬运区 */}
             <div id="twikoo-moved-icons" ref={headerIconsRef} className="absolute top-2 right-6 z-40 flex items-center gap-2"></div>
 
             <div className="relative max-w-4xl mx-auto w-full pt-3">
