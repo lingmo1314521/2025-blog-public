@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, Edit, Settings, X, ArrowUp, RefreshCw, MessageCircle, Shield, Copy, Heart, Reply, Trash2 } from 'lucide-react'
+import { Search, Edit, Settings, X, ArrowUp, RefreshCw, MessageCircle, Shield, Copy, Heart, Reply } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
@@ -10,7 +10,7 @@ import { useOs } from '../os-context'
 import { toast } from 'sonner' 
 
 // ==================================================================================
-// 1. 独立的 Twikoo 后台宿主组件 (用于新窗口)
+// 1. 独立的 Twikoo 后台宿主组件
 // ==================================================================================
 const TwikooAdminHost = () => {
     const containerRef = useRef<HTMLDivElement>(null)
@@ -20,7 +20,6 @@ const TwikooAdminHost = () => {
         
         if (adminContainer && containerRef.current) {
             containerRef.current.appendChild(adminContainer)
-            
             adminContainer.style.display = 'block'
             adminContainer.style.position = 'static'
             adminContainer.style.width = '100%'
@@ -37,7 +36,6 @@ const TwikooAdminHost = () => {
                 adminInner.style.width = '100%'
                 adminInner.style.maxWidth = '100%'
             }
-
             const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement
             if (closeBtn) closeBtn.style.display = 'none' 
         }
@@ -61,7 +59,6 @@ const TwikooAdminHost = () => {
             if (adminContainer) {
                 const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement;
                 if (closeBtn) closeBtn.click();
-
                 document.body.appendChild(adminContainer)
                 adminContainer.style.display = 'none' 
                 const adminInner = adminContainer.querySelector('.tk-admin')
@@ -83,7 +80,7 @@ const TwikooAdminHost = () => {
 }
 
 // ==================================================================================
-// 2. 设置弹窗组件
+// 2. 设置弹窗
 // ==================================================================================
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const { t } = useI18n()
@@ -155,7 +152,7 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
 }
 
 // ==================================================================================
-// 3. 右键菜单组件 (关键修复：使用 Portal)
+// 3. 右键菜单组件
 // ==================================================================================
 interface ContextMenuState {
     visible: boolean
@@ -171,28 +168,19 @@ const MessageContextMenu = ({
     const { t } = useI18n()
     const [adjustedPos, setAdjustedPos] = useState({ x, y })
 
-    // 智能定位：防止菜单溢出屏幕
     useEffect(() => {
         if (visible && menuRef.current) {
             const rect = menuRef.current.getBoundingClientRect()
             let newX = x
             let newY = y
-
-            // 如果右侧溢出，向左弹
-            if (x + rect.width > window.innerWidth) {
-                newX = x - rect.width
-            }
-            // 如果底部溢出，向上弹
-            if (y + rect.height > window.innerHeight) {
-                newY = y - rect.height
-            }
+            if (x + rect.width > window.innerWidth) newX = x - rect.width
+            if (y + rect.height > window.innerHeight) newY = y - rect.height
             setAdjustedPos({ x: newX, y: newY })
         } else {
             setAdjustedPos({ x, y })
         }
     }, [visible, x, y])
 
-    // 点击外部关闭
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
             if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -205,7 +193,6 @@ const MessageContextMenu = ({
 
     if (!visible || !targetElement) return null
 
-    // 在 Twikoo DOM 中查找真实的功能按钮并触发点击
     const handleAction = (action: 'reply' | 'copy' | 'like') => {
         const commentRow = targetElement.closest('.tk-comment')
         
@@ -215,7 +202,6 @@ const MessageContextMenu = ({
         }
         if (action === 'like' && commentRow) {
             const links = Array.from(commentRow.querySelectorAll('.tk-action-link'))
-            // Twikoo 通常第二个操作按钮是点赞，如果找不到则尝试第一个
             if (links.length > 1) (links[1] as HTMLElement).click()
             else if (links.length > 0) (links[0] as HTMLElement).click() 
         }
@@ -229,7 +215,6 @@ const MessageContextMenu = ({
         onClose()
     }
 
-    // [关键修复] 使用 createPortal 将菜单渲染到 body，避开 WindowFrame 的 transform 属性导致的位置偏移
     return createPortal(
         <div 
             ref={menuRef}
@@ -273,19 +258,15 @@ export const Messages = () => {
   const [inputValue, setInputValue] = useState('')
   const [isReplying, setIsReplying] = useState(false)
   const [replyTargetText, setReplyTargetText] = useState('') 
-  
   const [stats, setStats] = useState({ total: 0, main: 0, replies: 0 })
-
-  // 右键菜单状态
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, targetElement: null })
 
   const headerIconsRef = useRef<HTMLDivElement>(null)
-  
   const loadObserverRef = useRef<MutationObserver | null>(null)
   const adminClassObserverRef = useRef<MutationObserver | null>(null)
   const commentObserverRef = useRef<MutationObserver | null>(null)
-  
   const isAdminOpeningRef = useRef(false)
+  const layoutTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
@@ -315,14 +296,12 @@ export const Messages = () => {
       return { input: mainInput, btn: mainBtn, cancelBtn: null, isReplyMode: false }
   }, [])
 
-  // --- 处理 Admin 弹窗 ---
   const handleAdminTrigger = useCallback((targetElement: HTMLElement) => {
       if (targetElement.classList.contains('__show')) {
           if (isAdminOpeningRef.current) return;
           if (windows.some(w => w.id === 'twikoo-admin')) return;
 
           isAdminOpeningRef.current = true;
-
           const container = document.querySelector('.tk-admin-container') as HTMLElement;
           if (container) container.style.display = 'none';
 
@@ -340,15 +319,12 @@ export const Messages = () => {
       }
   }, [launchApp, windows]);
 
-  // --- 引用跳转 ---
   const handleQuoteClick = useCallback((e: Event) => {
       const target = e.currentTarget as HTMLElement;
       const parentId = target.dataset.parentId;
       let parentComment: HTMLElement | null = null;
 
-      if (parentId) {
-          parentComment = document.getElementById(parentId);
-      } 
+      if (parentId) parentComment = document.getElementById(parentId);
       
       if (!parentComment) {
           const quoteText = target.innerText;
@@ -373,38 +349,55 @@ export const Messages = () => {
               bubble.style.transition = 'background-color 0.5s';
               const originalBg = bubble.style.backgroundColor;
               bubble.style.backgroundColor = 'rgba(255, 235, 59, 0.5)'; 
-              setTimeout(() => {
-                  bubble.style.backgroundColor = originalBg;
-              }, 1200);
+              setTimeout(() => { bubble.style.backgroundColor = originalBg }, 1200);
           }
       }
   }, []);
 
-  // --- 布局核心逻辑 ---
-  const processLayout = useCallback(() => {
-    // 1. 搬运图标
-    const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
-    if (originalHeader) {
-        const iconWrappers = originalHeader.querySelectorAll('.tk-icon');
-        if (iconWrappers.length > 0 && headerIconsRef.current) {
-            headerIconsRef.current.innerHTML = ''; 
-            const siblings = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
-            siblings.forEach(sibling => {
-                headerIconsRef.current?.appendChild(sibling);
-            });
-        }
-    }
+  // [辅助函数] 智能提取父级评论纯文本，排除干扰项
+  const extractParentText = (parentContentElem: Element | null) => {
+      if (!parentContentElem) return '';
+      // 1. 克隆节点，避免修改 DOM
+      const clone = parentContentElem.cloneNode(true) as HTMLElement;
+      
+      // 2. 移除已存在的引用块
+      const existingQuotes = clone.querySelectorAll('.imessage-quote');
+      existingQuotes.forEach(el => el.remove());
+      
+      // 3. 移除 @用户 链接 (楼中楼)
+      const atUsers = clone.querySelectorAll('.tk-ruser');
+      atUsers.forEach(el => el.remove());
 
+      // 4. 获取纯文本
+      return clone.textContent?.replace(/\s+/g, ' ').trim() || '';
+  }
+
+  // 布局处理逻辑 (优化版)
+  const processLayout = useCallback(() => {
     const container = document.querySelector('.imessage-mode .tk-comments-container');
     if (!container) return;
 
     if (commentObserverRef.current) commentObserverRef.current.disconnect();
 
-    // 2. 提取回复 & 智能引用
-    const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment'));
+    // 1. 搬运图标 (只搬运一次)
+    if (headerIconsRef.current && headerIconsRef.current.childNodes.length === 0) {
+        const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
+        if (originalHeader) {
+            const siblings = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
+            siblings.forEach(sibling => { headerIconsRef.current?.appendChild(sibling); });
+        }
+    }
+
+    // 2. 提取嵌套回复 (使用 :not(.imessage-processed) 过滤)
+    const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment:not(.imessage-processed)'));
+    
     if (nestedReplies.length > 0) {
+        const fragment = document.createDocumentFragment();
+        
         nestedReplies.forEach(reply => {
+            reply.classList.add('imessage-processed'); 
             const contentBox = reply.querySelector('.tk-content');
+            
             if (contentBox && !contentBox.querySelector('.imessage-quote')) {
                 const replyList = reply.closest('.tk-replies');
                 const parentComment = replyList?.closest('.tk-comment') as HTMLElement;
@@ -413,19 +406,15 @@ export const Messages = () => {
                     const parentId = parentComment.getAttribute('id');
                     let parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'User';
                     const parentContentElem = parentComment.querySelector('.tk-main > .tk-content');
-                    let parentText = parentContentElem?.textContent?.replace(/\s+/g, ' ').trim() || '';
+                    
+                    // [关键修复] 使用智能提取函数
+                    let parentText = extractParentText(parentContentElem);
 
-                    const atUserLink = contentBox.querySelector('.tk-ruser');
-                    if (atUserLink && atUserLink.textContent) {
-                        parentNick = atUserLink.textContent.replace('@', '').trim();
-                        parentText = `回复了 ${parentNick}`; 
-                        const atUserSpan = atUserLink.closest('span');
-                        if (atUserSpan) atUserSpan.style.display = 'none';
-                    }
-
-                    const existingQuote = parentContentElem?.querySelector('.imessage-quote');
-                    if (existingQuote && existingQuote.textContent) {
-                        parentText = parentText.replace(existingQuote.textContent, '').trim();
+                    // 如果是楼中楼，Twikoo 会有一个 .tk-ruser，我们已经在 extractParentText 中移除了，
+                    // 这里可以根据情况决定是否要手动补充 "回复了 XX" 的提示，或者直接显示内容。
+                    // 为了简洁，如果提取内容为空 (可能全是标签)，则显示默认文案。
+                    if (!parentText) {
+                        parentText = "回复了一条消息"; 
                     }
                     if (parentText.length > 30) parentText = parentText.slice(0, 30) + '...';
 
@@ -438,43 +427,24 @@ export const Messages = () => {
                     contentBox.insertBefore(quoteDiv, contentBox.firstChild);
                 }
             }
-            container.appendChild(reply);
+            fragment.appendChild(reply);
         });
-    }
-
-    // 3. 排序
-    const comments = Array.from(container.children).filter(child => child.classList.contains('tk-comment'));
-    if (comments.length > 1) {
-        const needsSort = comments.some((c, i, arr) => {
-            if (i === 0) return false;
-            const prevT = new Date(arr[i-1].querySelector('time')?.getAttribute('datetime') || 0).getTime();
-            const currT = new Date(c.querySelector('time')?.getAttribute('datetime') || 0).getTime();
-            return prevT > currT;
-        });
-        
-        if (needsSort) {
-            const sorted = comments.sort((a, b) => {
-                const tA = a.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
-                const tB = b.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
-                return new Date(tA).getTime() - new Date(tB).getTime(); 
-            });
-            sorted.forEach(c => container.appendChild(c));
-        }
+        container.appendChild(fragment);
     }
 
     // 4. 统计
-    const total = comments.length;
-    const repliesCount = comments.filter(c => c.querySelector('.imessage-quote')).length;
-    const mainCount = total - repliesCount;
-    setStats({ total, main: mainCount, replies: repliesCount });
+    const allComments = container.querySelectorAll('.tk-comment');
+    const total = allComments.length;
+    let repliesCount = 0;
+    allComments.forEach(c => { if(c.querySelector('.imessage-quote')) repliesCount++; });
+    
+    setStats({ total, main: total - repliesCount, replies: repliesCount });
 
     if (commentObserverRef.current) {
-        commentObserverRef.current.observe(container, { childList: true });
+        commentObserverRef.current.observe(container, { childList: true, subtree: true });
     }
   }, [handleQuoteClick]);
 
-
-  // --- 主 Effect ---
   useEffect(() => {
     adminClassObserverRef.current = new MutationObserver((mutations) => {
         mutations.forEach(m => {
@@ -485,7 +455,11 @@ export const Messages = () => {
     });
 
     commentObserverRef.current = new MutationObserver(() => {
-        requestAnimationFrame(processLayout);
+        // [性能] 默认 50ms 防抖
+        if (layoutTimeoutRef.current) clearTimeout(layoutTimeoutRef.current);
+        layoutTimeoutRef.current = setTimeout(() => {
+            processLayout();
+        }, 50);
     });
 
     loadObserverRef.current = new MutationObserver(() => {
@@ -500,33 +474,20 @@ export const Messages = () => {
         if (commentsContainer) {
             processLayout(); 
             commentObserverRef.current?.disconnect();
-            commentObserverRef.current?.observe(commentsContainer, { childList: true });
-        }
-
-        if (adminInner && commentsContainer) {
-            loadObserverRef.current?.disconnect();
+            commentObserverRef.current?.observe(commentsContainer, { childList: true, subtree: true });
         }
     });
 
     loadObserverRef.current.observe(document.body, { childList: true, subtree: true });
 
-    const timer = setTimeout(() => {
-        const adminInner = document.querySelector('.tk-admin');
-        if (adminInner && adminClassObserverRef.current) {
-            adminClassObserverRef.current.observe(adminInner, { attributes: true, attributeFilter: ['class'] });
-        }
-        processLayout();
-    }, 1000);
-
     return () => {
         if (loadObserverRef.current) loadObserverRef.current.disconnect();
         if (adminClassObserverRef.current) adminClassObserverRef.current.disconnect();
         if (commentObserverRef.current) commentObserverRef.current.disconnect();
-        clearTimeout(timer);
+        if (layoutTimeoutRef.current) clearTimeout(layoutTimeoutRef.current);
     }
   }, [handleAdminTrigger, processLayout, activeContactId]); 
 
-  // 切换联系人时清空图标
   useEffect(() => {
       if (headerIconsRef.current) headerIconsRef.current.innerHTML = '';
   }, [activeContactId]);
@@ -553,7 +514,6 @@ export const Messages = () => {
       return () => clearInterval(interval);
   }, [isReplying, replyTargetText, getTwikooElements])
 
-  // --- Handlers ---
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value
       setInputValue(val)
@@ -575,16 +535,20 @@ export const Messages = () => {
         if (btn) {
             btn.click()
             setInputValue('')
-            const refreshTimes = [300, 800, 1500];
-            refreshTimes.forEach(t => {
-                setTimeout(() => {
-                    const container = document.querySelector('.imessage-mode .tk-comments-container');
-                    if (container) {
-                        container.scrollTop = container.scrollHeight;
-                        processLayout(); 
-                    }
-                }, t);
-            });
+            
+            // [性能] 发送后立即触发一次布局处理，不要等待防抖
+            if (layoutTimeoutRef.current) clearTimeout(layoutTimeoutRef.current);
+            processLayout();
+            
+            // 稍后再次检查，确保后端返回渲染完成
+            setTimeout(() => {
+                const container = document.querySelector('.imessage-mode .tk-comments-container');
+                if (container) {
+                    container.scrollTop = container.scrollHeight;
+                    processLayout(); 
+                }
+            }, 800);
+
         } else {
             toast.error("Send button not found")
         }
@@ -598,7 +562,6 @@ export const Messages = () => {
       setInputValue('')
   }
 
-  // [修复] 添加 stopPropagation 防止冒泡触发桌面右键菜单
   const handleContextMenu = (e: React.MouseEvent) => {
       e.preventDefault()
       e.stopPropagation() 
@@ -621,7 +584,6 @@ export const Messages = () => {
       
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onSave={() => setReloadKey(k => k + 1)} />}
       
-      {/* 自定义右键菜单 (现在使用 Portal，位置准确) */}
       <MessageContextMenu 
          {...contextMenu} 
          onClose={() => setContextMenu(prev => ({ ...prev, visible: false }))} 
@@ -630,6 +592,85 @@ export const Messages = () => {
       <style jsx global>{`
          .imessage-mode .tk-admin-container {
              display: none; 
+         }
+         
+         /* [修复] 图标位置优化: 靠左对齐，紧贴 Meta 信息 */
+         .imessage-mode .tk-row {
+            margin-bottom: 2px !important;
+            display: flex !important;
+            justify-content: flex-start !important; 
+            align-items: center !important;
+            width: 100% !important;
+            gap: 10px !important; 
+         }
+         
+         .imessage-mode .tk-meta {
+            display: flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            font-size: 10px !important;
+            color: #8e8e93 !important;
+            margin-left: 12px !important;
+            margin-right: 0 !important;
+         }
+         .imessage-mode .tk-nick {
+            font-weight: 500 !important;
+            font-size: 11px !important;
+            color: #666 !important;
+         }
+         .dark .imessage-mode .tk-nick {
+            color: #aaa !important;
+         }
+         .imessage-mode .tk-time {
+            font-size: 9px !important;
+            opacity: 0.7 !important;
+         }
+
+         /* 操作按钮区域 (紧跟在 meta 后面) */
+         .imessage-mode .tk-action {
+             opacity: 0 !important;
+             transition: opacity 0.2s ease !important;
+             display: flex !important;
+             gap: 8px !important;
+             margin-right: 0 !important;
+             margin-left: 0 !important; /* 取消左边距，由父级 gap 控制 */
+         }
+         .imessage-mode .tk-comment:hover .tk-action {
+             opacity: 1 !important;
+         }
+         .imessage-mode .tk-action-link {
+             color: #999 !important;
+             display: flex !important;
+             align-items: center !important;
+             gap: 2px !important;
+             text-decoration: none !important;
+         }
+         .imessage-mode .tk-action-link:hover {
+             color: #007aff !important;
+         }
+         .imessage-mode .tk-action-icon svg {
+             width: 14px !important;
+             height: 14px !important;
+             fill: currentColor !important;
+         }
+         .imessage-mode .tk-action-count {
+             font-size: 10px !important;
+             min-width: 10px !important;
+         }
+
+         /* Master (自己发的) 模式下的特殊对齐：全右对齐 */
+         .imessage-mode .tk-master .tk-row {
+             justify-content: flex-end !important;
+         }
+         .imessage-mode .tk-master .tk-meta {
+             flex-direction: row-reverse !important;
+             margin-left: 0 !important;
+             margin-right: 12px !important;
+         }
+         .imessage-mode .tk-master .tk-action {
+             flex-direction: row-reverse !important;
+             margin-right: 8px !important;
+             margin-left: 0 !important;
          }
       `}</style>
 
@@ -673,7 +714,6 @@ export const Messages = () => {
             </div>
         </div>
 
-        {/* 消息容器，绑定了处理后的右键事件 */}
         <div 
             className="flex-1 overflow-hidden relative flex flex-col w-full select-text"
             onContextMenu={handleContextMenu}
@@ -689,18 +729,15 @@ export const Messages = () => {
 
         <div className="shrink-0 p-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30 relative group select-none">
             
-            {/* [关键修复] 当正在回复时隐藏统计信息，防止重叠 */}
             {!isReplying && stats.total > 0 && (
                 <div className="absolute top-2 left-6 z-40 select-none pointer-events-none text-[10px] text-gray-400 font-medium">
                     <span>共 {stats.total} 条信息 (主消息 {stats.main}, 回复 {stats.replies})</span>
                 </div>
             )}
             
-            {/* 搬运的图标容器 (当 isReplying 时也被回复条遮盖，或者可以额外控制隐藏) */}
             <div id="twikoo-moved-icons" ref={headerIconsRef} className={`absolute top-2 right-6 z-40 flex items-center gap-2 ${isReplying ? 'opacity-0' : 'opacity-100'} transition-opacity`}></div>
 
             <div className="relative max-w-4xl mx-auto w-full pt-3">
-                {/* [关键修复] 回复提示条位置上移，增加 Z-Index */}
                 {isReplying && (
                     <div className="absolute -top-10 left-0 right-0 flex items-center justify-between bg-gray-200/95 dark:bg-[#333]/95 backdrop-blur-md px-3 py-2 rounded-xl text-xs border border-gray-300 dark:border-white/10 shadow-lg animate-in slide-in-from-bottom-2 z-50">
                         <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300 truncate">
