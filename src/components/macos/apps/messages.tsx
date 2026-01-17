@@ -239,18 +239,13 @@ export const Messages = () => {
   // --- 引用跳转逻辑 ---
   const handleQuoteClick = useCallback((e: Event) => {
       const target = e.currentTarget as HTMLElement;
-      // 从引用中提取父消息的标识，这里用简单的文本匹配
-      // 如果 Twikoo 支持 ID 引用更好，但现在我们用名字+内容摘要匹配
       const quoteText = target.innerText;
       const colonIndex = quoteText.indexOf(':');
       if (colonIndex > -1) {
-          // const parentNick = quoteText.substring(0, colonIndex).trim();
           const parentContentSnippet = quoteText.substring(colonIndex + 1).trim().slice(0, 10);
-          
           const allComments = Array.from(document.querySelectorAll('.imessage-mode .tk-comment'));
-          // 寻找匹配的父消息
+          
           const parentComment = allComments.find(c => {
-              // 排除自己
               if (c.contains(target)) return false;
               const content = c.querySelector('.tk-content')?.textContent || '';
               return content.includes(parentContentSnippet);
@@ -258,12 +253,11 @@ export const Messages = () => {
 
           if (parentComment) {
               parentComment.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              // 高亮动画
               const bubble = parentComment.querySelector('.tk-content') as HTMLElement;
               if (bubble) {
                   bubble.style.transition = 'background-color 0.5s';
                   const originalBg = bubble.style.backgroundColor;
-                  bubble.style.backgroundColor = '#fff7bc'; // 高亮色
+                  bubble.style.backgroundColor = '#fff7bc'; 
                   setTimeout(() => {
                       bubble.style.backgroundColor = originalBg;
                   }, 1000);
@@ -272,19 +266,20 @@ export const Messages = () => {
       }
   }, []);
 
-  // --- 布局处理：统计、提取回复、排序 ---
+  // --- 布局处理：搬运 Header、提取回复、排序 ---
   const processLayout = useCallback(() => {
     const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
     
-    // 1. 搬运图标 (保留原有的搬运逻辑，但移除 Count 搬运)
+    // 1. [核心修复] 搬运图标前先清空，防止重复堆叠
     if (originalHeader) {
         const iconWrappers = originalHeader.querySelectorAll('.tk-icon');
         if (iconWrappers.length > 0 && headerIconsRef.current) {
+            // 清空旧图标
+            headerIconsRef.current.innerHTML = '';
+            
             const siblings = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
             siblings.forEach(sibling => {
-                if (!headerIconsRef.current?.contains(sibling)) {
-                    headerIconsRef.current?.appendChild(sibling);
-                }
+                headerIconsRef.current?.appendChild(sibling);
             });
         }
     }
@@ -316,7 +311,6 @@ export const Messages = () => {
                     const quoteDiv = document.createElement('div');
                     quoteDiv.className = 'imessage-quote';
                     quoteDiv.innerHTML = `<span class="imessage-quote-name">${parentNick}:</span> ${parentText}`;
-                    // 绑定点击跳转
                     quoteDiv.addEventListener('click', handleQuoteClick);
                     contentBox.insertBefore(quoteDiv, contentBox.firstChild);
                 }
@@ -345,10 +339,7 @@ export const Messages = () => {
         }
     }
 
-    // 4. [NEW] 重新计算统计数据
-    // 主消息通常是指没有 tk-master 类（或者根据具体业务逻辑，这里假设所有被扁平化的都是回复，或者看是否有引用）
-    // Twikoo 的结构比较特殊，扁平化后很难区分谁是主。
-    // 一个简单的方法：看是否有 imessage-quote 类。有引用的是回复，没有的是主消息。
+    // 4. 统计
     const total = comments.length;
     const repliesCount = comments.filter(c => c.querySelector('.imessage-quote')).length;
     const mainCount = total - repliesCount;
@@ -410,7 +401,12 @@ export const Messages = () => {
         if (commentObserverRef.current) commentObserverRef.current.disconnect();
         clearTimeout(timer);
     }
-  }, [handleAdminTrigger, processLayout]);
+  }, [handleAdminTrigger, processLayout, activeContactId]); // 监听 activeContactId 变化
+
+  // 切换联系人时清空图标
+  useEffect(() => {
+      if (headerIconsRef.current) headerIconsRef.current.innerHTML = '';
+  }, [activeContactId]);
 
   useEffect(() => {
       const interval = setInterval(() => {
@@ -434,6 +430,7 @@ export const Messages = () => {
       return () => clearInterval(interval);
   }, [isReplying, replyTargetText, getTwikooElements])
 
+  // --- Handlers ---
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value
       setInputValue(val)
@@ -534,10 +531,10 @@ export const Messages = () => {
         </div>
 
         <div className="shrink-0 p-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30 relative group select-none">
-            {/* [NEW] 自定义统计数据展示 */}
+            {/* [NEW] 格式化统计数据展示 */}
             <div className="absolute top-2 left-6 z-40 select-none pointer-events-none text-[10px] text-gray-400 font-medium">
                 {stats.total > 0 && (
-                    <span>共 {stats.total} 条信息 ({stats.main} 主消息, {stats.replies} 回复)</span>
+                    <span>共 {stats.total} 条信息 (主消息 {stats.main}, 回复 {stats.replies})</span>
                 )}
             </div>
             
