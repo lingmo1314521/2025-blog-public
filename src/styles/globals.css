@@ -33,7 +33,7 @@
 }
 
 /* =========================================
-   Twikoo iMessage 终极形态 (Flex Order 排序版)
+   Twikoo iMessage 终极形态 (修复点击失效版)
    ========================================= */
 
 /* 1. 全局容器与隐藏元素 */
@@ -60,9 +60,19 @@
     z-index: -1 !important;
 }
 
-/* 隐藏原标题栏 */
+/* [关键修改] 隐藏原标题栏，但保留 DOM 结构以供抓取 */
 .imessage-mode .tk-comments-title {
-    display: none !important; 
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    width: 0 !important;
+    height: 0 !important;
+    opacity: 0 !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
 }
 
 /* -------------------------------------------
@@ -72,7 +82,7 @@
     padding: 20px 16px !important;
     display: flex !important;
     flex-direction: column !important;
-    justify-content: flex-start !important; /* 从顶部开始排列 */
+    justify-content: flex-start !important; 
     min-height: 100% !important;
     gap: 16px !important; 
 }
@@ -89,7 +99,8 @@
     border: none !important;
     position: relative !important;
     flex-shrink: 0 !important;
-    /* 关键：默认 order 为 0，脚本会动态修改这个值来实现排序 */
+    /* 默认 order，JS 会覆盖 */
+    order: 0; 
 }
 
 /* 头像 */
@@ -125,7 +136,7 @@
     justify-content: flex-start !important;
     align-items: center !important;
     width: 100% !important;
-    pointer-events: none !important;
+    pointer-events: none !important; /* 保持 none 防止遮挡 */
 }
 
 .imessage-mode .tk-meta {
@@ -146,13 +157,13 @@
     line-height: 1 !important;
 }
 
-/* 操作图标 (默认隐藏，悬浮显示) */
+/* 操作图标 */
 .imessage-mode .tk-action {
     display: flex !important;
     gap: 10px !important;
     opacity: 0 !important;
     margin-left: 10px !important;
-    pointer-events: auto !important;
+    pointer-events: auto !important; /* 确保这里可点击 */
     transition: opacity 0.2s ease !important;
 }
 .imessage-mode .tk-comment:hover .tk-action {
@@ -263,12 +274,18 @@
 .imessage-quote-name { font-weight: 700; margin-right: 4px; }
 
 /* -------------------------------------------
-   搬运后的元素样式
+   [关键修复] 搬运后的图标容器
+   确保这些图标拥有最高的点击优先级，且强制 auto
    ------------------------------------------- */
 #twikoo-moved-count .tk-comments-count {
     font-size: 10px !important;
     font-weight: 600 !important;
     color: #8e8e93 !important;
+}
+#twikoo-moved-icons,
+#twikoo-moved-icons * {
+    pointer-events: auto !important; /* 强制开启点击 */
+    cursor: pointer !important;
 }
 #twikoo-moved-icons span {
     display: flex !important;
@@ -279,7 +296,6 @@
     width: 14px !important;
     height: 14px !important;
     fill: #8e8e93 !important;
-    cursor: pointer !important;
     transition: fill 0.2s !important;
 }
 #twikoo-moved-icons svg:hover {

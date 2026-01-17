@@ -145,12 +145,10 @@ export const Messages = () => {
       }
   }, []);
 
-  // [辅助函数] 提取父级信息 + 文本清理
   const extractParentInfo = (replyElement: Element) => {
       const contentBox = replyElement.querySelector('.tk-content');
       if (!contentBox) return null;
 
-      // 1. 尝试从 @ 链接中获取真实的 Parent ID
       const atUser = contentBox.querySelector('.tk-ruser');
       if (atUser) {
           const href = atUser.getAttribute('href'); 
@@ -159,36 +157,27 @@ export const Messages = () => {
               const targetEl = document.getElementById(targetId);
               if (targetEl) {
                   const targetNick = targetEl.querySelector('.tk-nick')?.textContent || 'User';
-                  
                   const clone = targetEl.querySelector('.tk-content')?.cloneNode(true) as HTMLElement;
                   clone.querySelectorAll('.imessage-quote').forEach(el => el.remove());
                   clone.querySelectorAll('.tk-ruser').forEach(el => el.remove());
-                  
-                  // 清理 "回复 :" 等残留文本
                   let targetText = clone.textContent?.replace(/\s+/g, ' ').trim() || '...';
                   targetText = targetText.replace(/^(回复|Reply)\s*[:：]?\s*/i, '');
-
                   return { id: targetId, nick: targetNick, text: targetText };
               }
           }
       }
 
-      // 2. DOM 层级获取
       const replyList = replyElement.closest('.tk-replies');
       const parentComment = replyList?.closest('.tk-comment') as HTMLElement;
       if (parentComment) {
           const parentId = parentComment.getAttribute('id') || '';
           const parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'User';
-          
           const clone = parentComment.querySelector('.tk-main > .tk-content')?.cloneNode(true) as HTMLElement;
           clone.querySelectorAll('.imessage-quote').forEach(el => el.remove());
-          
           let parentText = clone.textContent?.replace(/\s+/g, ' ').trim() || '...';
           parentText = parentText.replace(/^(回复|Reply)\s*[:：]?\s*/i, '');
-
           return { id: parentId, nick: parentNick, text: parentText };
       }
-
       return null;
   }
 
@@ -202,34 +191,35 @@ export const Messages = () => {
 
     if (commentObserverRef.current) commentObserverRef.current.disconnect();
 
-    if (headerIconsRef.current && headerIconsRef.current.childNodes.length === 0) {
-        const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
-        if (originalHeader) {
-            const siblings = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
-            siblings.forEach(sibling => { headerIconsRef.current?.appendChild(sibling); });
+    // [关键修复] 动态检测原位置的图标并重新搬运
+    const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
+    if (originalHeader) {
+        const sourceIcons = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
+        // 如果原位置有图标，说明 Twikoo 重绘了，我们需要把它们拿过来
+        if (sourceIcons.length > 0 && headerIconsRef.current) {
+            headerIconsRef.current.innerHTML = ''; // 清空我们这边的容器
+            sourceIcons.forEach(icon => {
+                headerIconsRef.current?.appendChild(icon); // 移动节点 (保持事件绑定)
+                // 强制修正样式，防止无法点击
+                (icon as HTMLElement).style.pointerEvents = 'auto';
+                (icon as HTMLElement).style.cursor = 'pointer';
+            });
         }
     }
 
     const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment'));
     nestedReplies.forEach(reply => {
         const contentBox = reply.querySelector('.tk-content');
-        
         if (contentBox && !contentBox.querySelector('.imessage-quote')) {
             const parentInfo = extractParentInfo(reply);
-            
             if (parentInfo) {
                 let parentText = parentInfo.text;
                 if (parentText.length > 30) parentText = parentText.slice(0, 30) + '...';
-
                 const quoteDiv = document.createElement('div');
                 quoteDiv.className = 'imessage-quote';
-                
-                // [关键修改] 格式：回复: 昵称 : 内容
                 quoteDiv.innerHTML = `回复: <span class="imessage-quote-name">${parentInfo.nick}</span> : ${parentText}`;
-                
                 if (parentInfo.id) quoteDiv.setAttribute('data-parent-id', parentInfo.id);
                 quoteDiv.addEventListener('click', handleQuoteClick);
-                
                 contentBox.insertBefore(quoteDiv, contentBox.firstChild);
             }
         }
@@ -348,9 +338,7 @@ export const Messages = () => {
         if (btn) {
             btn.click()
             setInputValue('')
-            
             processLayout();
-            
             let checkCount = 0;
             const refreshInterval = setInterval(() => {
                 const container = document.querySelector('.imessage-mode .tk-comments-container');
@@ -363,7 +351,6 @@ export const Messages = () => {
                 checkCount++;
                 if (checkCount > 10) clearInterval(refreshInterval); 
             }, 500);
-
         } else {
             toast.error("Send button not found")
         }
