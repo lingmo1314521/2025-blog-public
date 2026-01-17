@@ -33,112 +33,220 @@
 }
 
 /* =========================================
-   Twikoo iMessage 终极形态 (CSS 核心布局)
+   Twikoo iMessage 终极形态 (排序与布局修复版)
    ========================================= */
 
-/* 1. 隐藏多余元素 */
+/* 1. 全局容器设置 */
+.imessage-mode .tk-main {
+    display: flex !important;
+    flex-direction: column !important;
+    position: relative !important;
+    flex: 1 !important; 
+    min-width: 0 !important;
+}
+
+/* 隐藏 Twikoo 原生的干扰元素 */
 .imessage-mode .tk-submit,
 .imessage-mode .tk-footer,
 .imessage-mode .tk-extras,
 .imessage-mode .tk-row.actions,
 .imessage-mode .tk-expand {
-    display: none !important;
+    position: absolute !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    height: 0 !important;
+    width: 0 !important;
+    overflow: hidden !important;
+    z-index: -1 !important;
 }
 
-/* 隐藏原标题栏，但我们会通过 JS 搬运其中的 SVG 图标 */
+/* 隐藏原标题栏背景 */
 .imessage-mode .tk-comments-title {
     display: none !important; 
 }
 
-/* 2. 容器布局 */
+/* -------------------------------------------
+   消息流布局 (关键：确保从上到下排列)
+   ------------------------------------------- */
 .imessage-mode .tk-comments-container {
     padding: 20px 16px !important;
     display: flex !important;
-    flex-direction: column !important; 
-    justify-content: flex-start !important; /* 从上往下排 */
+    flex-direction: column !important; /* 强制从上到下 */
+    justify-content: flex-start !important; /* 内容从顶部开始，如果想底部对齐改为 flex-end */
     min-height: 100% !important;
-    gap: 12px !important; /* 气泡间距 */
+    gap: 16px !important; /* 消息间距 */
 }
 
-/* 3. 单条评论行 (基础) */
+/* -------------------------------------------
+   单条评论行
+   ------------------------------------------- */
 .imessage-mode .tk-comment {
     margin: 0 !important;
-    padding: 0 !important;
     display: flex !important;
-    flex-direction: column !important; /* 改为 Column 以便容纳 Meta 和 Content */
+    flex-direction: row !important;
     align-items: flex-start !important; 
     width: 100% !important;
     border: none !important;
     position: relative !important;
+    flex-shrink: 0 !important;
 }
 
-/* 4. 隐藏头像 (iMessage 风格通常不显式每条都带头像，或者我们用 Flex 控制) */
+/* 头像 */
 .imessage-mode .tk-avatar {
-    display: none !important; 
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: 50% !important;
+    margin-right: 10px !important;
+    overflow: hidden !important;
+    border: 1px solid rgba(0,0,0,0.08) !important;
+    flex-shrink: 0 !important;
+    margin-top: 2px !important; 
+    z-index: 2 !important;
+}
+.imessage-mode .tk-avatar img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
 }
 
-/* 5. 消息气泡本体 */
+/* 内容包裹 */
 .imessage-mode .tk-main {
     display: flex !important;
     flex-direction: column !important;
     align-items: flex-start !important;
     max-width: 100% !important;
-    position: relative !important;
 }
 
-/* 气泡样式 */
+/* -------------------------------------------
+   Header: 昵称、时间、图标 (修复位置)
+   ------------------------------------------- */
+.imessage-mode .tk-row {
+    margin-bottom: 4px !important;
+    display: flex !important;
+    justify-content: flex-start !important; /* 强制左对齐 */
+    align-items: center !important;
+    width: 100% !important;
+    pointer-events: none !important; /* 防止遮挡 */
+}
+
+/* Meta 信息区 */
+.imessage-mode .tk-meta {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+}
+
+.imessage-mode .tk-nick {
+    font-size: 11px !important;
+    color: #8e8e93 !important;
+    font-weight: 500 !important;
+    line-height: 1 !important;
+}
+.imessage-mode .tk-time {
+    font-size: 10px !important;
+    color: #c7c7cc !important;
+    line-height: 1 !important;
+}
+
+/* 操作图标区 (默认隐藏，悬浮显示，紧跟 Meta) */
+.imessage-mode .tk-action {
+    display: flex !important;
+    gap: 10px !important;
+    opacity: 0 !important; /* 默认隐藏 */
+    margin-left: 10px !important; /* 距离时间一点距离 */
+    pointer-events: auto !important; /* 恢复点击 */
+    transition: opacity 0.2s ease !important;
+}
+.imessage-mode .tk-comment:hover .tk-action {
+    opacity: 1 !important;
+}
+
+.imessage-mode .tk-action-link { 
+    color: #999 !important; 
+    display: flex !important; 
+    align-items: center !important;
+}
+.imessage-mode .tk-action-link:hover { 
+    color: #007aff !important; 
+}
+.imessage-mode .tk-action-icon svg { 
+    width: 13px !important; 
+    height: 13px !important; 
+    fill: currentColor !important; 
+}
+/* 隐藏图标旁的文字计数，保持极简 */
+.imessage-mode .tk-action-count {
+    display: none !important;
+}
+
+/* -------------------------------------------
+   气泡本体
+   ------------------------------------------- */
 .imessage-mode .tk-content {
     position: relative !important;
-    padding: 8px 14px !important;
+    padding: 9px 14px !important;
     border-radius: 18px !important;
     font-size: 14px !important;
-    line-height: 1.4 !important;
+    line-height: 1.5 !important;
     width: fit-content !important;
     max-width: 85% !important; 
     word-break: break-word !important;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.03) !important;
     z-index: 1 !important;
-    margin-top: 2px !important;
-    
-    /* 接收者 (左侧) 样式 */
+}
+.imessage-mode .tk-content {
     background-color: #e9e9eb !important;
     color: #000 !important;
-    border-bottom-left-radius: 4px !important; /* 尾巴在左下 */
+    border-top-left-radius: 4px !important;
 }
-
-/* 深色模式适配 */
 .dark .imessage-mode .tk-content {
     background-color: #262628 !important;
     color: #fff !important;
 }
-
 .imessage-mode p { margin: 0 !important; }
 
-/* 6. 发送者 (Master) 样式 - 右侧对齐 */
+/* -------------------------------------------
+   Master (自己发的) 样式
+   ------------------------------------------- */
 .imessage-mode .tk-master { 
+    flex-direction: row-reverse !important; 
+}
+.imessage-mode .tk-master .tk-avatar { 
+    margin-right: 0 !important; 
+    margin-left: 10px !important; 
+    display: none !important; /* 可选：隐藏自己的头像 */
+}
+.imessage-mode .tk-master .tk-main { 
     align-items: flex-end !important; 
 }
-.imessage-mode .tk-master .tk-main {
-    align-items: flex-end !important;
+.imessage-mode .tk-master .tk-row { 
+    flex-direction: row-reverse !important; 
+    justify-content: flex-start !important; /* 反向后依然是起始对齐(即右对齐) */
 }
+.imessage-mode .tk-master .tk-meta {
+    flex-direction: row-reverse !important;
+}
+/* Master 模式下操作图标在左侧 */
+.imessage-mode .tk-master .tk-action {
+    flex-direction: row-reverse !important;
+    margin-left: 0 !important;
+    margin-right: 10px !important;
+}
+
 .imessage-mode .tk-master .tk-content {
-    background-color: #007aff !important; /* iMessage 蓝 */
+    background-color: #007aff !important;
     color: #fff !important;
-    border-bottom-left-radius: 18px !important;
-    border-bottom-right-radius: 4px !important; /* 尾巴在右下 */
+    border-top-left-radius: 18px !important;
+    border-top-right-radius: 4px !important; 
+    border-bottom-left-radius: 18px !important; 
 }
 .imessage-mode .tk-master .tk-content a { color: white !important; text-decoration: underline !important; }
 
-/* 7. 隐藏嵌套容器 (极其重要，防止出现空框) */
-.imessage-mode .tk-replies { 
-    display: contents !important; /* 让子元素直接参与主容器布局 */
-}
-/* 如果 display: contents 有兼容性问题，或者 Twikoo 的结构还在，直接隐藏 */
-.imessage-mode .tk-replies .tk-comment {
-    /* 子评论我们在 JS 里已经搬走了，这里留个保险 */
-}
+/* 隐藏空回复容器 (我们已经手动提取了) */
+.imessage-mode .tk-replies { display: none !important; }
 
-/* 8. 引用样式 (JS 生成的) */
+/* 引用样式 (手动生成的) */
+.imessage-mode .tk-content > span:has(.tk-ruser) { display: none !important; }
 .imessage-quote {
     display: block;
     margin-bottom: 6px;
@@ -158,10 +266,19 @@
 .imessage-mode .tk-master .tk-content .imessage-quote { border-left-color: rgba(255, 255, 255, 0.5); opacity: 0.8; }
 .imessage-quote-name { font-weight: 700; margin-right: 4px; }
 
-/* 9. 隐藏引用中的原用户信息 (防止重复) */
-.imessage-mode .tk-content > span:has(.tk-ruser) { display: none !important; }
-
-/* 10. 搬运后的 Header 图标样式 */
+/* -------------------------------------------
+   Twikoo 搬运后的元素样式 (Header Elements)
+   ------------------------------------------- */
+#twikoo-moved-count .tk-comments-count {
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    color: #8e8e93 !important;
+}
+#twikoo-moved-icons span {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+}
 #twikoo-moved-icons svg {
     width: 14px !important;
     height: 14px !important;
