@@ -24,14 +24,13 @@ const TwikooAdminHost = () => {
             
             // 强制覆盖样式，使其适应窗口布局
             adminContainer.style.display = 'block'
-            adminContainer.style.visibility = 'visible'
             adminContainer.style.position = 'static'
             adminContainer.style.width = '100%'
             adminContainer.style.height = '100%'
             adminContainer.style.zIndex = '1'
             adminContainer.style.opacity = '1'
             adminContainer.style.pointerEvents = 'auto'
-            adminContainer.style.overflowY = 'auto'
+            adminContainer.style.overflowY = 'auto' // 确保可滚动
             
             const adminInner = adminContainer.querySelector('.tk-admin') as HTMLElement
             if (adminInner) {
@@ -39,6 +38,7 @@ const TwikooAdminHost = () => {
                 adminInner.style.boxShadow = 'none'
                 adminInner.style.transform = 'none'
                 adminInner.style.width = '100%'
+                adminInner.style.maxWidth = '100%'
             }
 
             // 隐藏 Twikoo 自带的关闭按钮 (使用 OS 窗口的关闭)
@@ -47,17 +47,16 @@ const TwikooAdminHost = () => {
         }
 
         return () => {
-            // 卸载时（窗口关闭）：将节点还给 body 并隐藏，防止 Twikoo 报错
+            // 卸载时（窗口关闭）：将节点还给 body 并隐藏
             if (adminContainer) {
                 document.body.appendChild(adminContainer)
                 adminContainer.style.display = 'none' 
                 
-                // 关键修复：强制移除 __show 类，重置状态，这样下次点击齿轮才能再次触发 MutationObserver
+                // [关键修复]：移除 __show 类。
+                // 这样下次点击齿轮时，Twikoo 会再次添加 __show，触发 MutationObserver 打开窗口。
                 const adminInner = adminContainer.querySelector('.tk-admin')
                 if (adminInner) {
                     adminInner.classList.remove('__show')
-                    // 移除可能残留的内联样式，避免下次打开位置错误
-                    adminInner.removeAttribute('style')
                 }
             }
         }
@@ -66,21 +65,15 @@ const TwikooAdminHost = () => {
     return (
         <div 
             ref={containerRef} 
-            className="w-full h-full bg-white dark:bg-[#1e1e1e] overflow-hidden flex flex-col select-text"
+            className="w-full h-full bg-white dark:bg-[#1e1e1e] overflow-hidden select-text"
         >
-            {/* 样式修正：确保 Admin 面板在窗口内正常显示 */}
             <style jsx global>{`
                 .tk-admin-container .tk-admin {
                     padding: 0 !important;
-                    max-width: 100% !important;
                     margin: 0 !important;
                 }
                 .tk-admin-container {
                     background: transparent !important;
-                }
-                /* 修复 Admin 内部可能出现的滚动条问题 */
-                .tk-admin-container .tk-login {
-                    padding: 20px;
                 }
             `}</style>
         </div>
@@ -183,16 +176,16 @@ export const Messages = () => {
   const headerCountRef = useRef<HTMLDivElement>(null)
   const headerIconsRef = useRef<HTMLDivElement>(null)
   
-  // 观察者引用
+  // Refs
+  const loadObserverRef = useRef<MutationObserver | null>(null)
   const adminClassObserverRef = useRef<MutationObserver | null>(null)
-  const layoutObserverRef = useRef<MutationObserver | null>(null)
-  
-  // 防止重复打开 Admin 窗口的 Ref
+  const commentObserverRef = useRef<MutationObserver | null>(null)
   const isAdminOpeningRef = useRef(false)
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
 
+  // --- 获取 Twikoo 输入框/按钮 ---
   const getTwikooElements = useCallback(() => {
       const cancelBtn = document.querySelector('.imessage-mode .tk-cancel') as HTMLButtonElement
       if (cancelBtn) {
@@ -218,18 +211,18 @@ export const Messages = () => {
       return { input: mainInput, btn: mainBtn, cancelBtn: null, isReplyMode: false }
   }, [])
 
-  // --- 处理 Admin 弹窗逻辑 ---
+  // --- 1. 处理 Admin 弹窗逻辑 ---
   const handleAdminTrigger = useCallback((targetElement: HTMLElement) => {
-      // 监听类名变化：只要包含 __show，就说明 Twikoo 尝试显示后台
+      // 当 __show 类被添加时
       if (targetElement.classList.contains('__show')) {
           if (isAdminOpeningRef.current) return;
           
-          // 检查窗口是否已存在
+          // 如果窗口已经存在，不需要再打开 (防止重复)
           if (windows.some(w => w.id === 'twikoo-admin')) return;
 
           isAdminOpeningRef.current = true;
 
-          // 立即隐藏原 Container 防止覆盖聊天区 (虽然 CSS 做了，但这里双重保险)
+          // 立即隐藏原 DOM，防止重叠
           const container = document.querySelector('.tk-admin-container') as HTMLElement;
           if (container) container.style.display = 'none';
 
@@ -244,14 +237,54 @@ export const Messages = () => {
             resizable: true,
           });
 
-          // 延时释放锁，防止重复触发
-          setTimeout(() => { isAdminOpeningRef.current = false }, 1000);
+          // 冷却
+          setTimeout(() => { isAdminOpeningRef.current = false }, 500);
       }
   }, [launchApp, windows]);
 
-  // --- 核心：布局处理器 (处理回复和 Header) ---
+  // --- 2. 处理布局 (搬运头部 & 修复回复显示) ---
   const processLayout = useCallback(() => {
-    // 1. 搬运 Header (评论数 & 图标)
+    const container = document.querySelector('.imessage-mode .tk-comments-container');
+    
+    // [关键修复] 强制搬运嵌套回复
+    // 如果不搬运，它们会被 CSS .imessage-mode .tk-replies { display: none } 隐藏
+    const nestedReplies = document.querySelectorAll('.imessage-mode .tk-replies .tk-comment');
+    if (nestedReplies.length > 0 && container) {
+        nestedReplies.forEach(reply => {
+            // A. 注入引用
+            const contentBox = reply.querySelector('.tk-content');
+            if (contentBox && !contentBox.querySelector('.imessage-quote')) {
+                const replyList = reply.closest('.tk-replies');
+                const parentComment = replyList?.closest('.tk-comment') as HTMLElement;
+                if (parentComment) {
+                    const parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'User';
+                    const parentContentElem = parentComment.querySelector('.tk-main > .tk-content');
+                    let parentText = parentContentElem?.textContent?.replace(/\s+/g, ' ').trim() || '';
+                    
+                    // 清理父评论中的引用文本，防止无限嵌套文字
+                    const existingQuote = parentContentElem?.querySelector('.imessage-quote');
+                    if (existingQuote && existingQuote.textContent) {
+                        parentText = parentText.replace(existingQuote.textContent, '').trim();
+                    }
+                    const replyPrefix = parentContentElem?.querySelector('span:first-child');
+                    if (replyPrefix && replyPrefix.textContent?.includes('回复')) {
+                         parentText = parentText.replace(replyPrefix.textContent, '').trim();
+                    }
+
+                    if (parentText.length > 30) parentText = parentText.slice(0, 30) + '...';
+
+                    const quoteDiv = document.createElement('div');
+                    quoteDiv.className = 'imessage-quote';
+                    quoteDiv.innerHTML = `<span class="imessage-quote-name">${parentNick}:</span> ${parentText}`;
+                    contentBox.insertBefore(quoteDiv, contentBox.firstChild);
+                }
+            }
+            // B. [核心] 移动到主容器，使其可见
+            container.appendChild(reply);
+        });
+    }
+
+    // 搬运 Header (评论数 & 图标)
     const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
     if (originalHeader) {
         const countEl = originalHeader.querySelector('.tk-comments-count');
@@ -270,57 +303,28 @@ export const Messages = () => {
         }
     }
 
-    // 2. 评论处理 (扁平化回复 & 排序)
-    const container = document.querySelector('.imessage-mode .tk-comments-container');
+    // 排序
     if (container) {
-        // [修复] 激进地查找所有嵌套评论，不管它们在哪一层
-        const nestedReplies = container.querySelectorAll('.tk-replies .tk-comment');
-        
-        if (nestedReplies.length > 0) {
-            // 暂停观察，防止移动元素触发无限循环
-            if (layoutObserverRef.current) layoutObserverRef.current.disconnect();
-
-            nestedReplies.forEach(reply => {
-                // A. 注入引用样式 (模拟 iMessage 回复)
-                const contentBox = reply.querySelector('.tk-content');
-                if (contentBox && !contentBox.querySelector('.imessage-quote')) {
-                    const replyList = reply.closest('.tk-replies');
-                    const parentComment = replyList?.closest('.tk-comment') as HTMLElement;
-                    if (parentComment) {
-                        const parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'User';
-                        const parentContentElem = parentComment.querySelector('.tk-main > .tk-content');
-                        let parentText = parentContentElem?.textContent?.replace(/\s+/g, ' ').trim() || '';
-                        
-                        // 清理引用文本，防止递归引用
-                        const existingQuote = parentContentElem?.querySelector('.imessage-quote');
-                        if (existingQuote && existingQuote.textContent) {
-                            parentText = parentText.replace(existingQuote.textContent, '').trim();
-                        }
-                        
-                        if (parentText.length > 30) parentText = parentText.slice(0, 30) + '...';
-
-                        const quoteDiv = document.createElement('div');
-                        quoteDiv.className = 'imessage-quote';
-                        quoteDiv.innerHTML = `<span class="imessage-quote-name">${parentNick}:</span> ${parentText}`;
-                        contentBox.insertBefore(quoteDiv, contentBox.firstChild);
-                    }
-                }
-                // B. [关键修复] 将其移动到主容器，使其脱离 .tk-replies (CSS中 .tk-replies 是隐藏的)
-                container.appendChild(reply);
+        const comments = Array.from(container.children).filter(child => child.classList.contains('tk-comment'));
+        if (comments.length > 1) {
+            const needsSort = comments.some((c, i, arr) => {
+                if (i === 0) return false;
+                const prevT = new Date(arr[i-1].querySelector('time')?.getAttribute('datetime') || 0).getTime();
+                const currT = new Date(c.querySelector('time')?.getAttribute('datetime') || 0).getTime();
+                return prevT > currT;
             });
-
-            // 排序 (保证时间顺序)
-            const comments = Array.from(container.children).filter(child => child.classList.contains('tk-comment'));
-            const sorted = comments.sort((a, b) => {
-                const tA = a.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
-                const tB = b.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
-                return new Date(tA).getTime() - new Date(tB).getTime(); 
-            });
-            sorted.forEach(c => container.appendChild(c));
-
-            // 恢复观察
-            if (layoutObserverRef.current) {
-                layoutObserverRef.current.observe(document.body, { childList: true, subtree: true });
+            
+            if (needsSort) {
+                // 暂时断开，避免循环
+                if (commentObserverRef.current) commentObserverRef.current.disconnect();
+                const sorted = comments.sort((a, b) => {
+                    const tA = a.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
+                    const tB = b.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
+                    return new Date(tA).getTime() - new Date(tB).getTime(); 
+                });
+                sorted.forEach(c => container.appendChild(c));
+                // 恢复
+                if (commentObserverRef.current) commentObserverRef.current.observe(container, { childList: true, subtree: true });
             }
         }
     }
@@ -328,36 +332,61 @@ export const Messages = () => {
 
   // --- 初始化监听器 ---
   useEffect(() => {
-    // 监听 Body 变动，处理新加载的评论
-    layoutObserverRef.current = new MutationObserver(() => {
-        // 使用防抖或 rAF 避免卡顿
+    // 1. Admin Class 监听 (触发窗口)
+    adminClassObserverRef.current = new MutationObserver((mutations) => {
+        mutations.forEach(m => {
+            if (m.type === 'attributes' && m.attributeName === 'class') {
+                handleAdminTrigger(m.target as HTMLElement);
+            }
+        });
+    });
+
+    // 2. 评论区监听 (布局/回复修复)
+    commentObserverRef.current = new MutationObserver(() => {
+        // 使用 RAF 避免阻塞主线程
         requestAnimationFrame(processLayout);
     });
-    layoutObserverRef.current.observe(document.body, { childList: true, subtree: true });
 
-    // 监听 Admin 元素类名变化 (用于弹窗)
-    // 我们需要一个定时器去轮询 DOM 中是否出现了 .tk-admin，因为它是懒加载的
-    const checkAdminInterval = setInterval(() => {
+    // 3. Body 加载监听 (初始化绑定)
+    loadObserverRef.current = new MutationObserver(() => {
         const adminInner = document.querySelector('.tk-admin');
+        const commentsContainer = document.querySelector('.imessage-mode .tk-comments-container');
+
         if (adminInner) {
-            // 找到了元素，绑定专用观察者
-            if (!adminClassObserverRef.current) {
-                adminClassObserverRef.current = new MutationObserver((mutations) => {
-                    mutations.forEach(m => {
-                        if (m.type === 'attributes' && m.attributeName === 'class') {
-                            handleAdminTrigger(m.target as HTMLElement);
-                        }
-                    });
-                });
-                adminClassObserverRef.current.observe(adminInner, { attributes: true, attributeFilter: ['class'] });
-            }
+            // 找到 Admin 节点后，绑定 class 监听
+            adminClassObserverRef.current?.disconnect();
+            adminClassObserverRef.current?.observe(adminInner, { attributes: true, attributeFilter: ['class'] });
         }
-    }, 1000);
+
+        if (commentsContainer) {
+            // 找到评论区后，执行一次布局，并绑定监听
+            processLayout();
+            commentObserverRef.current?.disconnect();
+            // 注意：监听 subtree 以捕获嵌套在回复列表中的新评论
+            commentObserverRef.current?.observe(commentsContainer, { childList: true, subtree: true });
+        }
+
+        if (adminInner && commentsContainer) {
+            loadObserverRef.current?.disconnect();
+        }
+    });
+
+    loadObserverRef.current.observe(document.body, { childList: true, subtree: true });
+
+    // 兜底定时器 (防止快速切换路由导致 Observer 失效)
+    const timer = setTimeout(() => {
+        const adminInner = document.querySelector('.tk-admin');
+        if (adminInner && adminClassObserverRef.current) {
+             adminClassObserverRef.current.observe(adminInner, { attributes: true, attributeFilter: ['class'] });
+        }
+        processLayout();
+    }, 800);
 
     return () => {
-        if (layoutObserverRef.current) layoutObserverRef.current.disconnect();
+        if (loadObserverRef.current) loadObserverRef.current.disconnect();
         if (adminClassObserverRef.current) adminClassObserverRef.current.disconnect();
-        clearInterval(checkAdminInterval);
+        if (commentObserverRef.current) commentObserverRef.current.disconnect();
+        clearTimeout(timer);
     }
   }, [handleAdminTrigger, processLayout]);
 
@@ -428,14 +457,14 @@ export const Messages = () => {
       
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onSave={() => setReloadKey(k => k + 1)} />}
 
-      {/* CSS 强制隐藏初始状态的 admin-container，防止页面加载时闪烁 */}
+      {/* 隐藏 Admin 初始占位 */}
       <style jsx global>{`
          .imessage-mode .tk-admin-container {
              display: none; 
          }
       `}</style>
 
-      {/* 左侧边栏 (保持不变) */}
+      {/* 左侧边栏 */}
       <div className="w-[280px] flex flex-col border-r border-gray-200 dark:border-white/10 bg-[#f5f5f5]/90 dark:bg-[#252525]/90 backdrop-blur-xl z-20 select-none">
         <div className="h-12 flex items-center justify-between px-3 shrink-0 pt-2 mb-2">
            <div className="relative flex-1 mr-2">
