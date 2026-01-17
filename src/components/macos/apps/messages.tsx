@@ -10,20 +10,20 @@ import { useOs } from '../os-context'
 import { toast } from 'sonner' 
 
 // ==================================================================================
-// 1. Twikoo Admin Host (修复关闭逻辑)
+// 1. Twikoo Admin Host (修复关闭后无法再次打开的问题)
 // ==================================================================================
 const TwikooAdminHost = () => {
     const containerRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
-        // 1. 获取全局隐藏的 Twikoo Admin 容器
         const adminContainer = document.querySelector('.tk-admin-container') as HTMLElement
-        
+        const closeBtn = adminContainer?.querySelector('.tk-admin-close') as HTMLElement // 获取原生关闭按钮
+
         if (adminContainer && containerRef.current) {
-            // 劫持容器，放入当前的 Window 窗口中
+            // 1. 劫持 DOM 到窗口内
             containerRef.current.appendChild(adminContainer)
             
-            // 强制覆盖样式，使其在当前窗口内全屏显示
+            // 2. 强制显示并调整样式适应窗口
             adminContainer.style.display = 'block'
             adminContainer.style.position = 'static'
             adminContainer.style.width = '100%'
@@ -41,12 +41,11 @@ const TwikooAdminHost = () => {
                 adminInner.style.maxWidth = '100%'
             }
 
-            // 视觉上隐藏原生的关闭按钮（因为我们用红绿灯控制）
-            const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement
+            // 3. 隐藏原生关闭按钮 (我们用窗口红点关闭)
             if (closeBtn) closeBtn.style.display = 'none' 
         }
 
-        // 修复 Twikoo 登录框回车键失效的问题
+        // 修复密码框回车不登录的问题
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Enter') {
                 const target = e.target as HTMLElement;
@@ -58,30 +57,29 @@ const TwikooAdminHost = () => {
                 }
             }
         };
-
         containerRef.current?.addEventListener('keydown', handleKeyDown, true);
 
-        // === [关键修复] 组件卸载时的清理逻辑 ===
+        // [关键修复] 组件卸载（窗口关闭）时的清理逻辑
         return () => {
             containerRef.current?.removeEventListener('keydown', handleKeyDown, true);
             
             if (adminContainer) {
-                // 1. 先把容器还给 body，确保它回到文档流中 (防止在 detached DOM 中点击无效)
+                // 1. 先把 DOM 归还给 Body，防止元素丢失
                 document.body.appendChild(adminContainer)
+                
+                // 2. 立即隐藏，防止在页面底部闪烁
+                adminContainer.style.display = 'none'
 
-                // 2. 找到关闭按钮
-                const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement;
+                // 3. [关键] 模拟点击原生的关闭按钮
+                // 这会通知 Twikoo 内部状态 "面板已关闭"，并移除 __show 类名
+                // 这样下次点击齿轮时，Twikoo 才会重新添加类名，触发 MutationObserver
                 if (closeBtn) {
-                    // 临时恢复显示，确保点击事件能被某些通过 visibility 判断的框架捕获
-                    closeBtn.style.display = 'block'; 
-                    // 触发原生点击，通知 Twikoo 内部关闭逻辑 (Vue)
-                    closeBtn.click(); 
+                    closeBtn.click();
+                } else {
+                    // 兜底：手动移除类名
+                    const adminInner = adminContainer.querySelector('.tk-admin')
+                    if (adminInner) adminInner.classList.remove('__show')
                 }
-
-                // 3. 再次强制隐藏容器，确保视觉上消失
-                adminContainer.style.display = 'none' 
-                const adminInner = adminContainer.querySelector('.tk-admin')
-                if (adminInner) adminInner.classList.remove('__show')
             }
         }
     }, [])
@@ -149,6 +147,7 @@ export const Messages = () => {
   const adminClassObserverRef = useRef<MutationObserver | null>(null) 
   const isProcessingRef = useRef(false)
   const layoutTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const isAdminOpeningRef = useRef(false)
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
@@ -180,9 +179,13 @@ export const Messages = () => {
 
   const handleAdminTrigger = useCallback((targetElement: HTMLElement) => {
       if (targetElement.classList.contains('__show')) {
+          if (isAdminOpeningRef.current) return;
           if (windows.some(w => w.id === 'twikoo-admin')) return;
+
+          isAdminOpeningRef.current = true;
           const container = document.querySelector('.tk-admin-container') as HTMLElement;
           if (container) container.style.display = 'none';
+          
           launchApp({
             id: 'twikoo-admin',
             title: 'Comment Admin',
@@ -192,6 +195,8 @@ export const Messages = () => {
             component: <TwikooAdminHost />,
             resizable: true,
           });
+          
+          setTimeout(() => { isAdminOpeningRef.current = false }, 1000);
       }
   }, [launchApp, windows]);
 
@@ -248,6 +253,7 @@ export const Messages = () => {
       return null;
   }
 
+  // [布局处理]
   const processLayout = useCallback(() => {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
@@ -257,6 +263,7 @@ export const Messages = () => {
 
     if (commentObserverRef.current) commentObserverRef.current.disconnect();
 
+    // 动态检测原位置的图标并重新搬运
     const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
     if (originalHeader) {
         const sourceIcons = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
@@ -314,7 +321,9 @@ export const Messages = () => {
     isProcessingRef.current = false;
   }, [handleQuoteClick]);
 
+  // --- Effects ---
   useEffect(() => {
+    // 监听 Admin 面板打开事件
     const adminInner = document.querySelector('.tk-admin');
     if (adminInner && !adminClassObserverRef.current) {
         adminClassObserverRef.current = new MutationObserver((mutations) => {
@@ -400,7 +409,9 @@ export const Messages = () => {
         if (btn) {
             btn.click()
             setInputValue('')
+            
             processLayout();
+            
             let checkCount = 0;
             const refreshInterval = setInterval(() => {
                 const container = document.querySelector('.imessage-mode .tk-comments-container');
@@ -413,6 +424,7 @@ export const Messages = () => {
                 checkCount++;
                 if (checkCount > 10) clearInterval(refreshInterval); 
             }, 500);
+
         } else {
             toast.error("Send button not found")
         }
