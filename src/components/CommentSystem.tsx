@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { MessageSquare, Server } from 'lucide-react' 
+import { MessageSquare, Server, RefreshCw } from 'lucide-react' 
 
 type CommentSystemType = 'giscus' | 'twikoo'
 
@@ -20,6 +20,7 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
   const giscusContainerRef = useRef<HTMLDivElement>(null)
   const twikooContainerRef = useRef<HTMLDivElement>(null)
 
+  // Giscus 初始化逻辑 (保持不变)
   const initGiscus = () => {
     if (!giscusContainerRef.current) return
     try {
@@ -59,15 +60,17 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     }
   }
 
+  // Twikoo 初始化逻辑
   const initTwikoo = () => {
-    const envId = process.env.NEXT_PUBLIC_TWIKOO_ENV_ID
-    if (!envId) return 
+    // 替换为你的真实 EnvId
+    const envId = process.env.NEXT_PUBLIC_TWIKOO_ENV_ID || 'https://your-twikoo-instance.vercel.app' 
 
+    // 清理旧脚本
     const oldScripts = document.querySelectorAll('script[src*="twikoo"]')
     oldScripts.forEach(script => script.remove())
     
     if (twikooContainerRef.current) {
-        twikooContainerRef.current.innerHTML = ''
+        twikooContainerRef.current.innerHTML = '<div id="twikoo"></div>'
     }
 
     const script = document.createElement('script')
@@ -78,11 +81,12 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
       if (window.twikoo && twikooContainerRef.current) {
         window.twikoo.init({
           envId: envId,
-          el: twikooContainerRef.current,
+          el: '#twikoo', // 指定挂载 ID
           path: compact ? `/messages/${slug}` : `/blog/${slug}`,
           lang: 'zh-CN',
           onCommentLoaded: () => {
               setTwikooLoaded(true)
+              // 触发一次 resize 或者 scroll 以适应内容
           }
         })
       }
@@ -117,8 +121,9 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     interface Window { twikoo?: any }
   }
 
+  // 根据模式选择容器 Class
   const containerClass = compact 
-    ? "w-full h-full flex flex-col imessage-mode bg-white dark:bg-[#1e1e1e]" 
+    ? "w-full h-full flex flex-col bg-white dark:bg-[#1e1e1e] imessage-mode" // 加上 imessage-mode 类
     : "mx-auto w-full max-w-[1140px] px-6 pb-12 max-sm:px-0"
 
   const cardClass = compact
@@ -129,6 +134,7 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
     <div className={containerClass}>
       <div className={cardClass}>
         
+        {/* 常规博客模式的头部 (Compact 模式下隐藏) */}
         {!compact && (
           <div className="mb-6 pb-4 border-b border-gray-200/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
@@ -145,7 +151,7 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
                     currentSystem === 'giscus' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
                   }`}
                 >
-                  Giscus {currentSystem === 'giscus' && !giscusLoaded && <span className="ml-1 h-1.5 w-1.5 animate-ping rounded-full bg-blue-500"></span>}
+                  Giscus
                 </button>
                 <button
                   onClick={() => handleSystemSwitch('twikoo')}
@@ -153,21 +159,21 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
                     currentSystem === 'twikoo' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
                   }`}
                 >
-                  Twikoo {currentSystem === 'twikoo' && !twikooLoaded && <span className="ml-1 h-1.5 w-1.5 animate-ping rounded-full bg-blue-500"></span>}
+                  Twikoo
                 </button>
               </div>
             </div>
           </div>
         )}
         
-        <div className={`flex-1 min-h-0 relative overflow-y-auto ${compact ? 'px-4 py-2' : ''}`}>
+        {/* 内容区域 */}
+        <div className={`flex-1 min-h-0 relative ${compact ? 'overflow-y-auto scrollbar-none' : ''}`}>
             {currentSystem === 'giscus' && (
             <div>
                 {!giscusLoaded && (
-                <div className="flex flex-col items-center justify-center p-8 opacity-60">
-                    <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500"></div>
+                <div className="flex flex-col items-center justify-center p-8 opacity-60 h-full">
+                    <RefreshCw className="mb-2 h-6 w-6 animate-spin text-gray-400" />
                     <p className="text-xs text-gray-500">Connecting to GitHub...</p>
-                    <button onClick={initGiscus} className="mt-2 text-xs text-blue-500 hover:underline">Retry</button>
                 </div>
                 )}
                 <div ref={giscusContainerRef} className="w-full min-h-[200px]" style={{ display: giscusLoaded ? 'block' : 'none' }} />
@@ -175,20 +181,22 @@ export default function CommentSystem({ slug, title, compact = false, reloadKey 
             )}
             
             {currentSystem === 'twikoo' && (
-            <div>
+            <div className="h-full">
                 {!twikooLoaded && (
-                <div className="flex flex-col items-center justify-center p-8 opacity-60">
-                    <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500"></div>
-                    <p className="text-xs text-gray-500">Loading Messages...</p>
+                <div className="flex flex-col items-center justify-center p-8 opacity-60 h-full">
+                    <RefreshCw className="mb-2 h-6 w-6 animate-spin text-gray-400" />
+                    <p className="text-xs text-gray-500">Syncing Messages...</p>
                 </div>
                 )}
-                <div ref={twikooContainerRef} className="w-full min-h-[200px]" style={{ display: twikooLoaded ? 'block' : 'none' }} />
+                {/* 这里的 ID twikoo 将被脚本填充 */}
+                <div ref={twikooContainerRef} className="w-full min-h-[200px] pb-4" />
             </div>
             )}
         </div>
 
+        {/* 底部切换栏 (仅 Compact) */}
         {compact && (
-            <div className="shrink-0 h-6 flex items-center justify-center gap-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/5 z-20">
+            <div className="shrink-0 h-6 flex items-center justify-center gap-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/5 z-20 select-none">
                 <button 
                     onClick={() => handleSystemSwitch('twikoo')}
                     className={`flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider transition-colors ${currentSystem === 'twikoo' ? 'text-blue-500' : 'text-gray-300 hover:text-gray-500'}`}

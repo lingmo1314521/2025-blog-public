@@ -1,12 +1,13 @@
 'use client'
 
-import React, { useState, useEffect, useMemo } from 'react'
-import { Search, Edit, Settings, X, Save, ArrowUp } from 'lucide-react'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { Search, Edit, Settings, X, Save, ArrowUp, RefreshCw, MessageCircle } from 'lucide-react'
 import { clsx } from '../utils'
 import CommentSystem from '@/components/CommentSystem'
 import { useI18n } from '../i18n-context'
+import { toast } from 'sonner' 
 
-// 设置弹窗
+// --- SettingsModal 组件 ---
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const { t } = useI18n()
     const [nick, setNick] = useState('')
@@ -31,8 +32,17 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
             let data = stored ? JSON.parse(stored) : {}
             data.nick = nick; data.mail = mail; data.link = link
             localStorage.setItem('twikoo', JSON.stringify(data))
+            
+            const inputs = document.querySelectorAll('.imessage-mode input')
+            inputs.forEach((input: any) => {
+                if(input.name === 'nick') { input.value = nick; input.dispatchEvent(new Event('input')); }
+                if(input.name === 'mail') { input.value = mail; input.dispatchEvent(new Event('input')); }
+                if(input.name === 'link') { input.value = link; input.dispatchEvent(new Event('input')); }
+            })
+
             onSave()
             onClose()
+            toast.success('Settings saved')
         } catch (e) { console.error(e) }
     }
 
@@ -41,7 +51,7 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
             <div className="w-80 bg-[#f5f5f5] dark:bg-[#2c2c2c] rounded-xl shadow-2xl border border-white/20 p-5 animate-in fade-in zoom-in duration-200">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="font-bold text-sm dark:text-white">{t('msg_settings_title')}</h3>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full"><X size={14}/></button>
+                    <button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full cursor-pointer"><X size={14}/></button>
                 </div>
                 <div className="space-y-3">
                     <div>
@@ -58,7 +68,7 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
                     </div>
                 </div>
                 <div className="mt-5 flex justify-end">
-                    <button onClick={handleSave} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1">
+                    <button onClick={handleSave} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1 cursor-pointer">
                         <Save size={12}/> {t('msg_save')}
                     </button>
                 </div>
@@ -101,45 +111,246 @@ export const Messages = () => {
   const [search, setSearch] = useState('')
   const [showSettings, setShowSettings] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
+  
   const [inputValue, setInputValue] = useState('')
+  const [isReplying, setIsReplying] = useState(false)
+  const [replyTargetText, setReplyTargetText] = useState('') 
+
+  const containerRef = useRef<HTMLDivElement>(null)
+  
+  // 占位符 Refs
+  const headerCountRef = useRef<HTMLDivElement>(null)
+  const headerIconsRef = useRef<HTMLDivElement>(null)
+
+  // 观察者与锁
+  const observerRef = useRef<MutationObserver | null>(null);
+  const isProcessingRef = useRef(false);
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
 
+  // --- Twikoo 元素获取 ---
+  const getTwikooElements = useCallback(() => {
+      const cancelBtn = document.querySelector('.imessage-mode .tk-cancel') as HTMLButtonElement
+      if (cancelBtn) {
+          const formContainer = cancelBtn.closest('.tk-submit')
+          if (formContainer) {
+              return {
+                  input: formContainer.querySelector('textarea') as HTMLTextAreaElement,
+                  btn: formContainer.querySelector('.tk-send') as HTMLButtonElement,
+                  cancelBtn: cancelBtn,
+                  isReplyMode: true
+              }
+          }
+      }
+
+      const allTextareas = Array.from(document.querySelectorAll('.imessage-mode textarea'))
+      const mainInput = allTextareas[allTextareas.length - 1] as HTMLTextAreaElement
+      let mainBtn = null
+      if (mainInput) {
+          const wrapper = mainInput.closest('.tk-submit')
+          if (wrapper) mainBtn = wrapper.querySelector('.tk-send') as HTMLButtonElement
+      }
+      if (!mainBtn) mainBtn = document.querySelector('.imessage-mode .tk-send') as HTMLButtonElement
+
+      return {
+          input: mainInput,
+          btn: mainBtn,
+          cancelBtn: null,
+          isReplyMode: false
+      }
+  }, [])
+
+  // --- 核心：DOM 操作 (搬运头元素 + 平铺排序) ---
+  const processDomChanges = useCallback(() => {
+      if (isProcessingRef.current) return;
+      isProcessingRef.current = true;
+
+      try {
+        // --- 1. 搬运头部元素 (评论数 & 图标) ---
+        // 我们要从 .tk-comments-title 中抓取元素
+        // 由于 CSS 隐藏了 .tk-comments-title，我们依然可以通过 JS 访问它
+        const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
+        
+        if (originalHeader) {
+            // A. 搬运评论数 (tk-comments-count) 到 footer 左上角
+            const countEl = originalHeader.querySelector('.tk-comments-count');
+            if (countEl && headerCountRef.current && !headerCountRef.current.contains(countEl)) {
+                headerCountRef.current.innerHTML = ''; // 清空旧的
+                headerCountRef.current.appendChild(countEl);
+            }
+
+            // B. 搬运图标 (通常是 tk-icon 的父级 span) 到 footer 右上角
+            // 结构通常是: <span><span class="tk-icon">...</span></span>
+            // 我们找包含 .tk-icon 的 span
+            const iconWrappers = originalHeader.querySelectorAll('.tk-icon');
+            if (iconWrappers.length > 0 && headerIconsRef.current) {
+                // 找到包含图标的容器（通常是 count 的兄弟元素）
+                // 简单起见，我们把除了 count 之外的所有子元素都搬过去
+                const siblings = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
+                
+                siblings.forEach(sibling => {
+                    if (!headerIconsRef.current?.contains(sibling)) {
+                        headerIconsRef.current?.appendChild(sibling);
+                    }
+                });
+            }
+        }
+
+        const container = document.querySelector('.imessage-mode .tk-comments-container');
+        if (!container) return;
+
+        // --- 2. 处理嵌套回复：注入引用 + 搬运到最外层 ---
+        const nestedReplies = Array.from(document.querySelectorAll('.imessage-mode .tk-replies .tk-comment'));
+        
+        if (nestedReplies.length > 0) {
+            nestedReplies.forEach(reply => {
+                // A. 注入引用
+                const contentBox = reply.querySelector('.tk-content');
+                if (contentBox && !contentBox.querySelector('.imessage-quote')) {
+                    const replyList = reply.closest('.tk-replies');
+                    const parentComment = replyList?.closest('.tk-comment') as HTMLElement;
+                    if (parentComment) {
+                        const parentNick = parentComment.querySelector('.tk-main > .tk-row .tk-nick')?.textContent || 'User';
+                        const parentContentElem = parentComment.querySelector('.tk-main > .tk-content');
+                        let parentText = parentContentElem?.textContent?.replace(/\s+/g, ' ').trim() || '';
+                        
+                        const existingQuote = parentContentElem?.querySelector('.imessage-quote');
+                        if (existingQuote && existingQuote.textContent) {
+                            parentText = parentText.replace(existingQuote.textContent, '').trim();
+                        }
+                        const replyPrefix = parentContentElem?.querySelector('span:first-child');
+                        if (replyPrefix && replyPrefix.textContent?.includes('回复')) {
+                             parentText = parentText.replace(replyPrefix.textContent, '').trim();
+                        }
+
+                        if (parentText.length > 30) parentText = parentText.slice(0, 30) + '...';
+
+                        const quoteDiv = document.createElement('div');
+                        quoteDiv.className = 'imessage-quote';
+                        quoteDiv.innerHTML = `<span class="imessage-quote-name">${parentNick}:</span> ${parentText}`;
+                        contentBox.insertBefore(quoteDiv, contentBox.firstChild);
+                    }
+                }
+                // B. 搬运到主容器
+                container.appendChild(reply);
+            });
+        }
+
+        // --- 3. 全局排序 ---
+        const comments = Array.from(container.children).filter(child => child.classList.contains('tk-comment'));
+        if (comments.length > 1) {
+             const sorted = comments.sort((a, b) => {
+                const tA = a.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
+                const tB = b.querySelector('time')?.getAttribute('datetime') || '1970-01-01';
+                return new Date(tA).getTime() - new Date(tB).getTime(); 
+            });
+            sorted.forEach(c => container.appendChild(c));
+        }
+
+      } catch (e) {
+          console.error("DOM processing error:", e);
+      } finally {
+          isProcessingRef.current = false;
+      }
+  }, [])
+
+  // 监听 DOM 变化
+  useEffect(() => {
+    const handleMutation = () => {
+        if (observerRef.current) observerRef.current.disconnect();
+
+        try {
+            const { isReplyMode, cancelBtn } = getTwikooElements()
+            
+            if (isReplyMode !== isReplying) {
+                setIsReplying(isReplyMode)
+            }
+            
+            if (isReplyMode && cancelBtn) {
+                const form = cancelBtn.closest('.tk-submit')
+                if(form) {
+                    const parentContainer = form.parentElement?.closest('.tk-comment')
+                    if (parentContainer) {
+                        const nick = parentContainer.querySelector('.tk-nick')?.textContent
+                        const newText = nick ? `Replying to ${nick}` : 'Replying...';
+                        if (newText !== replyTargetText) setReplyTargetText(newText);
+                    }
+                }
+            } else {
+                setReplyTargetText('')
+            }
+
+            processDomChanges(); // 执行搬运和排序
+
+        } finally {
+            if (observerRef.current) {
+                observerRef.current.observe(document.body, { childList: true, subtree: true });
+            }
+        }
+    };
+
+    observerRef.current = new MutationObserver(handleMutation);
+    observerRef.current.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+        if (observerRef.current) observerRef.current.disconnect();
+    }
+  }, [isReplying, replyTargetText, getTwikooElements, processDomChanges])
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value
       setInputValue(val)
-      const twikooTextarea = document.querySelector('.imessage-mode .el-textarea__inner') as HTMLTextAreaElement
-      if (twikooTextarea) {
-          twikooTextarea.value = val
-          twikooTextarea.dispatchEvent(new Event('input', { bubbles: true }))
+      const { input } = getTwikooElements()
+      if (input) {
+          input.value = val
+          input.dispatchEvent(new Event('input', { bubbles: true }))
       }
   }
 
   const handleSend = () => {
       if (!inputValue.trim()) return
-      const twikooSendBtn = document.querySelector('.imessage-mode .tk-send') as HTMLButtonElement
-      if (twikooSendBtn) {
-          twikooSendBtn.click()
-          setInputValue('')
+      const { input, btn } = getTwikooElements()
+      if(input) {
+        input.value = inputValue
+        input.dispatchEvent(new Event('input', { bubbles: true }))
       }
+      setTimeout(() => {
+        if (btn) {
+            btn.click()
+            setInputValue('')
+            setTimeout(() => {
+                const container = document.querySelector('.imessage-mode .tk-comments-container')
+                if (container) container.scrollTop = container.scrollHeight
+            }, 300)
+        } else {
+            toast.error("Send button not found")
+        }
+      }, 50)
+  }
+
+  const handleCancelReply = () => {
+      const { cancelBtn } = getTwikooElements()
+      if(cancelBtn) cancelBtn.click()
+      setIsReplying(false)
+      setInputValue('')
   }
 
   return (
-    <div className="flex h-full w-full bg-white dark:bg-[#1e1e1e] text-black dark:text-white font-sans overflow-hidden relative">
+    <div className="flex h-full w-full bg-white dark:bg-[#1e1e1e] text-black dark:text-white font-sans overflow-hidden relative" ref={containerRef}>
       
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onSave={() => setReloadKey(k => k + 1)} />}
 
-      {/* 左侧边栏 */}
-      <div className="w-[280px] flex flex-col border-r border-gray-200 dark:border-white/10 bg-[#f5f5f5]/90 dark:bg-[#252525]/90 backdrop-blur-xl">
+      {/* 左侧边栏 (保持不变) */}
+      <div className="w-[280px] flex flex-col border-r border-gray-200 dark:border-white/10 bg-[#f5f5f5]/90 dark:bg-[#252525]/90 backdrop-blur-xl z-20">
         <div className="h-12 flex items-center justify-between px-3 shrink-0 pt-2 mb-2">
            <div className="relative flex-1 mr-2">
               <Search size={12} className="absolute left-2 top-1.5 text-gray-400" />
               <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('msg_search')} className="w-full bg-gray-200/50 dark:bg-black/20 border border-transparent focus:border-blue-500/50 rounded-md py-1 pl-7 pr-2 text-xs outline-none transition-all placeholder-gray-500"/>
            </div>
-           <button className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded-md text-blue-500"><Edit size={16} /></button>
+           <button className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded-md text-blue-500 cursor-pointer"><Edit size={16} /></button>
         </div>
-        <div className="flex-1 overflow-y-auto px-2 pb-2">
+        <div className="flex-1 overflow-y-auto px-2 pb-2 scrollbar-none">
             {filteredContacts.map(contact => (
                 <div key={contact.id} onClick={() => setActiveContactId(contact.id)} className={clsx("group flex gap-3 p-3 rounded-lg cursor-pointer transition-all mb-0.5 select-none", activeContactId === contact.id ? "bg-blue-500 text-white shadow-sm" : "hover:bg-gray-200 dark:hover:bg-white/5")}>
                     <div className={clsx("w-10 h-10 rounded-full flex items-center justify-center text-xl shrink-0 bg-white shadow-sm overflow-hidden", activeContactId === contact.id ? "bg-white/20 text-white backdrop-blur-sm" : "text-gray-600")}>{contact.avatar}</div>
@@ -156,7 +367,8 @@ export const Messages = () => {
       </div>
 
       {/* 右侧主内容 */}
-      <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#1e1e1e] relative">
+      <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#1e1e1e] relative z-0">
+        {/* 顶部 Header */}
         <div className="h-12 border-b border-gray-200/50 dark:border-white/10 flex items-center justify-between px-4 bg-white/80 dark:bg-[#1e1e1e]/80 backdrop-blur-md shrink-0 z-20 sticky top-0">
             <div className="flex items-center gap-3">
                 <span className="text-xs text-gray-400">{t('msg_to')}</span>
@@ -164,10 +376,14 @@ export const Messages = () => {
                     <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{activeContact.name}</span>
                 </div>
             </div>
-            <button onClick={() => setShowSettings(true)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all" title={t('msg_settings_title')}><Settings size={16} /></button>
+            <div className="flex gap-2">
+                <button onClick={() => setReloadKey(k => k + 1)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all cursor-pointer"><RefreshCw size={14} /></button>
+                <button onClick={() => setShowSettings(true)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all cursor-pointer" title={t('msg_settings_title')}><Settings size={16} /></button>
+            </div>
         </div>
 
-        <div className="flex-1 overflow-hidden relative flex flex-col">
+        {/* 消息区域 */}
+        <div className="flex-1 overflow-hidden relative flex flex-col w-full">
             <CommentSystem 
                 key={`${activeContact.slug}-${reloadKey}`} 
                 slug={activeContact.slug} 
@@ -177,19 +393,53 @@ export const Messages = () => {
             />
         </div>
 
-        <div className="shrink-0 p-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30">
-            <div className="relative">
+        {/* 底部输入框区域 */}
+        <div className="shrink-0 p-4 bg-[#f5f5f5] dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-white/10 z-30 relative group">
+            
+            {/* [NEW] 搬运元素的占位符 */}
+            {/* 左上角：评论数 */}
+            <div id="twikoo-moved-count" ref={headerCountRef} className="absolute top-2 left-6 z-40 select-none pointer-events-none"></div>
+            
+            {/* 右上角：图标 */}
+            <div id="twikoo-moved-icons" ref={headerIconsRef} className="absolute top-2 right-6 z-40 flex items-center gap-2"></div>
+
+            <div className="relative max-w-4xl mx-auto w-full pt-3">
+                {isReplying && (
+                    <div className="absolute -top-7 left-0 right-0 flex items-center justify-between bg-gray-200/90 dark:bg-[#333]/90 backdrop-blur-sm px-4 py-2 rounded-lg text-xs border border-gray-300 dark:border-white/10 shadow-sm animate-in slide-in-from-bottom-2 z-10">
+                        <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300 truncate">
+                            <MessageCircle size={12} className="text-blue-500"/>
+                            <span className="font-medium truncate max-w-[200px]">{replyTargetText || 'Replying...'}</span>
+                        </div>
+                        <button onClick={handleCancelReply} className="ml-2 p-1 hover:bg-gray-300 dark:hover:bg-white/10 rounded-full transition-colors cursor-pointer">
+                            <X size={12} className="text-gray-500"/>
+                        </button>
+                    </div>
+                )}
+
                 <input
                     type="text"
                     value={inputValue}
                     onChange={handleInputChange}
                     onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                    placeholder={t('msg_imessage')}
-                    className="w-full bg-white dark:bg-[#2c2c2c] border border-gray-300 dark:border-white/10 rounded-full py-2 pl-4 pr-10 text-sm outline-none focus:border-blue-500 transition-all text-black dark:text-white"
+                    placeholder={isReplying ? "Reply to message..." : t('msg_imessage')}
+                    className={clsx(
+                        "w-full bg-white dark:bg-[#2c2c2c] border border-gray-300 dark:border-white/10 rounded-full py-2 pl-4 pr-10 text-sm outline-none focus:border-blue-500 transition-all text-black dark:text-white",
+                        isReplying && "border-blue-400 ring-2 ring-blue-500/20"
+                    )}
                 />
-                <button onClick={handleSend} disabled={!inputValue.trim()} className={`absolute right-1 top-1 w-7 h-7 rounded-full flex items-center justify-center transition-all ${inputValue.trim() ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-300 dark:bg-gray-600 text-gray-500 cursor-not-allowed'}`}>
+                <button 
+                    onClick={handleSend} 
+                    disabled={!inputValue.trim()} 
+                    className={`absolute right-1 top-4 w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer ${inputValue.trim() ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-300 dark:bg-gray-600 text-gray-500 cursor-not-allowed'}`}
+                >
                     <ArrowUp size={16} strokeWidth={3} />
                 </button>
+            </div>
+            
+            <div className="text-[10px] text-center text-gray-400 mt-2 select-none flex justify-center gap-1">
+                <span>iMessage</span>
+                <span>•</span>
+                <span>Powered by Twikoo</span>
             </div>
         </div>
       </div>
