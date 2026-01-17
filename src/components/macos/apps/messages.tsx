@@ -10,29 +10,33 @@ import { useOs } from '../os-context'
 import { toast } from 'sonner' 
 
 // ==================================================================================
-// 1. 独立的 Twikoo 后台宿主组件 (用于新窗口)
+// 1. 独立的 Twikoo 后台宿主组件 (用于新窗口) - [已修复二次打开空白问题]
 // ==================================================================================
 const TwikooAdminHost = () => {
     const containerRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
-        // 1. 尝试获取全局隐藏的 admin 容器
         const adminContainer = document.querySelector('.tk-admin-container') as HTMLElement
         
+        // 定义一个强制显示的函数
+        const forceShow = () => {
+            if (adminContainer) {
+                adminContainer.style.setProperty('display', 'block', 'important');
+                adminContainer.style.opacity = '1';
+                adminContainer.style.visibility = 'visible';
+                adminContainer.style.pointerEvents = 'auto';
+            }
+        }
+
         if (adminContainer && containerRef.current) {
-            // 将 Twikoo 的 DOM 移动到我们的窗口内
+            // 1. 搬运 DOM
             containerRef.current.appendChild(adminContainer)
             
-            // [核心修复] 强制唤醒 DOM，防止白屏
-            // 1. 强制容器显示
-            adminContainer.style.display = 'block'
+            // 2. 初始化样式 (静态定位，填满父容器)
             adminContainer.style.position = 'static'
             adminContainer.style.width = '100%'
             adminContainer.style.height = '100%'
             adminContainer.style.zIndex = '1'
-            adminContainer.style.opacity = '1'
-            adminContainer.style.pointerEvents = 'auto'
-            adminContainer.style.visibility = 'visible' // 额外保险
             
             const adminInner = adminContainer.querySelector('.tk-admin') as HTMLElement
             if (adminInner) {
@@ -41,16 +45,28 @@ const TwikooAdminHost = () => {
                 adminInner.style.transform = 'none'
                 adminInner.style.width = '100%'
                 adminInner.style.maxWidth = '100%'
-                // 2. [关键] 强制添加 __show 类，确保内容不透明
-                adminInner.classList.add('__show')
             }
 
-            // 隐藏 Twikoo 原生的关闭按钮
+            // 3. 隐藏原生关闭按钮
             const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement
             if (closeBtn) closeBtn.style.display = 'none' 
-        }
 
-        // 修复密码输入框回车无法登录的问题
+            // 4. [核心修复] 立即显示，并延时再次强制显示
+            forceShow();
+            const timer1 = setTimeout(forceShow, 10);
+            const timer2 = setTimeout(forceShow, 100);
+
+            // 清理 timer
+            return () => {
+                clearTimeout(timer1);
+                clearTimeout(timer2);
+            };
+        }
+    }, []) // 仅在挂载时执行
+
+    // 独立处理关闭逻辑的清理函数
+    useEffect(() => {
+        const adminContainer = document.querySelector('.tk-admin-container') as HTMLElement;
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Enter') {
                 const target = e.target as HTMLElement;
@@ -62,25 +78,24 @@ const TwikooAdminHost = () => {
                 }
             }
         };
-
         containerRef.current?.addEventListener('keydown', handleKeyDown, true);
 
-        // 组件卸载（窗口关闭）时的清理逻辑
         return () => {
             containerRef.current?.removeEventListener('keydown', handleKeyDown, true);
             
+            // [关闭窗口时的清理逻辑]
             if (adminContainer) {
-                // 1. 触发 Twikoo 原生关闭逻辑，重置状态
+                // 1. 触发 Twikoo 关闭逻辑 (重置状态)
                 const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement;
                 if (closeBtn) closeBtn.click();
 
-                // 2. 将容器还给 body
+                // 2. 归还 DOM 到 Body (防止丢失)
                 document.body.appendChild(adminContainer)
                 
-                // 3. 隐藏容器
+                // 3. 隐藏 (为下次打开做准备)
                 adminContainer.style.display = 'none' 
                 
-                // 4. 移除显示类名
+                // 4. 移除 Show 类名
                 const adminInner = adminContainer.querySelector('.tk-admin')
                 if (adminInner) adminInner.classList.remove('__show')
             }
@@ -92,6 +107,8 @@ const TwikooAdminHost = () => {
             <style jsx global>{`
                 .tk-admin-container .tk-admin { padding: 0 !important; max-width: 100% !important; }
                 .tk-admin-container { background: transparent !important; }
+                /* 强制覆盖可能的 display:none */
+                .tk-admin-container[style*="display: none"] { display: block !important; } 
                 .tk-admin .el-input__inner { background-color: transparent !important; color: inherit !important; border-color: #ddd !important; }
                 .dark .tk-admin .el-input__inner { border-color: #444 !important; color: #fff !important; }
             `}</style>
@@ -100,7 +117,7 @@ const TwikooAdminHost = () => {
 }
 
 // ==================================================================================
-// 2. 设置弹窗组件
+// 2. Settings Modal
 // ==================================================================================
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const { t } = useI18n()
@@ -127,7 +144,6 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
             data.nick = nick; data.mail = mail; data.link = link
             localStorage.setItem('twikoo', JSON.stringify(data))
             
-            // 同步到 DOM
             const inputs = document.querySelectorAll('.imessage-mode input')
             inputs.forEach((input: any) => {
                 if(input.name === 'nick') { input.value = nick; input.dispatchEvent(new Event('input')); }
@@ -173,7 +189,7 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
 }
 
 // ==================================================================================
-// 3. 右键菜单组件
+// 3. Right Click Context Menu
 // ==================================================================================
 const MessageContextMenu = ({ visible, x, y, targetElement, onClose }: any) => {
     const menuRef = useRef<HTMLDivElement>(null); const { t } = useI18n(); const [adjustedPos, setAdjustedPos] = useState({ x, y });
@@ -249,6 +265,7 @@ export const Messages = () => {
           if (windows.some(w => w.id === 'twikoo-admin')) return;
 
           isAdminOpeningRef.current = true;
+          
           const container = document.querySelector('.tk-admin-container') as HTMLElement;
           if (container) container.style.display = 'none';
 
@@ -390,16 +407,14 @@ export const Messages = () => {
   // --- Effects ---
   useEffect(() => {
     const adminInner = document.querySelector('.tk-admin');
-    if (adminInner) {
-        if (!adminClassObserverRef.current) {
-            adminClassObserverRef.current = new MutationObserver((mutations) => {
-                mutations.forEach(m => {
-                    if (m.type === 'attributes' && m.attributeName === 'class') {
-                        handleAdminTrigger(m.target as HTMLElement);
-                    }
-                });
+    if (adminInner && !adminClassObserverRef.current) {
+        adminClassObserverRef.current = new MutationObserver((mutations) => {
+            mutations.forEach(m => {
+                if (m.type === 'attributes' && m.attributeName === 'class') {
+                    handleAdminTrigger(m.target as HTMLElement);
+                }
             });
-        }
+        });
         adminClassObserverRef.current.observe(adminInner, { attributes: true, attributeFilter: ['class'] });
     }
 
