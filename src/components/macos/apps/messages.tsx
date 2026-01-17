@@ -23,7 +23,8 @@ const TwikooAdminHost = () => {
             // 将 Twikoo 的 DOM 移动到我们的窗口内
             containerRef.current.appendChild(adminContainer)
             
-            // 强制样式覆盖，确保在窗口内正确显示
+            // [核心修复] 强制唤醒 DOM，防止白屏
+            // 1. 强制容器显示
             adminContainer.style.display = 'block'
             adminContainer.style.position = 'static'
             adminContainer.style.width = '100%'
@@ -31,6 +32,7 @@ const TwikooAdminHost = () => {
             adminContainer.style.zIndex = '1'
             adminContainer.style.opacity = '1'
             adminContainer.style.pointerEvents = 'auto'
+            adminContainer.style.visibility = 'visible' // 额外保险
             
             const adminInner = adminContainer.querySelector('.tk-admin') as HTMLElement
             if (adminInner) {
@@ -39,9 +41,11 @@ const TwikooAdminHost = () => {
                 adminInner.style.transform = 'none'
                 adminInner.style.width = '100%'
                 adminInner.style.maxWidth = '100%'
+                // 2. [关键] 强制添加 __show 类，确保内容不透明
+                adminInner.classList.add('__show')
             }
 
-            // 隐藏 Twikoo 原生的关闭按钮 (因为我们用窗口的红灯关闭)
+            // 隐藏 Twikoo 原生的关闭按钮
             const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement
             if (closeBtn) closeBtn.style.display = 'none' 
         }
@@ -61,25 +65,22 @@ const TwikooAdminHost = () => {
 
         containerRef.current?.addEventListener('keydown', handleKeyDown, true);
 
-        // [核心修复] 组件卸载（窗口关闭）时的清理逻辑
+        // 组件卸载（窗口关闭）时的清理逻辑
         return () => {
             containerRef.current?.removeEventListener('keydown', handleKeyDown, true);
             
             if (adminContainer) {
-                // 1. 关键：手动触发 Twikoo 原生关闭按钮的点击事件
-                // 这告诉 Twikoo 内部状态 "面板已关闭"，下次点击齿轮才会再次触发 open
+                // 1. 触发 Twikoo 原生关闭逻辑，重置状态
                 const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement;
-                if (closeBtn) {
-                    closeBtn.click();
-                }
+                if (closeBtn) closeBtn.click();
 
-                // 2. 将容器还给 body，防止 DOM 丢失
+                // 2. 将容器还给 body
                 document.body.appendChild(adminContainer)
                 
                 // 3. 隐藏容器
                 adminContainer.style.display = 'none' 
                 
-                // 4. 双重保险：移除显示类名
+                // 4. 移除显示类名
                 const adminInner = adminContainer.querySelector('.tk-admin')
                 if (adminInner) adminInner.classList.remove('__show')
             }
@@ -88,7 +89,6 @@ const TwikooAdminHost = () => {
 
     return (
         <div ref={containerRef} className="w-full h-full bg-white dark:bg-[#1e1e1e] overflow-y-auto p-4 select-text relative">
-            {/* 局部样式覆盖 */}
             <style jsx global>{`
                 .tk-admin-container .tk-admin { padding: 0 !important; max-width: 100% !important; }
                 .tk-admin-container { background: transparent !important; }
@@ -213,7 +213,7 @@ export const Messages = () => {
   const adminClassObserverRef = useRef<MutationObserver | null>(null) 
   const isProcessingRef = useRef(false)
   const layoutTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const isAdminOpeningRef = useRef(false) // 避免短时间内重复触发
+  const isAdminOpeningRef = useRef(false)
 
   const activeContact = CONTACTS.find(c => c.id === activeContactId) || CONTACTS[0]
   const filteredContacts = CONTACTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
@@ -243,15 +243,12 @@ export const Messages = () => {
       return { input: mainInput, btn: mainBtn, cancelBtn: null, isReplyMode: false }
   }, [])
 
-  // Admin 窗口触发逻辑
   const handleAdminTrigger = useCallback((targetElement: HTMLElement) => {
       if (targetElement.classList.contains('__show')) {
-          if (isAdminOpeningRef.current) return; // 防止重复
-          if (windows.some(w => w.id === 'twikoo-admin')) return; // 窗口已存在
+          if (isAdminOpeningRef.current) return;
+          if (windows.some(w => w.id === 'twikoo-admin')) return;
 
           isAdminOpeningRef.current = true;
-          
-          // 隐藏原生，用窗口显示
           const container = document.querySelector('.tk-admin-container') as HTMLElement;
           if (container) container.style.display = 'none';
 
@@ -265,7 +262,6 @@ export const Messages = () => {
             resizable: true,
           });
 
-          // 1秒冷却
           setTimeout(() => { isAdminOpeningRef.current = false }, 1000);
       }
   }, [launchApp, windows]);
@@ -393,7 +389,6 @@ export const Messages = () => {
 
   // --- Effects ---
   useEffect(() => {
-    // 监听 Admin 窗口触发
     const adminInner = document.querySelector('.tk-admin');
     if (adminInner) {
         if (!adminClassObserverRef.current) {
