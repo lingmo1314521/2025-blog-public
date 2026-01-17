@@ -10,7 +10,7 @@ import { useOs } from '../os-context'
 import { toast } from 'sonner' 
 
 // ==================================================================================
-// 1. Settings Modal (用户偏好设置，保留)
+// 1. Settings Modal (保留用户偏好设置)
 // ==================================================================================
 const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () => void }) => {
     const { t } = useI18n(); const [nick, setNick] = useState(''); const [mail, setMail] = useState(''); const [link, setLink] = useState('');
@@ -20,7 +20,7 @@ const SettingsModal = ({ onClose, onSave }: { onClose: () => void, onSave: () =>
 }
 
 // ==================================================================================
-// 3. Right Click Context Menu
+// 2. Right Click Context Menu
 // ==================================================================================
 const MessageContextMenu = ({ visible, x, y, targetElement, onClose }: any) => {
     const menuRef = useRef<HTMLDivElement>(null); const { t } = useI18n(); const [adjustedPos, setAdjustedPos] = useState({ x, y });
@@ -32,7 +32,7 @@ const MessageContextMenu = ({ visible, x, y, targetElement, onClose }: any) => {
 }
 
 // ==================================================================================
-// 4. Messages Application (还原版)
+// 3. Messages App (纯净版)
 // ==================================================================================
 export const Messages = () => {
   const { t } = useI18n()
@@ -88,14 +88,17 @@ export const Messages = () => {
       return { input: mainInput, btn: mainBtn, cancelBtn: null, isReplyMode: false }
   }, [])
 
-  // [还原] 触发 Twikoo 原生后台
-  // 因为我们 CSS 隐藏了 .tk-footer (包含原生齿轮)，所以这里需要手动代理点击
+  // [还原] 原生后台入口
   const handleOpenNativeAdmin = () => {
-      const settingIcon = document.querySelector('.tk-icon.__setting') as HTMLElement;
+      // 尝试点击被我们搬运的设置图标
+      const settingIcon = document.querySelector('#twikoo-moved-icons .tk-icon.__setting') as HTMLElement;
       if (settingIcon) {
           settingIcon.click();
       } else {
-          toast.error("Admin button not found yet. Please wait for load.");
+          // 备用：尝试在原 DOM 找
+          const originSetting = document.querySelector('.tk-comments-title .tk-icon.__setting') as HTMLElement;
+          if (originSetting) originSetting.click();
+          else toast.error("Admin button not found. Please wait for Twikoo to load.");
       }
   }
 
@@ -152,7 +155,6 @@ export const Messages = () => {
       return null;
   }
 
-  // [布局处理]
   const processLayout = useCallback(() => {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
@@ -162,18 +164,17 @@ export const Messages = () => {
 
     if (commentObserverRef.current) commentObserverRef.current.disconnect();
 
-    if (headerIconsRef.current && headerIconsRef.current.childNodes.length === 0) {
-        const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
-        if (originalHeader) {
-            const sourceIcons = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
-            if (sourceIcons.length > 0 && headerIconsRef.current) {
-                headerIconsRef.current.innerHTML = '';
-                sourceIcons.forEach(icon => {
-                    headerIconsRef.current?.appendChild(icon);
-                    (icon as HTMLElement).style.pointerEvents = 'auto';
-                    (icon as HTMLElement).style.cursor = 'pointer';
-                });
-            }
+    // 搬运图标
+    const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
+    if (originalHeader) {
+        const sourceIcons = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
+        if (sourceIcons.length > 0 && headerIconsRef.current) {
+            headerIconsRef.current.innerHTML = '';
+            sourceIcons.forEach(icon => {
+                headerIconsRef.current?.appendChild(icon);
+                (icon as HTMLElement).style.pointerEvents = 'auto';
+                (icon as HTMLElement).style.cursor = 'pointer';
+            });
         }
     }
 
@@ -295,9 +296,7 @@ export const Messages = () => {
         if (btn) {
             btn.click()
             setInputValue('')
-            
             processLayout();
-            
             let checkCount = 0;
             const refreshInterval = setInterval(() => {
                 const container = document.querySelector('.imessage-mode .tk-comments-container');
@@ -340,7 +339,6 @@ export const Messages = () => {
       <style jsx global>{`
          .imessage-mode .tk-admin-container { 
              /* 还原：不再强制隐藏，交还给 Twikoo 控制 */
-             /* display: none;  <-- 删除这行 */
          }
          
          .imessage-mode .tk-row { margin-bottom: 2px !important; display: flex !important; justify-content: flex-start !important; align-items: center !important; width: 100% !important; gap: 10px !important; }
@@ -381,9 +379,8 @@ export const Messages = () => {
             <div className="flex items-center gap-3"><span className="text-xs text-gray-400">{t('msg_to')}</span><div className="flex items-center gap-1 bg-blue-100/50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full border border-blue-200/50 dark:border-blue-500/20"><span className="text-xs font-bold text-blue-600 dark:text-blue-400">{activeContact.name}</span></div></div>
             <div className="flex gap-2">
                 <button onClick={() => setReloadKey(k => k + 1)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all cursor-pointer"><RefreshCw size={14} /></button>
-                {/* [还原] 这个按钮现在打开 Twikoo 原生后台 */}
+                {/* [还原] 使用 handleOpenNativeAdmin 触发原生后台 */}
                 <button onClick={handleOpenNativeAdmin} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all cursor-pointer" title="Admin Panel"><Shield size={16} /></button>
-                {/* 这个按钮打开你的个性化设置 */}
                 <button onClick={() => setShowSettings(true)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-all cursor-pointer" title={t('msg_settings_title')}><Settings size={16} /></button>
             </div>
         </div>
