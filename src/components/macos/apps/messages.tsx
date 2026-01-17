@@ -10,20 +10,20 @@ import { useOs } from '../os-context'
 import { toast } from 'sonner' 
 
 // ==================================================================================
-// 1. Twikoo Admin Host (关键修复：窗口关闭时同步触发 Twikoo 关闭逻辑)
+// 1. Twikoo Admin Host (修复关闭逻辑)
 // ==================================================================================
 const TwikooAdminHost = () => {
     const containerRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
-        // 获取全局隐藏的 Twikoo Admin 容器
+        // 1. 获取全局隐藏的 Twikoo Admin 容器
         const adminContainer = document.querySelector('.tk-admin-container') as HTMLElement
         
         if (adminContainer && containerRef.current) {
-            // 1. 将其搬运到当前窗口内
+            // 劫持容器，放入当前的 Window 窗口中
             containerRef.current.appendChild(adminContainer)
             
-            // 2. 强制显示并调整样式以适应窗口
+            // 强制覆盖样式，使其在当前窗口内全屏显示
             adminContainer.style.display = 'block'
             adminContainer.style.position = 'static'
             adminContainer.style.width = '100%'
@@ -41,12 +41,12 @@ const TwikooAdminHost = () => {
                 adminInner.style.maxWidth = '100%'
             }
 
-            // 3. 隐藏 Twikoo 原生的关闭按钮 (因为我们用 MacOS 窗口的红灯)
+            // 视觉上隐藏原生的关闭按钮（因为我们用红绿灯控制）
             const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement
             if (closeBtn) closeBtn.style.display = 'none' 
         }
 
-        // 修复密码框回车不登录的问题
+        // 修复 Twikoo 登录框回车键失效的问题
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Enter') {
                 const target = e.target as HTMLElement;
@@ -61,25 +61,25 @@ const TwikooAdminHost = () => {
 
         containerRef.current?.addEventListener('keydown', handleKeyDown, true);
 
-        // [关键修复] 组件卸载（窗口关闭）时的清理逻辑
+        // === [关键修复] 组件卸载时的清理逻辑 ===
         return () => {
             containerRef.current?.removeEventListener('keydown', handleKeyDown, true);
             
             if (adminContainer) {
-                // Step A: 必须先触发原生关闭按钮的点击！
-                // 这告诉 Twikoo 重置其内部 Vue 状态（如清空密码、重置 __show 类名等）
+                // 1. 先把容器还给 body，确保它回到文档流中 (防止在 detached DOM 中点击无效)
+                document.body.appendChild(adminContainer)
+
+                // 2. 找到关闭按钮
                 const closeBtn = adminContainer.querySelector('.tk-admin-close') as HTMLElement;
                 if (closeBtn) {
+                    // 临时恢复显示，确保点击事件能被某些通过 visibility 判断的框架捕获
+                    closeBtn.style.display = 'block'; 
+                    // 触发原生点击，通知 Twikoo 内部关闭逻辑 (Vue)
                     closeBtn.click(); 
                 }
 
-                // Step B: 将容器搬回 document.body，防止 React 销毁它
-                document.body.appendChild(adminContainer)
-                
-                // Step C: 恢复隐藏状态
+                // 3. 再次强制隐藏容器，确保视觉上消失
                 adminContainer.style.display = 'none' 
-                
-                // Step D: 双重保险，手动移除显示类名
                 const adminInner = adminContainer.querySelector('.tk-admin')
                 if (adminInner) adminInner.classList.remove('__show')
             }
@@ -88,7 +88,6 @@ const TwikooAdminHost = () => {
 
     return (
         <div ref={containerRef} className="w-full h-full bg-white dark:bg-[#1e1e1e] overflow-y-auto p-4 select-text relative">
-            {/* 局部样式覆盖，确保 Admin 面板在窗口内正确渲染 */}
             <style jsx global>{`
                 .tk-admin-container .tk-admin { padding: 0 !important; max-width: 100% !important; }
                 .tk-admin-container { background: transparent !important; }
@@ -249,7 +248,6 @@ export const Messages = () => {
       return null;
   }
 
-  // [布局处理]
   const processLayout = useCallback(() => {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
@@ -259,18 +257,16 @@ export const Messages = () => {
 
     if (commentObserverRef.current) commentObserverRef.current.disconnect();
 
-    if (headerIconsRef.current && headerIconsRef.current.childNodes.length === 0) {
-        const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
-        if (originalHeader) {
-            const sourceIcons = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
-            if (sourceIcons.length > 0 && headerIconsRef.current) {
-                headerIconsRef.current.innerHTML = ''; 
-                sourceIcons.forEach(icon => {
-                    headerIconsRef.current?.appendChild(icon); 
-                    (icon as HTMLElement).style.pointerEvents = 'auto';
-                    (icon as HTMLElement).style.cursor = 'pointer';
-                });
-            }
+    const originalHeader = document.querySelector('.imessage-mode .tk-comments-title');
+    if (originalHeader) {
+        const sourceIcons = Array.from(originalHeader.children).filter(child => !child.classList.contains('tk-comments-count'));
+        if (sourceIcons.length > 0 && headerIconsRef.current) {
+            headerIconsRef.current.innerHTML = '';
+            sourceIcons.forEach(icon => {
+                headerIconsRef.current?.appendChild(icon);
+                (icon as HTMLElement).style.pointerEvents = 'auto';
+                (icon as HTMLElement).style.cursor = 'pointer';
+            });
         }
     }
 
@@ -318,7 +314,6 @@ export const Messages = () => {
     isProcessingRef.current = false;
   }, [handleQuoteClick]);
 
-  // --- Effects ---
   useEffect(() => {
     const adminInner = document.querySelector('.tk-admin');
     if (adminInner && !adminClassObserverRef.current) {
