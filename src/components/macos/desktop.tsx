@@ -14,12 +14,11 @@ import { Spotlight } from './spotlight'
 import { Notifications } from './notifications'
 import { AppConfig } from './types'
 import { DocViewer } from './apps/doc-viewer'
-import { FileText, Edit3 } from 'lucide-react'
+import { FileText, Edit3, Volume2, VolumeX } from 'lucide-react'
 
-// [纯净版] 动态壁纸组件
+// [修改] 动态壁纸组件
 const DynamicWallpaper = ({ videoSrc, posterSrc }: { videoSrc: string, posterSrc: string }) => {
     const videoRef = useRef<HTMLVideoElement>(null)
-    // 状态保留，用于控制静音逻辑，但不再用于渲染UI提示
     const [hasInteracted, setHasInteracted] = useState(false)
 
     // 自动播放尝试 (静音启动)
@@ -43,7 +42,8 @@ const DynamicWallpaper = ({ videoSrc, posterSrc }: { videoSrc: string, posterSrc
 
     return (
         <div 
-            className="absolute inset-0 w-full h-full overflow-hidden pointer-events-auto bg-black" 
+            // [关键修改] top-8 让视频从菜单栏下方开始 (32px)，left/right/bottom-0 撑满剩余空间
+            className="absolute left-0 right-0 bottom-0 top-8 overflow-hidden pointer-events-auto bg-black" 
             onClick={handleUnlockAudio}
         >
             {/* 1. 静态底图 */}
