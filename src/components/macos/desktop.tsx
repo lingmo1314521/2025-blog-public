@@ -14,27 +14,26 @@ import { Spotlight } from './spotlight'
 import { Notifications } from './notifications'
 import { AppConfig } from './types'
 import { DocViewer } from './apps/doc-viewer'
-import { FileText, Edit3, Volume2, VolumeX } from 'lucide-react'
+import { FileText, Edit3 } from 'lucide-react'
 
-// [修复] 动态壁纸组件：去除了负数 z-index，防止被背景遮挡
+// [纯净版] 动态壁纸组件
 const DynamicWallpaper = ({ videoSrc, posterSrc }: { videoSrc: string, posterSrc: string }) => {
     const videoRef = useRef<HTMLVideoElement>(null)
-    const [isMuted, setIsMuted] = useState(true)
+    // 状态保留，用于控制静音逻辑，但不再用于渲染UI提示
     const [hasInteracted, setHasInteracted] = useState(false)
 
-    // 自动播放尝试
+    // 自动播放尝试 (静音启动)
     useEffect(() => {
         if (videoRef.current) {
-            videoRef.current.muted = true // 必须静音才能自动播放
+            videoRef.current.muted = true
             videoRef.current.play().catch(e => console.log("Autoplay blocked:", e))
         }
     }, [])
 
-    // 点击解锁声音
+    // 点击屏幕解锁声音 (隐形逻辑)
     const handleUnlockAudio = () => {
         if (!hasInteracted) {
             setHasInteracted(true)
-            setIsMuted(false)
             if (videoRef.current) {
                 videoRef.current.muted = false
                 videoRef.current.play().catch(console.error)
@@ -61,19 +60,11 @@ const DynamicWallpaper = ({ videoSrc, posterSrc }: { videoSrc: string, posterSrc
                 poster={posterSrc}
                 autoPlay
                 loop
-                muted={isMuted}
+                muted={true} // 初始静音
                 playsInline
             />
-
-            {/* 声音提示 */}
-            {isMuted && !hasInteracted && (
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/40 text-white/90 px-4 py-2 rounded-full backdrop-blur-md flex items-center gap-2 animate-pulse pointer-events-none z-10 border border-white/20 shadow-lg">
-                    <VolumeX size={16} />
-                    <span className="text-xs font-medium">Click screen to unmute</span>
-                </div>
-            )}
             
-            {/* 遮罩层，让文字更清晰 */}
+            {/* 视觉遮罩层：轻微压暗，让桌面图标更清晰 */}
             <div className="absolute inset-0 bg-black/10 pointer-events-none" />
         </div>
     )
@@ -92,7 +83,7 @@ const DesktopContent = ({ wallpaper, setWallpaper }: { wallpaper: string, setWal
     }
 
     const handleRefresh = () => { document.body.style.opacity = '0.5'; setTimeout(() => document.body.style.opacity = '1', 100); }
-    // [修复] 现在可以真正打开设置去换壁纸了
+    
     const handleChangeWallpaper = () => { 
         const s = dockItems.find((a:any) => a.id === 'settings'); 
         if(s) launchApp(s); 
@@ -128,7 +119,7 @@ const DesktopContent = ({ wallpaper, setWallpaper }: { wallpaper: string, setWal
             onContextMenu={(e) => handleContextMenu(e, 'desktop')} 
             onClick={() => setContextMenu(null)}
         >
-            {/* [修复] 壁纸层：直接作为第一个子元素渲染，不做 z-index hack */}
+            {/* 壁纸渲染区 */}
             {isLiveWallpaper ? (
                 <DynamicWallpaper videoSrc="/bg.mp4" posterSrc="/kl.webp" />
             ) : (
@@ -154,7 +145,6 @@ const DesktopContent = ({ wallpaper, setWallpaper }: { wallpaper: string, setWal
                         component = React.cloneElement(component as React.ReactElement, { ...window.props })
                     }
 
-                    // [修复] 将 setWallpaper 传递给设置应用
                     if (window.appId === 'settings') {
                         component = React.cloneElement(component as React.ReactElement, { setWallpaper })
                     }
@@ -189,9 +179,7 @@ const DesktopContent = ({ wallpaper, setWallpaper }: { wallpaper: string, setWal
     )
 }
 
-// [修复] 恢复 Desktop 组件的状态提升逻辑
 export const Desktop = ({ apps }: { apps: AppConfig[] }) => {
-  // 默认为 'live'，即显示鸣潮视频
   const [currentWallpaper, setCurrentWallpaper] = useState('live')
 
   return (
