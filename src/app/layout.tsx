@@ -1,7 +1,7 @@
 import '@/styles/globals.css'
 
 import type { Metadata } from 'next'
-import Layout from '@/layout'
+import LayoutWrapper from '@/components/layout-wrapper'
 import Head from '@/layout/head'
 import siteContent from '@/config/site-content.json'
 
@@ -39,7 +39,6 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
 	return (
 		<html lang='en' suppressHydrationWarning style={htmlStyle}>
 			<Head />
-
 			<body>
 				<script
 					dangerouslySetInnerHTML={{
@@ -51,7 +50,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
 					}}
 				/>
 
-				<Layout>{children}</Layout>
+                {/* 使用 LayoutWrapper 包裹 children */}
+				<LayoutWrapper>{children}</LayoutWrapper> 
 			</body>
 		</html>
 	)
