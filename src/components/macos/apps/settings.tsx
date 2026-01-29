@@ -1,16 +1,17 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Image as ImageIcon, Globe, Monitor, Volume2 } from 'lucide-react'
+import { Image as ImageIcon, Globe, Monitor, Volume2, PlayCircle } from 'lucide-react'
 import { useI18n } from '../i18n-context'
 import { clsx } from '../utils'
 
-// 壁纸数据
+// [修复] 添加 live 选项
 const WALLPAPERS = [
-  { id: 'monterey', url: 'https://images.unsplash.com/photo-1477346611705-65d1883cee1e?q=80&w=3270&auto=format&fit=crop' },
-  { id: 'big_sur', url: 'https://images.unsplash.com/photo-1493246507139-91e8fad9978e?q=80&w=2940&auto=format&fit=crop' },
-  { id: 'mojave', url: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=3270&auto=format&fit=crop' },
-  { id: 'dark_nebula', url: 'https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?q=80&w=2342&auto=format&fit=crop' },
+  { id: 'ww_live', url: 'live', name: 'Wuthering Waves (Live)', isVideo: true },
+  { id: 'monterey', url: 'https://images.unsplash.com/photo-1477346611705-65d1883cee1e?q=80&w=3270&auto=format&fit=crop', name: 'Monterey' },
+  { id: 'big_sur', url: 'https://images.unsplash.com/photo-1493246507139-91e8fad9978e?q=80&w=2940&auto=format&fit=crop', name: 'Big Sur' },
+  { id: 'mojave', url: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=3270&auto=format&fit=crop', name: 'Mojave' },
+  { id: 'dark_nebula', url: 'https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?q=80&w=2342&auto=format&fit=crop', name: 'Dark Nebula' },
 ]
 
 type Tab = 'wallpaper' | 'language' | 'display' | 'sound'
@@ -42,10 +43,17 @@ export const Settings = ({ setWallpaper }: { setWallpaper?: (url: string) => voi
                     <div className="grid grid-cols-2 gap-4">
                         {WALLPAPERS.map((wp) => (
                             <div key={wp.id} onClick={() => setWallpaper?.(wp.url)} className="group cursor-pointer space-y-2">
-                                <div className="aspect-video rounded-lg overflow-hidden border-4 border-transparent hover:border-blue-500/50 transition-all shadow-sm">
-                                    <img src={wp.url} alt={t(wp.id)} className="w-full h-full object-cover hover:scale-110 transition-transform duration-500" />
+                                <div className="aspect-video rounded-lg overflow-hidden border-4 border-transparent hover:border-blue-500/50 transition-all shadow-sm relative bg-black">
+                                    {wp.isVideo ? (
+                                        <div className="w-full h-full flex flex-col items-center justify-center bg-gray-800 text-white group-hover:scale-105 transition-transform">
+                                            <PlayCircle size={32} className="mb-2 text-yellow-400"/>
+                                            <span className="text-xs font-bold text-yellow-400">LIVE</span>
+                                        </div>
+                                    ) : (
+                                        <img src={wp.url} alt={wp.name} className="w-full h-full object-cover hover:scale-110 transition-transform duration-500" />
+                                    )}
                                 </div>
-                                <div className="text-center text-xs text-gray-500">{t(wp.id)}</div>
+                                <div className="text-center text-xs text-gray-500">{wp.name}</div>
                             </div>
                         ))}
                     </div>
