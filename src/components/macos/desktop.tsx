@@ -16,7 +16,7 @@ import { AppConfig } from './types'
 import { DocViewer } from './apps/doc-viewer'
 import { FileText, Edit3, Volume2, VolumeX } from 'lucide-react'
 
-// [修改] 动态壁纸组件
+// [优化版] 动态壁纸组件
 const DynamicWallpaper = ({ videoSrc, posterSrc }: { videoSrc: string, posterSrc: string }) => {
     const videoRef = useRef<HTMLVideoElement>(null)
     const [hasInteracted, setHasInteracted] = useState(false)
@@ -40,16 +40,22 @@ const DynamicWallpaper = ({ videoSrc, posterSrc }: { videoSrc: string, posterSrc
         }
     }
 
+    // [关键修改] 垂直对齐位置：'center 15%' 意味着重心上移，优先显示顶部内容（防削头）
+    const positionStyle = { objectPosition: 'center 15%' }
+    const bgPositionStyle = { backgroundPosition: 'center 15%' }
+
     return (
         <div 
-            // [关键修改] top-8 让视频从菜单栏下方开始 (32px)，left/right/bottom-0 撑满剩余空间
-            className="absolute left-0 right-0 bottom-0 top-8 overflow-hidden pointer-events-auto bg-black" 
+            className="absolute inset-0 w-full h-full overflow-hidden pointer-events-auto bg-black" 
             onClick={handleUnlockAudio}
         >
             {/* 1. 静态底图 */}
             <div 
-                className="absolute inset-0 bg-cover bg-center transition-opacity duration-1000"
-                style={{ backgroundImage: `url(${posterSrc})` }}
+                className="absolute inset-0 bg-cover transition-opacity duration-1000"
+                style={{ 
+                    backgroundImage: `url(${posterSrc})`,
+                    ...bgPositionStyle // 同步调整底图位置
+                }}
             />
             
             {/* 2. 视频层 */}
@@ -60,11 +66,12 @@ const DynamicWallpaper = ({ videoSrc, posterSrc }: { videoSrc: string, posterSrc
                 poster={posterSrc}
                 autoPlay
                 loop
-                muted={true} // 初始静音
+                muted={true}
                 playsInline
+                style={positionStyle} // 应用对齐样式
             />
             
-            {/* 视觉遮罩层：轻微压暗，让桌面图标更清晰 */}
+            {/* 视觉遮罩层：轻微压暗 */}
             <div className="absolute inset-0 bg-black/10 pointer-events-none" />
         </div>
     )
