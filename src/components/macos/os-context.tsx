@@ -3,7 +3,12 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react'
 import { AppConfig, OsContextState, WindowState, Notification } from './types'
 
-const OsContext = createContext<OsContextState | null>(null)
+// 扩展类型定义，增加 updateWindowProps
+interface OsContextType extends OsContextState {
+  updateWindowProps: (id: string, newProps: any) => void
+}
+
+const OsContext = createContext<OsContextType | null>(null)
 
 export const useOs = () => {
   const context = useContext(OsContext)
@@ -23,7 +28,7 @@ export const OsProvider = ({ children, installedApps }: OsProviderProps) => {
   
   const [isLaunchpadOpen, setIsLaunchpadOpen] = useState(false)
   const [isControlCenterOpen, setIsControlCenterOpen] = useState(false)
-  const [isLocked, setIsLocked] = useState(true)
+  const [isLocked, setIsLocked] = useState(false) // 默认不锁屏，提升体验
   const [isSpotlightOpen, setIsSpotlightOpen] = useState(false)
   const [notifications, setNotifications] = useState<Notification[]>([])
 
@@ -42,7 +47,6 @@ export const OsProvider = ({ children, installedApps }: OsProviderProps) => {
   const focusWindow = useCallback((id: string) => {
     setActiveWindowId(id)
     setWindows((prev) => prev.map((w) => w.id === id ? { ...w, zIndex: getTopZIndex() + 1, isMinimized: false } : w))
-    // 点击窗口时，关闭其他覆盖层
     setIsControlCenterOpen(false)
     setIsSpotlightOpen(false)
     setIsLaunchpadOpen(false)
@@ -64,38 +68,30 @@ export const OsProvider = ({ children, installedApps }: OsProviderProps) => {
     setIsControlCenterOpen(false)
     setIsSpotlightOpen(false)
 
-    // 注册 App (如果不在 registry 中)
     setRegistry((prev) => { if (prev.find(a => a.id === app.id)) return prev; return [...prev, app] })
 
     setWindows((prev) => {
       const existing = prev.find((w) => w.appId === app.id)
-      
-      // 如果窗口已存在
       if (existing) {
-        // 如果最小化了，还原它
         if (existing.isMinimized) {
             setTimeout(() => restoreWindow(existing.id), 0)
         } else {
-            // 否则置顶它
             setTimeout(() => focusWindow(existing.id), 0)
         }
-        
-        // 更新 Props
-        return prev.map(w => w.id === existing.id ? { 
-            ...w, 
-            props: props || w.props
-        } : w)
+        // 如果有新 props，更新它
+        if (props) {
+            return prev.map(w => w.id === existing.id ? { ...w, props: { ...w.props, ...props } } : w)
+        }
+        return prev
       }
 
-      // 如果窗口不存在，创建新窗口
       const newWindow: WindowState = {
-        id: app.id, // 对于单例 App 使用 appId 作为 id，多开 App 需要生成唯一 ID
+        id: app.id, 
         appId: app.id, 
         title: app.title, 
         isMinimized: false, 
         isMaximized: false,
         zIndex: getTopZIndex() + 1,
-        // 简单的层叠定位逻辑
         position: { x: 100 + (prev.length % 5) * 30, y: 80 + (prev.length % 5) * 30 }, 
         size: { width: app.width || 800, height: app.height || 600 },
         props: props
@@ -135,6 +131,11 @@ export const OsProvider = ({ children, installedApps }: OsProviderProps) => {
     setWindows((prev) => prev.map((w) => w.id === id ? { ...w, position: { x, y } } : w))
   }, [])
 
+  // [NEW] 更新窗口属性的方法
+  const updateWindowProps = useCallback((id: string, newProps: any) => {
+    setWindows((prev) => prev.map((w) => w.id === id ? { ...w, props: { ...w.props, ...newProps } } : w))
+  }, [])
+
   const bringToFront = useCallback((id: string) => focusWindow(id), [focusWindow])
   const toggleLaunchpad = useCallback((v?: boolean) => setIsLaunchpadOpen(p => v ?? !p), [])
   const toggleControlCenter = useCallback((v?: boolean) => setIsControlCenterOpen(p => v ?? !p), [])
@@ -159,7 +160,8 @@ export const OsProvider = ({ children, installedApps }: OsProviderProps) => {
         brightness, volume, setBrightness, setVolume,
         
         launchApp, closeWindow, minimizeWindow, maximizeWindow, restoreWindow, focusWindow, bringToFront, resizeWindow, updateWindowPos,
-        toggleLaunchpad, toggleControlCenter, setIsLocked, toggleSpotlight, addNotification, removeNotification
+        toggleLaunchpad, toggleControlCenter, setIsLocked, toggleSpotlight, addNotification, removeNotification,
+        updateWindowProps // [NEW] 导出新方法
     }}>
       {children}
     </OsContext.Provider>
